@@ -4,19 +4,142 @@ version = "0.1.0"
 description = "ML-based figure skating biomechanics analysis"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "ultralytics>=0.3.0",
+    "opencv-python>=4.10.0",
+    "numpy>=2.0.0",
+    "mediapipe>=0.10.0",
+    "torch>=2.5.0",
+    "dtw-python>=1.5.0",
+    "scipy>=1.14.0",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.uv]
-dev-dependencies = []
+[tool.hatch.build.targets.wheel]
+packages = ["src/skating_biomechanics_ml"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.0.0",
+    "vulture>=2.0",
+    "jupyter>=1.0.0",
+]
+
+[project.scripts]
+# Quality checks
+lint = "ruff check ."
+format = "ruff format ."
+typecheck = "mypy src/"
+deadcode = "vulture src/ tests/ --min-confidence 80"
+check = "python scripts/check_all.py"
+
+# Testing
+test = "pytest tests/ -v"
+test-cov = "pytest tests/ --cov=src/skating_biomechanics_ml --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented out code)
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+]
+unfixable = [
+    "ERA",    # don't auto-remove commented out code
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["skating_biomechanics_ml"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ARG", "PLR2004"]
+"__init__.py" = ["F401"]  # unused imports
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "cv2.*",
+    "mediapipe.*",
+    "ultralytics.*",
+    "dtw.*",
+    "torch.*",
+]
+ignore_missing_imports = true
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src", "tests"]
+exclude = ["__init__.py"]
+make_whitelist = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = [
+    "--cov=src/skating_biomechanics_ml",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

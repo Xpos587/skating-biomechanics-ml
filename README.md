@@ -63,6 +63,55 @@ skating-biomechanics-ml/
 
 См. [`research/RESEARCH.md`](research/RESEARCH.md) — полное исследование архитектур, алгоритмов и готовых решений.
 
+## Качество кода
+
+### Линтер и форматировщик (Ruff)
+
+```bash
+uv run ruff check .           # Проверка кода
+uv run ruff check . --fix     # Автоисправление
+uv run ruff format .          # Форматирование
+```
+
+### Тайпчекинг (MyPy)
+
+```bash
+uv run mypy src/              # Проверка типов
+```
+
+### Мёртвый код (Vulture)
+
+```bash
+uv run vulture src/ tests/ --min-confidence 80
+```
+
+### Все проверки сразу
+
+```bash
+uv run python scripts/check_all.py
+```
+
+| Инструмент | Назначение |
+|------------|------------|
+| **Ruff** | Линтер + форматировщик (замена flake8, black, isort) |
+| **MyPy** | Статическая типизация |
+| **Vulture** | Поиск неиспользуемого кода |
+| **Pytest** | Тесты с покрытием (coverage) |
+
+## Разработка
+
+```bash
+# Запуск конкретной проверки
+uv run lint          # Ruff lint
+uv run format        # Ruff format
+uv run typecheck     # MyPy
+uv run deadcode      # Vulture
+uv run test          # Pytest
+
+# Синхронизация зависимостей
+uv sync
+```
+
 ## License
 
 MIT

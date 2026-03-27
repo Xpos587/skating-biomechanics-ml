@@ -1,0 +1,60 @@
+# Top-most EditorConfig file
+root = true
+
+# Default settings for all files
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Python files - PEP 8 recommends 4 spaces
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+# Jupyter Notebooks
+[*.ipynb]
+indent_size = 2
+
+# Markdown files - preserve trailing whitespace for hard breaks
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = 80
+
+# YAML files
+[*.{yml,yaml}]
+indent_size = 2
+
+# TOML files (pyproject.toml)
+[*.toml]
+indent_size = 2
+
+# JSON files
+[*.json]
+indent_size = 2
+
+# Shell scripts
+[*.{sh,bash}]
+indent_size = 2
+end_of_line = lf
+
+# Makefiles require tabs
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# Dockerfiles
+[Dockerfile*]
+indent_size = 2
+
+# Git files
+[.git*]
+charset = utf-8
+
+# CI/CD files
+[*.{yml,yaml}]
+# GitHub Actions, GitLab CI, etc.
+indent_size = 2
