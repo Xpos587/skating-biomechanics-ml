@@ -524,6 +524,47 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
 
 ---
 
+## GitHub Projects Found (2026-03-28)
+
+### Figure Skating Projects
+
+| Project | Stars | Description | Link | What to Use |
+|---------|-------|-------------|------|-------------|
+| **JudgeAI-LutzEdge** | 4 | 3D pose + IMU for blade edge judgment | github.com/ryota-skating/JudgeAI-LutzEdge | ✅ Already integrated (BladeEdgeDetector) |
+| **Figure-Skating-Quality-Assessment** | 6 | Multi-modal framework (CVPRW 2024) | github.com/ycwfs/Figure-Skating-Quality-Assessment | Multi-modal assessment |
+| **awesome.skating.ai** | 33 | Curated list of skating AI projects | github.com/na018/awesome.skating.ai | Project catalog |
+| **Figure-Skating-Action-Quality-Assessment** | 4 | Mamba Pyramid (ACM MM 2025) | github.com/ycwfs/Figure-Skating-Action-Quality-Assessment | Action quality models |
+
+### Biomechanics & 3D Pose Projects
+
+| Project | Stars | Description | Link | Integration Potential |
+|---------|-------|-------------|------|----------------------|
+| **Pose2Sim** ⭐ | 592 | 2D→3D→OpenSim pipeline | github.com/perfanalytics/pose2sim | 🔥 **HIGH** - Full pipeline |
+| **HSMR** | 608 | CVPR25 Oral biomechanically accurate 3D | github.com/IsshikiHugh/HSMR | SOTA reconstruction |
+| **SKEL** | 335 | SMPL→OpenSim (Siggraph Asia) | github.com/MarilynKeller/SKEL | SMPL integration |
+| **Sports2D** | 200 | 2D pose + joint angles | github.com/davidpagnon/Sports2D | Ready joint angle formulas |
+| **kineticstoolkit** | 110 | Biomechanics research toolkit | github.com/kineticstoolkit/kineticstoolkit | Analysis utilities |
+
+### Pose2Sim Highlights (v0.10+)
+
+**Features:**
+- ✅ Full pipeline: 2D pose → 3D → OpenSim kinematics
+- ✅ BlazePose support (same as our project!)
+- ✅ Multi-person tracking and association
+- ✅ Camera calibration and synchronization
+- ✅ Batch processing
+- ✅ OpenSim integration for biomechanics
+- 🆕 v0.11: Monocular 3D pose estimation (in development)
+
+**Modules to Explore:**
+- `Pose2Sim/poseEstimation.py` - 2D pose estimation
+- `Pose2Sim/triangulation.py` - 3D reconstruction
+- `Pose2Sim/filtering.py` - 3D coordinate filtering
+- `Pose2Sim/kinematics.py` - Joint angle computation
+- `Pose2Sim/personAssociation.py` - Multi-person tracking
+
+---
+
 ## Version History
 
 | Version | Date | Status | Notes |
