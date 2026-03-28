@@ -54,14 +54,14 @@ class AnalysisPipeline:
         self._smoothing_config = smoothing_config
 
         # Components will be lazy-loaded
-        self._detector: "PersonDetector | None" = None  # type: ignore[valid-type]
-        self._pose_extractor: "BlazePoseExtractor | None" = None  # type: ignore[valid-type]
-        self._normalizer: "PoseNormalizer | None" = None  # type: ignore[valid-type]
-        self._smoother: "PoseSmoother | None" = None  # type: ignore[valid-type]
-        self._phase_detector: "PhaseDetector | None" = None  # type: ignore[valid-type]
+        self._detector: PersonDetector | None = None  # type: ignore[valid-type]
+        self._pose_extractor: BlazePoseExtractor | None = None  # type: ignore[valid-type]
+        self._normalizer: PoseNormalizer | None = None  # type: ignore[valid-type]
+        self._smoother: PoseSmoother | None = None  # type: ignore[valid-type]
+        self._phase_detector: PhaseDetector | None = None  # type: ignore[valid-type]
         self._analyzer_factory: type | None = None
-        self._aligner: "MotionAligner | MotionDTWAligner | None" = None  # type: ignore[valid-type]
-        self._recommender: "Recommender | None" = None  # type: ignore[valid-type]
+        self._aligner: MotionAligner | MotionDTWAligner | None = None  # type: ignore[valid-type]
+        self._recommender: Recommender | None = None  # type: ignore[valid-type]
 
     def analyze(
         self,
@@ -100,8 +100,33 @@ class AnalysisPipeline:
         # Stage 2: Extract 2D poses
         raw_poses = self._get_pose_extractor().extract_video(video_path, crop=bbox)
 
+        # Stage 2.5: Estimate camera pose (for spatial reference)
+        import cv2
+        import numpy as np
+
+        from skating_biomechanics_ml.utils import SpatialReferenceDetector
+
+        spatial_detector = SpatialReferenceDetector(
+            hough_threshold=80,
+            hough_min_line_length=100,
+            hough_max_line_gap=10,
+        )
+        # Estimate from first frame (could sample multiple frames for robustness)
+        cap = cv2.VideoCapture(str(video_path))
+        ret, first_frame = cap.read()
+        camera_pose = spatial_detector.estimate_pose(first_frame) if ret else spatial_detector.estimate_pose(np.zeros((100, 100, 3), dtype=np.uint8))
+        cap.release()
+
+        # Stage 2.6: Compensate poses for camera tilt
+        # Only compensate if confidence is above threshold
+        if camera_pose.confidence > 0.1:
+            # Convert to pixel poses for compensation
+            compensated_poses = spatial_detector.compensate_poses(raw_poses, camera_pose)
+        else:
+            compensated_poses = raw_poses
+
         # Stage 3: Normalize poses
-        normalized = self._get_normalizer().normalize(raw_poses)
+        normalized = self._get_normalizer().normalize(compensated_poses)
 
         # Stage 3.5: Smooth poses (temporal filtering)
         if self._enable_smoothing:
@@ -194,8 +219,33 @@ class AnalysisPipeline:
         # Stage 2: Extract 2D poses
         raw_poses = self._get_pose_extractor().extract_video(video_path, crop=bbox)
 
+        # Stage 2.5: Estimate camera pose (for spatial reference)
+        import cv2
+        import numpy as np
+
+        from skating_biomechanics_ml.utils import SpatialReferenceDetector
+
+        spatial_detector = SpatialReferenceDetector(
+            hough_threshold=80,
+            hough_min_line_length=100,
+            hough_max_line_gap=10,
+        )
+        # Estimate from first frame (could sample multiple frames for robustness)
+        cap = cv2.VideoCapture(str(video_path))
+        ret, first_frame = cap.read()
+        camera_pose = spatial_detector.estimate_pose(first_frame) if ret else spatial_detector.estimate_pose(np.zeros((100, 100, 3), dtype=np.uint8))
+        cap.release()
+
+        # Stage 2.6: Compensate poses for camera tilt
+        # Only compensate if confidence is above threshold
+        if camera_pose.confidence > 0.1:
+            # Convert to pixel poses for compensation
+            compensated_poses = spatial_detector.compensate_poses(raw_poses, camera_pose)
+        else:
+            compensated_poses = raw_poses
+
         # Stage 3: Normalize poses
-        normalized = self._get_normalizer().normalize(raw_poses)
+        normalized = self._get_normalizer().normalize(compensated_poses)
 
         # Stage 3.5: Smooth poses (temporal filtering)
         if self._enable_smoothing:
@@ -242,16 +292,17 @@ class AnalysisPipeline:
         """Lazy-load pose smoother with One-Euro Filter."""
         if not self._enable_smoothing:
             # Return a no-op smoother that just returns input unchanged
-            from skating_biomechanics_ml.utils.smoothing import PoseSmoother
-
             # Create a minimal config that doesn't smooth (high cutoff)
-            from skating_biomechanics_ml.utils.smoothing import OneEuroFilterConfig
+            from skating_biomechanics_ml.utils.smoothing import OneEuroFilterConfig, PoseSmoother
 
             config = OneEuroFilterConfig(min_cutoff=100.0, beta=0.0, freq=fps)
             return PoseSmoother(config=config, freq=fps)
 
         if self._smoother is None:
-            from skating_biomechanics_ml.utils.smoothing import PoseSmoother, get_skating_optimized_config
+            from skating_biomechanics_ml.utils.smoothing import (
+                PoseSmoother,
+                get_skating_optimized_config,
+            )
 
             config = self._smoothing_config or get_skating_optimized_config(fps)
             self._smoother = PoseSmoother(config=config, freq=fps)

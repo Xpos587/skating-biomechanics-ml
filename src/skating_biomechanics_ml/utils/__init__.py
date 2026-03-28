@@ -1,4 +1,4 @@
-"""Utility modules for video processing, geometry, subtitle parsing, smoothing, visualization, blade edge detection, and physics optimization."""
+"""Utility modules for video processing, geometry, subtitle parsing, smoothing, visualization, blade edge detection, physics optimization, and spatial reference."""
 
 from skating_biomechanics_ml.utils.blade_edge_detector import (
     BladeEdgeDetector,
@@ -35,6 +35,12 @@ from skating_biomechanics_ml.utils.smoothing import (
     PoseSmoother,
     get_skating_optimized_config,
 )
+from skating_biomechanics_ml.utils.spatial_reference import (
+    CameraPose,
+    SpatialReferenceDetector,
+    compensate_angles_for_camera,
+    detect_horizon_angle,
+)
 from skating_biomechanics_ml.utils.subtitles import ElementEvent, SubtitleParser
 from skating_biomechanics_ml.utils.video import (
     extract_frames,
@@ -47,6 +53,7 @@ from skating_biomechanics_ml.utils.visualization import (
     draw_debug_hud,
     draw_edge_indicators,
     draw_skeleton,
+    draw_spatial_axes,
     draw_subtitle_cyrillic,
     draw_text_box,
     draw_trails,
@@ -77,6 +84,11 @@ __all__ = [
     "BoneConstraints",
     "PhysicsPoseOptimizer",
     "optimize_poses_with_physics",
+    # Spatial reference
+    "CameraPose",
+    "SpatialReferenceDetector",
+    "compensate_angles_for_camera",
+    "detect_horizon_angle",
     # Blade edge detection
     "BladeEdgeDetector",
     "BladeState",
@@ -102,4 +114,5 @@ __all__ = [
     "draw_debug_hud",
     "draw_text_box",
     "draw_blade_indicator_hud",
+    "draw_spatial_axes",
 ]

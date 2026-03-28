@@ -1,0 +1,56 @@
+{
+  "video1.ru": [
+    {
+      "name": "unknown",
+      "name_ru": "unknown",
+      "start": 21.189,
+      "end": 24.74,
+      "count": 4,
+      "instructions": null
+    },
+    {
+      "name": "three_turn",
+      "name_ru": "тройка",
+      "start": 24.75,
+      "end": 35.99,
+      "count": 3,
+      "instructions": null
+    },
+    {
+      "name": "three_turn",
+      "name_ru": "тройка",
+      "start": 89.8,
+      "end": 96.6,
+      "count": 3,
+      "instructions": null
+    }
+  ],
+  "video1": [
+    {
+      "name": "unknown",
+      "name_ru": "unknown",
+      "start": 21.189,
+      "end": 24.74,
+      "count": 4,
+      "instructions": null
+    },
+    {
+      "name": "three_turn",
+      "name_ru": "тройка",
+      "start": 24.75,
+      "end": 35.99,
+      "count": 3,
+      "instructions": null
+    },
+    {
+      "name": "three_turn",
+      "name_ru": "тройка",
+      "start": 89.8,
+      "end": 96.6,
+      "count": 3,
+      "instructions": null
+    }
+  ],
+  "video2": [],
+  "video3": []
+}

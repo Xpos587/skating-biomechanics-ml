@@ -1,0 +1,128 @@
+{
+  "id": "video2",
+  "filename": "video2.mp4",
+  "source_url": "https://youtu.be/y9fwL-3OCpk",
+  "title": "Фигурное катание - техника",
+  "description": "Видео о технике фигурного катания",
+  "video_metadata": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 25.0,
+    "num_frames": 1478,
+    "duration_sec": 59.12
+  },
+  "subtitle_file": "video2.vtt",
+  "analysis": {
+    "three_turn": {
+      "overall_score": 3.3,
+      "dtw_distance": null,
+      "metrics": [
+        {
+          "name": "trunk_lean",
+          "value": 11.43950366973877,
+          "unit": "deg",
+          "is_good": true,
+          "reference_range": [
+            -10,
+            15
+          ]
+        },
+        {
+          "name": "edge_change_smoothness",
+          "value": 0.0,
+          "unit": "score",
+          "is_good": false,
+          "reference_range": [
+            0.5,
+            1.0
+          ]
+        },
+        {
+          "name": "symmetry",
+          "value": 0.8493944150395691,
+          "unit": "score",
+          "is_good": false,
+          "reference_range": [
+            0,
+            0
+          ]
+        }
+      ],
+      "recommendations": [
+        "Резкая смена ребра (score 0.00). Плавно переводи вес с ребра на ребро. Представь, что рисуешь дугу коньком."
+      ]
+    },
+    "waltz_jump": {
+      "overall_score": 1.7,
+      "dtw_distance": null,
+      "metrics": [
+        {
+          "name": "airtime",
+          "value": 0.0,
+          "unit": "s",
+          "is_good": false,
+          "reference_range": [
+            0.3,
+            0.7
+          ]
+        },
+        {
+          "name": "max_height",
+          "value": 1.4994293451309204e-07,
+          "unit": "norm",
+          "is_good": false,
+          "reference_range": [
+            0.2,
+            0.5
+          ]
+        },
+        {
+          "name": "landing_knee_angle",
+          "value": 34.27997970581055,
+          "unit": "deg",
+          "is_good": false,
+          "reference_range": [
+            90,
+            130
+          ]
+        },
+        {
+          "name": "arm_position_score",
+          "value": 0.6541630327701569,
+          "unit": "score",
+          "is_good": true,
+          "reference_range": [
+            0.6,
+            1.0
+          ]
+        },
+        {
+          "name": "rotation_speed",
+          "value": 4493.03466796875,
+          "unit": "deg/s",
+          "is_good": false,
+          "reference_range": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "symmetry",
+          "value": 0.8493944150395691,
+          "unit": "score",
+          "is_good": false,
+          "reference_range": [
+            0,
+            0
+          ]
+        }
+      ],
+      "recommendations": [
+        "Недостаточное время полёта (0.00с вместо 0.30-0.70с). Работай над отталкиванием: укрепляй икроножные мышцы (прыжки на скакалке, выпады, упражнения на степ-платформе).",
+        "Чрезмерное сгибание коленей при приземлении. Попробуй более контролируемое приземление.",
+        "Отличная скорость вращения! Это выше референса.",
+        "Недостаточная высота прыжка (0.00 вместо 0.20-0.50). Работай над силой отталкивания: приседания, прыжки на двух ногах, упражнения на взрывную силу."
+      ]
+    }
+  }
+}

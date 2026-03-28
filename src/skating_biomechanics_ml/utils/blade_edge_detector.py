@@ -280,9 +280,16 @@ def detect_supporting_foot(
 
     # Combined score
     # If both indicators agree, confident
-    if hip_diff > 0.02 and knee_diff > 10:
+    # Lower thresholds for better detection
+    if hip_diff > 0.01 and knee_diff > 5:
         return "left"
-    elif hip_diff < -0.02 and knee_diff < -10:
+    elif hip_diff < -0.01 and knee_diff < -5:
+        return "right"
+
+    # Fallback: use hip position only (more reliable)
+    if hip_diff > 0.02:
+        return "left"
+    elif hip_diff < -0.02:
         return "right"
 
     # If indicators disagree or difference is small, unclear
@@ -677,25 +684,33 @@ class BladeEdgeDetector:
             end = min(len(states), i + window // 2 + 1)
             window_states = states[start:end]
 
-            # Count occurrences of each blade type
+            # Filter out UNKNOWN states for majority vote
+            valid_states = [s for s in window_states if s.blade_type != BladeType.UNKNOWN]
+
+            if not valid_states:
+                # All UNKNOWN - keep as UNKNOWN
+                smoothed.append(states[i])
+                continue
+
+            # Count occurrences of each blade type (excluding UNKNOWN)
             type_counts: dict[BladeType, int] = {}
             conf_sum = 0.0
             foot_angle_sum = 0.0
             ankle_angle_sum = 0.0
             accel_sum = 0.0
 
-            for s in window_states:
+            for s in valid_states:
                 type_counts[s.blade_type] = type_counts.get(s.blade_type, 0) + 1
                 conf_sum += s.confidence
                 foot_angle_sum += s.foot_angle
                 ankle_angle_sum += s.ankle_angle
                 accel_sum += s.vertical_accel
 
-            # Majority vote
+            # Majority vote (excluding UNKNOWN)
             dominant_type = max(type_counts, key=type_counts.get)
 
-            # Average values
-            n = len(window_states)
+            # Average values (only from valid states)
+            n = len(valid_states)
             smoothed.append(
                 BladeState(
                     blade_type=dominant_type,

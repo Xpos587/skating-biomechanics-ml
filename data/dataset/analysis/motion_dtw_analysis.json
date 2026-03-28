@@ -1,0 +1,12 @@
+{
+  "user_video": "video1.mp4",
+  "reference_video": "video2.mp4",
+  "total_distance": 2.9033498969866414,
+  "phases": [
+    {
+      "name": "full",
+      "distance": 2.9033498969866414,
+      "warp_points": 2794
+    }
+  ]
+}

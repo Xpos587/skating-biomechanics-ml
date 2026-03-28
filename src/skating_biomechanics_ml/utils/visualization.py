@@ -24,7 +24,6 @@ from PIL import Image, ImageDraw, ImageFont
 from skating_biomechanics_ml.types import (
     BLAZEPOSE_SKELETON_EDGES,
     BKey,
-    NormalizedPose,
     assert_pose_format,
 )
 
@@ -39,6 +38,7 @@ COLOR_LOW_CONFIDENCE = (0, 255, 255)  # Yellow - low confidence
 COLOR_EDGE_INSIDE = (255, 0, 0)  # Blue (BGR) = inside edge
 COLOR_EDGE_OUTSIDE = (0, 0, 255)  # Red (BGR) = outside edge
 COLOR_EDGE_FLAT = (0, 255, 255)  # Yellow = flat
+
 
 # Velocity color gradient (BGR): blue (slow) -> red (fast)
 def _get_velocity_color(speed: float, max_speed: float = 200.0) -> tuple[int, int, int]:
@@ -488,7 +488,9 @@ def draw_text_box(
 
     # Text with outline
     cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness + 1)
-    cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
+    cv2.putText(
+        frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness
+    )
 
 
 def draw_blade_indicator_hud(
@@ -520,10 +522,10 @@ def draw_blade_indicator_hud(
 
     # Color mapping for blade types
     blade_colors = {
-        BladeType.INSIDE: (0, 200, 0),      # Green
-        BladeType.OUTSIDE: (0, 0, 200),     # Red
-        BladeType.FLAT: (0, 200, 200),        # Yellow
-        BladeType.TOE_PICK: (200, 0, 0),     # Blue
+        BladeType.INSIDE: (0, 200, 0),  # Green
+        BladeType.OUTSIDE: (0, 0, 200),  # Red
+        BladeType.FLAT: (0, 200, 200),  # Yellow
+        BladeType.TOE_PICK: (200, 0, 0),  # Blue
         BladeType.UNKNOWN: (128, 128, 128),  # Gray
     }
 
@@ -562,6 +564,136 @@ def draw_blade_indicator_hud(
 
         label = f"R: {name} ({conf:.0%})"
         draw_text_box(frame, label, (x + box_size + 5, y + 20), font_scale=0.5)
+
+    return frame
+
+
+def draw_spatial_axes(
+    frame: np.ndarray,
+    camera_pose: object,  # CameraPose from spatial_reference
+    origin: tuple[int, int] | None = None,
+    length: int = 40,
+    font_scale: float = 0.4,
+) -> np.ndarray:
+    """Draw XYZ axes on frame to visualize spatial reference.
+
+    Shows the true vertical and horizontal directions relative to gravity,
+    compensating for camera tilt. This is essential for accurate angle
+    measurements in skating analysis.
+
+    Color coding (BGR):
+    - X axis (blue): parallel to ice, horizontal
+    - Y axis (green): forward direction (depth)
+    - Z axis (red): vertical (up, opposite to gravity)
+
+    Args:
+        frame: Video frame (H, W, 3) BGR.
+        camera_pose: CameraPose object with roll, pitch, yaw attributes.
+        origin: Pixel position for axes origin (x, y). Defaults to bottom-left.
+        length: Length of each axis in pixels.
+        font_scale: Font scale for labels.
+
+    Returns:
+        Frame with axes drawn (modified in-place).
+    """
+    if origin is None:
+        origin = (50, frame.shape[0] - 80)
+    """Draw XYZ axes on frame to visualize spatial reference.
+
+    Shows the true vertical and horizontal directions relative to gravity,
+    compensating for camera tilt. This is essential for accurate angle
+    measurements in skating analysis.
+
+    Color coding (BGR):
+    - X axis (blue): parallel to ice, horizontal
+    - Y axis (green): forward direction (depth)
+    - Z axis (red): vertical (up, opposite to gravity)
+
+    Args:
+        frame: Video frame (H, W, 3) BGR.
+        camera_pose: CameraPose object with roll, pitch, yaw attributes.
+        origin: Pixel position for axes origin (x, y). Defaults to bottom-left.
+        length: Length of each axis in pixels.
+        font_scale: Font scale for labels.
+
+    Returns:
+        Frame with axes drawn (modified in-place).
+    """
+    # Get rotation matrix from camera pose
+    from scipy.spatial.transform import Rotation
+
+    # Create rotation matrix
+    r = Rotation.from_euler(
+        "xyz", [camera_pose.roll, camera_pose.pitch, camera_pose.yaw], degrees=True
+    )
+    R = r.as_matrix()
+
+    # Axis directions in world space: X=right, Y=forward, Z=up
+    axes_world = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+    # Rotate axes by camera pose (to show how they appear from camera perspective)
+    axes_camera = R @ axes_world.T
+
+    # Colors (BGR): X=blue, Y=green, Z=red
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]  # BGR
+    labels = ["X", "Y", "Z"]
+
+    for i, (axis, color, label) in enumerate(zip(axes_camera.T, colors, labels)):
+        # Project 3D to 2D (simple orthographic)
+        # For visualization, we show X (horizontal) and Z (vertical)
+        if i == 1:  # Y axis (depth) - draw at an angle
+            scale = 0.5
+            end_x = int(origin[0] + axis[0] * length * scale)
+            end_y = int(origin[1] - axis[2] * length * scale)
+        else:  # X and Z axes
+            end_x = int(origin[0] + axis[0] * length)
+            end_y = int(origin[1] - axis[2] * length)
+
+        # Draw axis line with anti-aliasing
+        cv2.line(frame, origin, (end_x, end_y), color, 2, cv2.LINE_AA)
+
+        # Draw label
+        cv2.putText(
+            frame,
+            label,
+            (end_x + 5, end_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            color,
+            1,
+            cv2.LINE_AA,
+        )
+
+    # Draw pose info text (compact, below axes)
+    info_lines = [
+        f"R:{camera_pose.roll:.0f}° P:{camera_pose.pitch:.0f}°",
+        f"{camera_pose.source} [{camera_pose.confidence:.0%}]",
+    ]
+
+    y_offset = origin[1] + length + 5
+    for line in info_lines:
+        # Draw text with semi-transparent background
+        (w, h), _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (origin[0], y_offset - h - 2),
+            (origin[0] + w + 4, y_offset + 2),
+            (0, 0, 0),
+            -1,
+        )
+        cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+        cv2.putText(
+            frame,
+            line,
+            (origin[0], y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
+        )
+        y_offset += 12
 
     return frame
 

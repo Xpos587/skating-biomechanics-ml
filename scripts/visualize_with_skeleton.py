@@ -20,19 +20,21 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from skating_biomechanics_ml.pose_2d import BlazePoseExtractor, PoseNormalizer
+from skating_biomechanics_ml.pose_2d import BlazePoseExtractor
 from skating_biomechanics_ml.types import BKey
-from skating_biomechanics_ml.utils import get_skating_optimized_config
-from skating_biomechanics_ml.utils.smoothing import PoseSmoother
 from skating_biomechanics_ml.utils import (
     BladeEdgeDetector,
+    SpatialReferenceDetector,
     draw_debug_hud,
     draw_edge_indicators,
     draw_skeleton,
+    draw_spatial_axes,
     draw_subtitle_cyrillic,
     draw_trails,
     draw_velocity_vectors,
+    get_skating_optimized_config,
 )
+from skating_biomechanics_ml.utils.smoothing import PoseSmoother
 from skating_biomechanics_ml.utils.subtitles import SubtitleParser
 from skating_biomechanics_ml.utils.video import get_video_meta
 
@@ -170,7 +172,30 @@ def main() -> int:
         blade_detector = BladeEdgeDetector(smoothing_window=3)
         blade_states_left = blade_detector.detect_sequence(poses_viz, meta.fps, foot="left", check_supporting=True)
         blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
+
+        # Show breakdown
+        from collections import Counter
+        left_breakdown = Counter(s.blade_type.name for s in blade_states_left)
+        right_breakdown = Counter(s.blade_type.name for s in blade_states_right)
         print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
+        print(f"  Left breakdown: {dict(left_breakdown)}")
+        print(f"  Right breakdown: {dict(right_breakdown)}")
+
+    # Initialize blade states for loaded poses
+    if args.poses and args.poses.exists():
+        print("Detecting blade edge states from loaded poses...")
+        blade_detector = BladeEdgeDetector(smoothing_window=3)
+        blade_states_left = blade_detector.detect_sequence(poses_viz, meta.fps, foot="left", check_supporting=True)
+        blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
+        print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
+
+    # Initialize spatial reference detector (always)
+    print("Initializing spatial reference detector...")
+    spatial_detector = SpatialReferenceDetector(
+        hough_threshold=80,
+        hough_min_line_length=100,
+        hough_max_line_gap=10,
+    )
 
     # Load segments
     segments = []
@@ -250,6 +275,23 @@ def main() -> int:
         if args.layer >= 2 and current_pose_idx is not None:
             frame = draw_edge_indicators(
                 frame, poses_viz, current_pose_idx, meta.height, meta.width
+            )
+
+        # Draw spatial axes (all layers >= 1)
+        if args.layer >= 1:
+            # Estimate camera pose from current frame
+            camera_pose = spatial_detector.estimate_pose(frame)
+
+            # Log roll values periodically (every 100 frames)
+            if frame_idx % 100 == 0 and camera_pose.confidence > 0:
+                print(f"  Frame {frame_idx}: Roll={camera_pose.roll:.2f}°, Conf={camera_pose.confidence:.2f}, Source={camera_pose.source}")
+
+            # Draw XYZ axes in bottom-right corner
+            frame = draw_spatial_axes(
+                frame,
+                camera_pose,
+                origin=(meta.width - 150, meta.height - 80),
+                length=40,
             )
 
         # Layer 3: Coaching (subtitles)

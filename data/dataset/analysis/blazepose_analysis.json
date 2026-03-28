@@ -1,0 +1,92 @@
+{
+  "video1": {
+    "frames": 1439,
+    "keypoints": 33,
+    "phases": {
+      "name": "three_turn",
+      "start": 0,
+      "takeoff": 0,
+      "peak": 0,
+      "landing": 0,
+      "end": 1438
+    },
+    "phase_confidence": 0.0,
+    "metrics": {
+      "trunk_lean": {
+        "value": 16.485462188720703,
+        "unit": "deg",
+        "is_good": false
+      },
+      "edge_change_smoothness": {
+        "value": 0.0,
+        "unit": "score",
+        "is_good": false
+      },
+      "symmetry": {
+        "value": 0.8251989795826375,
+        "unit": "score",
+        "is_good": false
+      }
+    }
+  },
+  "video2": {
+    "frames": 1424,
+    "keypoints": 33,
+    "phases": {
+      "name": "three_turn",
+      "start": 0,
+      "takeoff": 0,
+      "peak": 0,
+      "landing": 0,
+      "end": 1423
+    },
+    "phase_confidence": 0.0,
+    "metrics": {
+      "trunk_lean": {
+        "value": 11.886961936950684,
+        "unit": "deg",
+        "is_good": true
+      },
+      "edge_change_smoothness": {
+        "value": 0.0,
+        "unit": "score",
+        "is_good": false
+      },
+      "symmetry": {
+        "value": 0.8452785718254745,
+        "unit": "score",
+        "is_good": false
+      }
+    }
+  },
+  "video3": {
+    "frames": 1454,
+    "keypoints": 33,
+    "phases": {
+      "name": "three_turn",
+      "start": 0,
+      "takeoff": 0,
+      "peak": 0,
+      "landing": 0,
+      "end": 1453
+    },
+    "phase_confidence": 0.0,
+    "metrics": {
+      "trunk_lean": {
+        "value": 6.195518493652344,
+        "unit": "deg",
+        "is_good": true
+      },
+      "edge_change_smoothness": {
+        "value": 0.0,
+        "unit": "score",
+        "is_good": false
+      },
+      "symmetry": {
+        "value": 0.9047095912974328,
+        "unit": "score",
+        "is_good": false
+      }
+    }
+  }
+}

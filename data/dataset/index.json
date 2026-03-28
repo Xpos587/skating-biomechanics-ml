@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "description": "Figure skating biomechanics dataset",
+  "elements": [
+    "three_turn",
+    "waltz_jump"
+  ],
+  "videos": [
+    {
+      "id": "video1",
+      "filename": "video1.mp4",
+      "url": "https://youtu.be/7wjiqGGv_RY",
+      "title": "Лига фигурного катания - тренировка по скольжению",
+      "description": "Обучающее видео о скольжении, тройках и базовых упражнениях"
+    },
+    {
+      "id": "video2",
+      "filename": "video2.mp4",
+      "url": "https://youtu.be/y9fwL-3OCpk",
+      "title": "Фигурное катание - техника",
+      "description": "Видео о технике фигурного катания"
+    },
+    {
+      "id": "video3",
+      "filename": "video3.mp4",
+      "url": "https://youtu.be/_29Z2EJ3nkI",
+      "title": "Фигурное катание - тренировка",
+      "description": "Тренировочное видео по фигурному катанию"
+    }
+  ]
+}
