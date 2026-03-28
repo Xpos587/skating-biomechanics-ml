@@ -299,9 +299,7 @@ def main() -> int:
 
         # Layer 0: Skeleton (use pixel coords for direct overlay)
         if args.layer >= 0 and current_pose_idx is not None:
-            frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
-
-            # Draw 3D skeleton if enabled
+            # Draw 3D skeleton if enabled (17 keypoints with depth color coding)
             if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
                 from src.pose_3d.blazepose_to_h36m import H36M_SKELETON_EDGES
                 from src.visualization import draw_skeleton_3d
@@ -313,6 +311,9 @@ def main() -> int:
                     meta.height,
                     meta.width,
                 )
+            else:
+                # Draw 2D skeleton (33 keypoints) when 3D is disabled
+                frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
 
         # Layer 1: Kinematics (use normalized coords)
         if args.layer >= 1 and current_pose_idx is not None:
