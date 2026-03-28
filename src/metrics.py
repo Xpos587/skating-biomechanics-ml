@@ -290,7 +290,12 @@ class BiomechanicsAnalyzer:
         return phases.airtime_sec(fps)
 
     def compute_jump_height(self, hip_y_series: TimeSeries, phases: ElementPhase) -> float:
-        """Compute maximum jump height.
+        """Compute maximum jump height using hip trajectory.
+
+        .. deprecated::
+            This method has ~60% error for low jumps due to landing knee flexion.
+            Use compute_jump_height_com() for physics-accurate results using
+            Center of Mass trajectory.
 
         Args:
             hip_y_series: Hip Y coordinates (lower = higher).
@@ -299,11 +304,21 @@ class BiomechanicsAnalyzer:
         Returns:
             Maximum height in normalized units.
 
-        Note:
-            This method uses hip trajectory only, which has ~60% error for
-            low jumps due to landing knee flexion. Use compute_jump_height_com()
-            for physics-accurate results.
+        Warning:
+            Deprecated - use compute_jump_height_com() for accurate results.
+            The hip-only method overestimates low jumps by up to 60% because
+            skaters land with bent knees, which affects hip position but not CoM.
         """
+        import warnings
+
+        warnings.warn(
+            "compute_jump_height() is deprecated due to 60% error for low jumps. "
+            "Use compute_jump_height_com() for physics-accurate results using "
+            "Center of Mass trajectory instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         # Get landing hip Y (reference level)
         landing_y = hip_y_series[phases.landing]
 

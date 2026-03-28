@@ -56,9 +56,9 @@ class PhaseDetector:
     def detect_jump_phases(self, poses: NormalizedPose, fps: float) -> PhaseDetectionResult:
         """Detect jump phases: takeoff, peak, landing.
 
-        Uses Center of Mass (CoM) trajectory with acceleration-based detection
-        for physics-accurate phase boundaries. Falls back to blade detection
-        if CoM detection fails.
+        Uses improved Center of Mass (CoM) trajectory with velocity-based detection
+        and adaptive sigma-based thresholds for better accuracy across different
+        video qualities and jump types. Falls back to blade detection if CoM fails.
 
         Args:
             poses: NormalizedPose (num_frames, 33, 2).
@@ -67,8 +67,8 @@ class PhaseDetector:
         Returns:
             PhaseDetectionResult with jump phase boundaries.
         """
-        # Try CoM-based detection first (physics-accurate)
-        com_result = self._detect_jump_phases_com(poses, fps)
+        # Try improved CoM-based detection first (adaptive thresholds)
+        com_result = self._detect_jump_phases_com_improved(poses, fps)
 
         # If low confidence, try blade detection as backup
         if com_result.confidence < 0.5:
@@ -144,6 +144,144 @@ class PhaseDetector:
         # Confidence based on peak prominence
         prominence = float(properties["prominences"][np.argmax(-properties["prominences"])])
         confidence = min(1.0, prominence / 0.1)
+
+        return PhaseDetectionResult(phases=phases, confidence=confidence)
+
+    def _detect_jump_phases_com_improved(
+        self, poses: NormalizedPose, fps: float
+    ) -> PhaseDetectionResult:
+        """Improved jump phase detection using CoM velocity with adaptive thresholds.
+
+        Uses vertical CoM velocity with adaptive sigma-based thresholds instead of
+        fixed prominence values. This provides better detection across different
+        video qualities and jump types.
+
+        Args:
+            poses: NormalizedPose (num_frames, 33, 2).
+            fps: Frame rate.
+
+        Returns:
+            PhaseDetectionResult with improved jump phase boundaries.
+        """
+        # Calculate CoM trajectory
+        com_y = calculate_com_trajectory(poses)
+
+        # Calculate vertical velocity (positive = upward, negative = downward)
+        vy = np.gradient(com_y) * fps
+
+        # Calculate standard deviation for adaptive thresholds
+        vy_std = np.std(vy)
+        com_y_std = np.std(com_y)
+
+        # Detect takeoff: positive velocity peak (skater pushing upward)
+        # Use 2-sigma threshold for sensitivity
+        takeoff_candidates, takeoff_props = find_peaks(
+            vy, height=2 * vy_std, distance=10
+        )
+
+        # Detect landing: negative velocity spike (impact)
+        # Use 3-sigma threshold for robustness against false positives
+        landing_candidates, landing_props = find_peaks(
+            -vy, height=3 * vy_std, distance=10
+        )
+
+        # Find peak: minimum CoM Y (maximum height)
+        if len(takeoff_candidates) > 0 and len(landing_candidates) > 0:
+            # Peak should be between takeoff and landing
+            first_takeoff = takeoff_candidates[0]
+            first_landing = landing_candidates[0]
+
+            # Search for peak in the expected region
+            search_start = max(0, first_takeoff)
+            search_end = min(len(poses), first_landing + 1)
+
+            com_y_search = com_y[search_start:search_end]
+            if len(com_y_search) > 0:
+                peak_offset = np.argmin(com_y_search)
+                peak_idx = search_start + peak_offset
+            else:
+                peak_idx = len(poses) // 2
+        else:
+            # Fallback to simple peak detection
+            peaks, properties = find_peaks(-com_y, prominence=0.02, distance=10)
+            if len(peaks) == 0:
+                peak_idx = len(poses) // 2
+            else:
+                peak_idx = peaks[np.argmax(-properties["prominences"])]
+
+        # Set takeoff and landing indices
+        if len(takeoff_candidates) > 0:
+            takeoff_idx = takeoff_candidates[0]
+        else:
+            takeoff_idx = max(0, peak_idx - 10)
+
+        if len(landing_candidates) > 0:
+            # Find first landing after peak
+            valid_landings = landing_candidates[landing_candidates > peak_idx]
+            if len(valid_landings) > 0:
+                landing_idx = valid_landings[0]
+            else:
+                landing_idx = min(len(poses) - 1, peak_idx + 10)
+        else:
+            landing_idx = min(len(poses) - 1, peak_idx + 10)
+
+        # Validate physical plausibility
+        airtime = (landing_idx - takeoff_idx) / fps
+
+        # Minimum airtime validation (0.3 seconds = ~9 frames at 30fps)
+        min_airtime_frames = int(0.3 * fps)
+        if airtime < 0.3:
+            # Airtime too short, likely false positive
+            return PhaseDetectionResult(
+                phases=ElementPhase(
+                    name="jump",
+                    start=0,
+                    takeoff=0,
+                    peak=len(poses) // 2,
+                    landing=len(poses) - 1,
+                    end=len(poses) - 1,
+                ),
+                confidence=0.0,
+            )
+
+        # Validate order: takeoff < peak < landing
+        if takeoff_idx >= peak_idx:
+            takeoff_idx = max(0, peak_idx - 5)
+
+        if landing_idx <= peak_idx:
+            landing_idx = min(len(poses) - 1, peak_idx + 5)
+
+        # Set boundaries (include preparation and recovery)
+        start_idx = max(0, takeoff_idx - 10)
+        end_idx = min(len(poses) - 1, landing_idx + 10)
+
+        phases = ElementPhase(
+            name="jump",
+            start=start_idx,
+            takeoff=takeoff_idx,
+            peak=peak_idx,
+            landing=landing_idx,
+            end=end_idx,
+        )
+
+        # Confidence based on multiple factors
+        # 1. Peak prominence (how distinct the jump is)
+        if takeoff_idx < peak_idx < landing_idx:
+            flight_com = com_y[takeoff_idx:landing_idx + 1]
+            prominence = float(np.max(flight_com) - np.min(flight_com))
+        else:
+            prominence = 0.01
+
+        # 2. Velocity signal strength (how clear the takeoff/landing is)
+        takeoff_signal = abs(vy[takeoff_idx]) if takeoff_idx < len(vy) else 0
+        landing_signal = abs(vy[landing_idx]) if landing_idx < len(vy) else 0
+
+        # Combine factors
+        confidence = min(1.0, (
+            min(1.0, prominence / 0.05) * 0.5 +  # Peak prominence (max 0.05)
+            min(1.0, takeoff_signal / (2 * vy_std)) * 0.3 +  # Takeoff clarity
+            min(1.0, landing_signal / (3 * vy_std)) * 0.2   # Landing clarity
+        ))
 
         return PhaseDetectionResult(phases=phases, confidence=confidence)
 
