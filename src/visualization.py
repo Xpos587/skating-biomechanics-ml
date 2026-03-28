@@ -24,6 +24,8 @@ from PIL import Image, ImageDraw, ImageFont
 from .types import (
     BLAZEPOSE_SKELETON_EDGES,
     BKey,
+    BladeType,
+    MotionDirection,
     assert_pose_format,
 )
 
@@ -963,5 +965,236 @@ def draw_3d_trajectory(
     # Draw current CoM position
     if points:
         cv2.circle(frame, points[-1], 6, (0, 255, 255), -1, cv2.LINE_AA)
+
+    return frame
+
+
+# ============================================================================
+# 3D Blade Detection Visualization
+# ============================================================================
+
+def draw_ice_trace(
+    frame: np.ndarray,
+    trace: "IceTrace",
+    height: int,
+    width: int,
+    focal_length: float = 500.0,
+    camera_distance: float = 5.0,
+) -> np.ndarray:
+    """Draw ice trace - path of blade on ice surface.
+
+    Args:
+        frame: Input frame (H, W, 3)
+        trace: IceTrace with points and blade types
+        height: Frame height
+        width: Frame width
+        focal_length: Camera focal length
+        camera_distance: Camera distance
+
+    Returns:
+        Frame with ice trace overlay
+    """
+    from .types import BladeType
+
+    frame = frame.copy()
+
+    if len(trace.points) < 2:
+        return frame
+
+    # Color mapping for blade types
+    color_map = {
+        BladeType.INSIDE: (255, 100, 100),    # Red/Cyan
+        BladeType.OUTSIDE: (100, 100, 255),   # Blue/Cyan
+        BladeType.FLAT: (100, 255, 100),      # Green
+        BladeType.TOE_PICK: (255, 255, 0),    # Cyan
+        BladeType.ROCKER: (255, 150, 0),      # Orange
+        BladeType.HEEL: (150, 0, 255),        # Purple
+        BladeType.UNKNOWN: (128, 128, 128),   # Gray
+    }
+
+    # Project 3D points to 2D
+    points_2d = []
+    for point in trace.points:
+        x, y, z = point
+        z_safe = z + camera_distance
+        if abs(z_safe) < 0.1:
+            z_safe = 0.1 if z_safe >= 0 else -0.1
+
+        x_proj = focal_length * x / z_safe
+        y_proj = focal_length * y / z_safe
+
+        # Convert to pixel coordinates (center origin)
+        px = int((x_proj + 1) * width / 2)
+        py = int((y_proj + 1) * height / 2)
+
+        if 0 <= px < width and 0 <= py < height:
+            points_2d.append((px, py))
+
+    # Draw trace segments with color based on blade type
+    for i in range(len(points_2d) - 1):
+        pt1 = points_2d[i]
+        pt2 = points_2d[i + 1]
+
+        # Get blade type for this segment
+        if i < len(trace.blade_types):
+            blade_type = trace.blade_types[i]
+            color = color_map.get(blade_type, (128, 128, 128))
+        else:
+            color = (128, 128, 128)
+
+        # Draw line segment
+        cv2.line(frame, pt1, pt2, color, 2, cv2.LINE_AA)
+
+    # Draw current position marker
+    if points_2d:
+        cv2.circle(frame, points_2d[-1], 5, (0, 255, 255), -1, cv2.LINE_AA)
+
+    return frame
+
+
+def draw_blade_state_3d_hud(
+    frame: np.ndarray,
+    blade_state: "BladeState3D",
+    position: tuple[int, int],
+    font_scale: float = 0.5,
+) -> np.ndarray:
+    """Draw 3D blade state information on HUD.
+
+    Args:
+        frame: Input frame (H, W, 3)
+        blade_state: BladeState3D with full 3D information
+        position: (x, y) position for HUD
+        font_scale: Font scale multiplier
+
+    Returns:
+        Frame with HUD overlay
+    """
+    from .types import BladeType, MotionDirection
+
+    frame = frame.copy()
+    x, y = position
+    line_height = int(20 * font_scale)
+
+    # Background box
+    box_width = 220
+    box_height = 140
+    cv2.rectangle(frame, (x - 5, y - 5), (x + box_width, y + box_height),
+                 (0, 0, 0), -1, cv2.LINE_AA)
+    cv2.rectangle(frame, (x - 5, y - 5), (x + box_width, y + box_height),
+                 (255, 255, 255), 1, cv2.LINE_AA)
+
+    # Foot label
+    foot_label = f"Foot: {blade_state.foot.upper()}"
+    cv2.putText(frame, foot_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+    y += line_height
+
+    # Blade type with color
+    blade_color = {
+        BladeType.INSIDE: (255, 100, 100),
+        BladeType.OUTSIDE: (100, 100, 255),
+        BladeType.FLAT: (100, 255, 100),
+        BladeType.TOE_PICK: (255, 255, 0),
+        BladeType.ROCKER: (255, 150, 0),
+        BladeType.HEEL: (150, 0, 255),
+        BladeType.UNKNOWN: (128, 128, 128),
+    }.get(blade_state.blade_type, (255, 255, 255))
+
+    blade_label = f"Blade: {blade_state.blade_type.value.upper()}"
+    cv2.putText(frame, blade_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.6, blade_color, 1, cv2.LINE_AA)
+    y += line_height
+
+    # Motion direction
+    direction_label = f"Direction: {blade_state.motion_direction.value.upper()}"
+    cv2.putText(frame, direction_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+    y += line_height
+
+    # Angles
+    angle_label = f"Foot: {blade_state.foot_angle:.1f}°  Ankle: {blade_state.ankle_angle:.1f}°"
+    cv2.putText(frame, angle_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.5, (200, 200, 200), 1, cv2.LINE_AA)
+    y += line_height
+
+    # Knee angle
+    knee_label = f"Knee: {blade_state.knee_angle:.1f}°"
+    cv2.putText(frame, knee_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.5, (200, 200, 200), 1, cv2.LINE_AA)
+    y += line_height
+
+    # Velocity
+    vx, vy, vz = blade_state.velocity_3d
+    # Clip to prevent overflow
+    vx, vy, vz = np.clip([vx, vy, vz], -1000.0, 1000.0)
+    vel_mag = (vx**2 + vy**2 + vz**2)**0.5
+    vel_mag = min(vel_mag, 99.99)  # Prevent overflow
+    vel_label = f"Velocity: {vel_mag:.2f} m/s"
+    cv2.putText(frame, vel_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.5, (200, 200, 200), 1, cv2.LINE_AA)
+    y += line_height
+
+    # Confidence
+    conf_color = (0, 255, 0) if blade_state.confidence > 0.7 else (0, 165, 255)
+    conf_label = f"Conf: {blade_state.confidence:.2f}"
+    cv2.putText(frame, conf_label, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale * 0.5, conf_color, 1, cv2.LINE_AA)
+
+    return frame
+
+
+def draw_motion_direction_arrow(
+    frame: np.ndarray,
+    direction: MotionDirection,
+    foot_pos: tuple[int, int],
+    arrow_length: int = 30,
+) -> np.ndarray:
+    """Draw arrow indicating motion direction.
+
+    Args:
+        frame: Input frame (H, W, 3)
+        direction: MotionDirection enum
+        foot_pos: (x, y) foot position on screen
+        arrow_length: Length of arrow in pixels
+
+    Returns:
+        Frame with direction arrow
+    """
+    frame = frame.copy()
+    x, y = foot_pos
+
+    # Arrow directions (offsets)
+    arrows = {
+        MotionDirection.FORWARD: (0, -arrow_length),
+        MotionDirection.BACKWARD: (0, arrow_length),
+        MotionDirection.LEFT: (-arrow_length, 0),
+        MotionDirection.RIGHT: (arrow_length, 0),
+        MotionDirection.DIAGONAL_LEFT: (-int(arrow_length * 0.7), -int(arrow_length * 0.7)),
+        MotionDirection.DIAGONAL_RIGHT: (int(arrow_length * 0.7), -int(arrow_length * 0.7)),
+        MotionDirection.ROTATION_LEFT: None,  # Draw circular arrow
+        MotionDirection.ROTATION_RIGHT: None,  # Draw circular arrow
+        MotionDirection.STATIONARY: None,  # No arrow
+    }
+
+    offset = arrows.get(direction)
+    if offset is None:
+        if direction == MotionDirection.ROTATION_LEFT:
+            # Draw counter-clockwise circle
+            cv2.circle(frame, (x, y), arrow_length // 2, (255, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame, "↺", (x - 10, y + 10), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (255, 255, 0), 2, cv2.LINE_AA)
+        elif direction == MotionDirection.ROTATION_RIGHT:
+            # Draw clockwise circle
+            cv2.circle(frame, (x, y), arrow_length // 2, (255, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame, "↻", (x - 10, y + 10), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (255, 255, 0), 2, cv2.LINE_AA)
+        # STATIONARY: draw nothing
+        return frame
+
+    # Draw arrow
+    end_x = x + offset[0]
+    end_y = y + offset[1]
+    cv2.arrowedLine(frame, (x, y), (end_x, end_y), (255, 255, 0),
+                    3, cv2.LINE_AA, tipLength=0.3)
 
     return frame

@@ -22,14 +22,19 @@ import numpy as np
 
 from src.blazepose_extractor import BlazePoseExtractor
 from src.blade_edge_detector import BladeEdgeDetector
+from src.blade_edge_detector_3d import BladeEdgeDetector3D, DetectionConfig
 from src.smoothing import PoseSmoother, get_skating_optimized_config
 from src.spatial_reference import SpatialReferenceDetector
 from src.subtitles import SubtitleParser
 from src.types import BKey
 from src.video import get_video_meta
 from src.visualization import (
+    draw_3d_trajectory,
+    draw_blade_state_3d_hud,
     draw_debug_hud,
     draw_edge_indicators,
+    draw_ice_trace,
+    draw_motion_direction_arrow,
     draw_skeleton,
     draw_spatial_axes,
     draw_subtitle_cyrillic,
@@ -60,6 +65,11 @@ def main() -> int:
         "--model-3d",
         type=Path,
         help="Path to 3D pose model (motionagformer-s-ap3d.pth.tr)",
+    )
+    parser.add_argument(
+        "--blade-3d",
+        action="store_true",
+        help="Enable 3D blade detection (edge zones, motion direction, ice trace)",
     )
     parser.add_argument("--output", type=Path, help="Output video path")
     parser.add_argument(
@@ -230,6 +240,30 @@ def main() -> int:
             poses_3d = estimator.estimate_3d(poses_h36m)
             print(f"3D poses estimated: {poses_3d.shape}")
 
+    # Initialize 3D blade detector if requested
+    blade_detector_3d = None
+    blade_states_3d_left = []
+    blade_states_3d_right = []
+    if args.blade_3d and poses_3d is not None:
+        print("Initializing 3D blade detector...")
+        blade_detector_3d = BladeEdgeDetector3D(fps=meta.fps)
+
+        # Process 3D poses to detect blade states
+        from src.pose_3d.blazepose_to_h36m import h36m_to_blazepose
+
+        # Convert H3.6M 3D poses back to BlazePose format for foot detection
+        # For now, use direct H3.6M indices
+        for i, pose_3d in enumerate(poses_3d):
+            # Detect left foot blade state
+            state_left = blade_detector_3d.detect_frame(pose_3d, i, foot="left")
+            blade_states_3d_left.append(state_left)
+
+            # Detect right foot blade state
+            state_right = blade_detector_3d.detect_frame(pose_3d, i, foot="right")
+            blade_states_3d_right.append(state_right)
+
+        print(f"3D blade states: {len(blade_states_3d_left)} left, {len(blade_states_3d_right)} right")
+
     # Initialize spatial reference detector (always)
     print("Initializing spatial reference detector...")
     spatial_detector = SpatialReferenceDetector(
@@ -346,6 +380,35 @@ def main() -> int:
             frame = draw_edge_indicators(
                 frame, poses_viz, current_pose_idx, meta.height, meta.width
             )
+
+            # Draw 3D blade state HUD if enabled
+            if args.blade_3d and blade_states_3d_left and current_pose_idx < len(blade_states_3d_left):
+                # Left foot HUD (top-left)
+                frame = draw_blade_state_3d_hud(
+                    frame,
+                    blade_states_3d_left[current_pose_idx],
+                    position=(10, 50),
+                    font_scale=0.5,
+                )
+
+            if args.blade_3d and blade_states_3d_right and current_pose_idx < len(blade_states_3d_right):
+                # Right foot HUD (top-right)
+                frame = draw_blade_state_3d_hud(
+                    frame,
+                    blade_states_3d_right[current_pose_idx],
+                    position=(meta.width - 230, 50),
+                    font_scale=0.5,
+                )
+
+            # Draw ice trace for left foot (Layer 2+)
+            if args.blade_3d and blade_detector_3d and current_pose_idx > 10:
+                # Get ice trace for left foot (recent history)
+                left_trace = blade_detector_3d.get_ice_trace("left")
+                if len(left_trace.points) > 2:
+                    # Project and draw trace
+                    frame = draw_ice_trace(
+                        frame, left_trace, meta.height, meta.width
+                    )
 
         # Draw spatial axes (all layers >= 1)
         if args.layer >= 1:

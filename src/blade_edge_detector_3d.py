@@ -183,16 +183,20 @@ class BladeEdgeDetector3D:
 
         Returns 3D velocity vector (vx, vy, vz).
         """
-        history = self._velocity_history[foot]
+        history = self._position_history[foot]
 
         if len(history) < 2:
             return np.zeros(3, dtype=np.float32)
 
-        # Calculate average velocity from recent history
-        prev_pos = history[-1]  # This should actually be position, not velocity
-        # For now, use simple difference
+        # Get previous position from position history
+        prev_pos = history[-1]
         velocity = current_pos - prev_pos
-        return velocity * self.fps  # Convert to m/s
+
+        # Scale to reasonable range (3D poses may be in arbitrary units)
+        # Clip to prevent overflow
+        velocity = np.clip(velocity, -10.0, 10.0)
+
+        return velocity * self.fps  # Convert to units/s
 
     def _detect_motion_direction(
         self, velocity: NDArray, foot: str
