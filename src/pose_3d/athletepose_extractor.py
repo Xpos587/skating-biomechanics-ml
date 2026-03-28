@@ -75,6 +75,17 @@ class AthletePose3DExtractor:
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model not found: {self.model_path}")
 
+        # Import MotionAGFormer from our models directory
+        import sys
+        from pathlib import Path
+
+        # Add models directory to path
+        models_dir = Path(__file__).parent.parent / "models"
+        if str(models_dir) not in sys.path:
+            sys.path.insert(0, str(models_dir))
+
+        from motionagformer import MotionAGFormer
+
         # Load checkpoint
         checkpoint = torch.load(
             self.model_path,
@@ -82,25 +93,55 @@ class AthletePose3DExtractor:
             weights_only=False,
         )
 
-        # Model architecture depends on type
-        # This is a placeholder - actual model loading depends on
-        # the AthletePose3D repository implementation
+        # Determine model configuration based on type
         if self.model_type == "motionagformer-s":
-            from .models import MotionAgFormerS  # type: ignore
-
-            self.model = MotionAgFormerS()
-        elif self.model_type == "tcpformer":
-            from .models import TCPFormer  # type: ignore
-
-            self.model = TCPFormer()
+            # Small model: fewer layers, smaller dimension
+            n_layers = 4
+            dim_feat = 64
+            n_frames = 81
+        elif self.model_type == "motionagformer-b":
+            # Base model
+            n_layers = 8
+            dim_feat = 128
+            n_frames = 81
         else:
-            raise ValueError(f"Unknown model type: {self.model_type}")
+            # Default to small config
+            n_layers = 4
+            dim_feat = 64
+            n_frames = 81
 
-        # Load weights
+        # Create model
+        self.model = MotionAGFormer(
+            n_layers=n_layers,
+            dim_in=2,  # 2D input (x, y)
+            dim_feat=dim_feat,
+            dim_rep=512,
+            dim_out=3,  # 3D output (x, y, z)
+            num_heads=4,
+            num_joints=17,
+            n_frames=n_frames,
+        )
+
+        # Load weights (handle different key formats)
         if "model_state_dict" in checkpoint:
-            self.model.load_state_dict(checkpoint["model_state_dict"])
+            state_dict = checkpoint["model_state_dict"]
+        elif "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
         else:
-            self.model.load_state_dict(checkpoint)
+            state_dict = checkpoint
+
+        # Try to load state dict, stripping prefixes if needed
+        try:
+            self.model.load_state_dict(state_dict)
+        except RuntimeError as e:
+            # Try stripping 'model.' prefix
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith("model."):
+                    new_state_dict[k[6:]] = v
+                else:
+                    new_state_dict[k] = v
+            self.model.load_state_dict(new_state_dict, strict=False)
 
         self.model.to(self.device)
         self.model.eval()

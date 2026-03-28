@@ -20,11 +20,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src import blazepose_extractor, normalizer BlazePoseExtractor
+from src import blazepose_extractor, normalizer
+from src.blade_edge_detector import BladeEdgeDetector
+from src.smoothing import PoseSmoother, get_skating_optimized_config
+from src.spatial_reference import SpatialReferenceDetector
+from src.subtitles import SubtitleParser
 from src.types import BKey
-from src import (
-    BladeEdgeDetector,
-    SpatialReferenceDetector,
+from src.video import get_video_meta
+from src.visualization import (
     draw_debug_hud,
     draw_edge_indicators,
     draw_skeleton,
@@ -32,11 +35,7 @@ from src import (
     draw_subtitle_cyrillic,
     draw_trails,
     draw_velocity_vectors,
-    get_skating_optimized_config,
 )
-from src.smoothing import PoseSmoother
-from src.subtitles import SubtitleParser
-from src.video import get_video_meta
 
 
 def main() -> int:
@@ -50,6 +49,16 @@ def main() -> int:
         choices=[0, 1, 2, 3],
         default=3,
         help="HUD layer: 0=Raw, 1=Kinematics, 2=Technical, 3=Coaching (default: 3)",
+    )
+    parser.add_argument(
+        "--3d",
+        action="store_true",
+        help="Enable 3D pose visualization with depth color coding",
+    )
+    parser.add_argument(
+        "--model-3d",
+        type=Path,
+        help="Path to 3D pose model (motionagformer-s-ap3d.pth.tr)",
     )
     parser.add_argument("--output", type=Path, help="Output video path")
     parser.add_argument(
@@ -189,6 +198,36 @@ def main() -> int:
         blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
         print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
 
+    # Initialize 3D pose extraction if requested
+    poses_3d = None
+    if args.d_3d:
+        if args.model_3d and args.model_3d.exists():
+            print(f"Loading 3D model: {args.model_3d}")
+            from src.pose_3d import AthletePose3DExtractor
+            from src.pose_3d import blazepose_to_h36m
+
+            # Convert BlazePose to H3.6M format
+            poses_h36m = blazepose_to_h36m(poses_viz)
+
+            # Extract 3D poses
+            extractor = AthletePose3DExtractor(
+                model_path=args.model_3d,
+                model_type="motionagformer-s"
+            )
+            poses_3d = extractor.extract_sequence(poses_h36m)
+            print(f"3D poses extracted: {poses_3d.shape}")
+        else:
+            print("Using biomechanics-based 3D estimation...")
+            from src.pose_3d import blazepose_to_h36m, Biomechanics3DEstimator
+
+            # Convert BlazePose to H3.6M format
+            poses_h36m = blazepose_to_h36m(poses_viz)
+
+            # Use simple biomechanics estimator
+            estimator = Biomechanics3DEstimator()
+            poses_3d = estimator.estimate_3d(poses_h36m)
+            print(f"3D poses estimated: {poses_3d.shape}")
+
     # Initialize spatial reference detector (always)
     print("Initializing spatial reference detector...")
     spatial_detector = SpatialReferenceDetector(
@@ -260,6 +299,19 @@ def main() -> int:
         if args.layer >= 0 and current_pose_idx is not None:
             frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
 
+            # Draw 3D skeleton if enabled
+            if args.d_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
+                from src.pose_3d.blazepose_to_h36m import H36M_SKELETON_EDGES
+                from src.visualization import draw_skeleton_3d
+
+                frame = draw_skeleton_3d(
+                    frame,
+                    poses_3d[current_pose_idx],
+                    H36M_SKELETON_EDGES,
+                    meta.height,
+                    meta.width,
+                )
+
         # Layer 1: Kinematics (use normalized coords)
         if args.layer >= 1 and current_pose_idx is not None:
             frame = draw_velocity_vectors(
@@ -270,6 +322,21 @@ def main() -> int:
             frame = draw_trails(
                 frame, trail_history, BKey.LEFT_ANKLE, meta.height, meta.width
             )
+
+            # Draw 3D CoM trajectory if enabled
+            if args.d_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
+                from src.visualization import draw_3d_trajectory
+                from src.analysis import PhysicsEngine
+
+                # Calculate CoM for the trajectory up to current frame
+                engine = PhysicsEngine(body_mass=60.0)
+                com_trajectory = engine.calculate_center_of_mass(poses_3d[:current_pose_idx + 1])
+
+                # Draw CoM trajectory
+                if len(com_trajectory) > 1:
+                    frame = draw_3d_trajectory(
+                        frame, com_trajectory, meta.height, meta.width
+                    )
 
         # Layer 2: Technical (edge indicators - use normalized coords)
         if args.layer >= 2 and current_pose_idx is not None:
