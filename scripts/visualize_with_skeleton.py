@@ -514,9 +514,13 @@ def main() -> int:
         active_segment = _get_active_segment(segments, frame_idx)
         kinematics = _compute_kinematics(poses_viz, current_pose_idx if current_pose_idx is not None else 0, meta.fps)
 
-        # Get blade states for current frame
-        blade_left = blade_states_left[current_pose_idx] if current_pose_idx is not None and current_pose_idx < len(blade_states_left) else None
-        blade_right = blade_states_right[current_pose_idx] if current_pose_idx is not None and current_pose_idx < len(blade_states_right) else None
+        # Get blade states for current frame (prefer 3D if available)
+        if blade_states_3d_left and current_pose_idx is not None and current_pose_idx < len(blade_states_3d_left):
+            blade_left = blade_states_3d_left[current_pose_idx]
+            blade_right = blade_states_3d_right[current_pose_idx] if current_pose_idx < len(blade_states_3d_right) else None
+        else:
+            blade_left = blade_states_left[current_pose_idx] if current_pose_idx is not None and current_pose_idx < len(blade_states_left) else None
+            blade_right = blade_states_right[current_pose_idx] if current_pose_idx is not None and current_pose_idx < len(blade_states_right) else None
 
         frame = draw_debug_hud(
             frame,
