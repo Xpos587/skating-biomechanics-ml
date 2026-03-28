@@ -1017,6 +1017,10 @@ def draw_skeleton_3d_pip(
     width: int,
     camera_matrix: np.ndarray | None = None,
     camera_z: float = 1.8,
+    auto_scale: bool = True,
+    padding: float = 0.1,
+    fixed_scale: float | None = None,
+    fixed_offset: tuple[float, float] | None = None,
 ) -> np.ndarray:
     """Draw 3D skeleton in top-right corner (natural background).
 
@@ -1028,6 +1032,10 @@ def draw_skeleton_3d_pip(
         width: Frame width (main video)
         camera_matrix: 3x3 camera intrinsic matrix (auto-calculated if None)
         camera_z: Distance of camera from subject (smaller = larger skeleton)
+        auto_scale: If True, scale skeleton to fill PIP area (default: True)
+        padding: Padding fraction when auto_scale=True (default: 0.1 = 10%)
+        fixed_scale: Pre-computed scale factor (overrides auto_scale per-frame)
+        fixed_offset: Pre-computed (x_center, y_center) offset
 
     Returns:
         Frame with PIP skeleton overlay
@@ -1040,14 +1048,52 @@ def draw_skeleton_3d_pip(
     pip_x = width - pip_width
     pip_y = 0
 
+    # Center 3D skeleton at origin before projection (prevents jumping in PIP)
+    # Calculate skeleton center (mean of all joints)
+    center_3d = pose_3d.mean(axis=0)
+    pose_3d_centered = pose_3d - center_3d
+
     # Project skeleton to PIP dimensions (closer camera = larger skeleton)
     pose_2d = project_3d_to_2d(
-        pose_3d[np.newaxis, ...],
+        pose_3d_centered[np.newaxis, ...],
         camera_matrix=camera_matrix,
         width=pip_width,
         height=pip_height,
         camera_z=camera_z,
     )[0]
+
+    # Auto-scale to fill PIP area
+    if fixed_scale is not None and fixed_offset is not None:
+        # Use pre-computed fixed scale (prevents jitter)
+        x_center, y_center = fixed_offset
+        scale = fixed_scale
+        pose_2d[:, 0] = (pose_2d[:, 0] - x_center) * scale + 0.5
+        pose_2d[:, 1] = (pose_2d[:, 1] - y_center) * scale + 0.5
+    elif auto_scale:
+        # Get bounding box of skeleton in normalized coords (per-frame - can jitter!)
+        x_coords = pose_2d[:, 0]
+        y_coords = pose_2d[:, 1]
+
+        x_min, x_max = x_coords.min(), x_coords.max()
+        y_min, y_max = y_coords.min(), y_coords.max()
+
+        # Calculate scale to fit with padding
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+
+        # Avoid division by zero
+        if x_range > 1e-6 and y_range > 1e-6:
+            scale_x = 1.0 / x_range
+            scale_y = 1.0 / y_range
+            scale = min(scale_x, scale_y) * (1.0 - padding)
+
+            # Center the skeleton
+            x_center = (x_min + x_max) / 2
+            y_center = (y_min + y_max) / 2
+
+            # Apply scaling and centering
+            pose_2d[:, 0] = (pose_2d[:, 0] - x_center) * scale + 0.5
+            pose_2d[:, 1] = (pose_2d[:, 1] - y_center) * scale + 0.5
 
     # Draw edges (offset to PIP position)
     for idx1, idx2 in skeleton_edges:

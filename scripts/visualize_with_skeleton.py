@@ -73,14 +73,26 @@ def main() -> int:
         help="Enable 3D blade detection (edge zones, motion direction, ice trace)",
     )
     parser.add_argument(
+        "--3d-scale",
+        dest="d_3d_scale",
+        type=float,
+        default=0.6,
+        help="3D skeleton scale in PIP window (smaller = larger, default: 0.6)",
+    )
+    parser.add_argument(
+        "--no-3d-autoscale",
+        action="store_true",
+        help="Disable auto-scaling of 3D skeleton to fill PIP window",
+    )
+    parser.add_argument(
         "--floor-mode",
         action="store_true",
         help="Floor mode: analysis without ice skates (disables blade detection)",
     )
     parser.add_argument(
-        "--no-com-trajectory",
+        "--com-trajectory",
         action="store_true",
-        help="Disable Center of Mass trajectory line (yellow line)",
+        help="Enable Center of Mass trajectory line (yellow line)",
     )
     parser.add_argument("--output", type=Path, help="Output video path")
     parser.add_argument(
@@ -262,6 +274,51 @@ def main() -> int:
             poses_3d = estimator.estimate_3d(poses_h36m)
             print(f"3D poses estimated: {poses_3d.shape}")
 
+    # Calculate fixed auto-scale parameters from reference frame (median frame)
+    # This prevents jitter from per-frame scaling
+    pip_scale = None
+    pip_offset = None
+    if poses_3d is not None and not args.no_3d_autoscale:
+        from src.visualization import project_3d_to_2d
+
+        # Use median frame as reference (middle of video)
+        ref_frame_idx = len(poses_3d) // 2
+        ref_pose_3d = poses_3d[ref_frame_idx]
+
+        # Center reference pose at origin (same as draw_skeleton_3d_pip)
+        center_3d = ref_pose_3d.mean(axis=0)
+        ref_pose_3d_centered = ref_pose_3d - center_3d
+
+        # Project reference pose
+        ref_pose_2d = project_3d_to_2d(
+            ref_pose_3d_centered[np.newaxis, ...],
+            camera_matrix=None,
+            width=meta.width // 2,
+            height=meta.height // 2,
+            camera_z=args.d_3d_scale,
+        )[0]
+
+        # Calculate scale from reference pose
+        x_coords = ref_pose_2d[:, 0]
+        y_coords = ref_pose_2d[:, 1]
+
+        x_min, x_max = x_coords.min(), x_coords.max()
+        y_min, y_max = y_coords.min(), y_coords.max()
+
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+
+        if x_range > 1e-6 and y_range > 1e-6:
+            scale_x = 1.0 / x_range
+            scale_y = 1.0 / y_range
+            pip_scale = min(scale_x, scale_y) * 0.9  # 10% padding
+
+            x_center = (x_min + x_max) / 2
+            y_center = (y_min + y_max) / 2
+            pip_offset = (x_center, y_center)
+
+            print(f"3D PIP auto-scale: scale={pip_scale:.2f}, offset=({x_center:.2f}, {y_center:.2f})")
+
     # Initialize 3D blade detector if requested
     blade_detector_3d = None
     blade_states_3d_left = []
@@ -366,7 +423,10 @@ def main() -> int:
                     meta.height,
                     meta.width,
                     camera_matrix=None,  # Auto-generate
-                    camera_z=3.0,        # Camera distance in meters
+                    camera_z=args.d_3d_scale,        # Scale from CLI (smaller = larger)
+                    auto_scale=False,  # Use fixed scale instead
+                    fixed_scale=pip_scale,  # Pre-computed from reference frame
+                    fixed_offset=pip_offset,  # Pre-computed from reference frame
                 )
             else:
                 # Draw 2D skeleton (33 keypoints) when 3D is disabled
@@ -384,7 +444,7 @@ def main() -> int:
             )
 
             # Draw 3D CoM trajectory if enabled
-            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d) and not args.no_com_trajectory:
+            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d) and args.com_trajectory:
                 from src.visualization import draw_3d_trajectory
                 from src.analysis import PhysicsEngine
 
@@ -395,7 +455,7 @@ def main() -> int:
                 # Draw CoM trajectory
                 if len(com_trajectory) > 1:
                     frame = draw_3d_trajectory(
-                        frame, com_trajectory, meta.height, meta.width, camera_z=3.0
+                        frame, com_trajectory, meta.height, meta.width, camera_z=args.d_3d_scale
                     )
 
         # Layer 2: Technical (blade states shown in HUD via draw_debug_hud)
