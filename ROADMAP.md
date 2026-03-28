@@ -1,6 +1,6 @@
 # Figure Skating Biomechanics ML - Roadmap
 
-**Status:** MVP ~95% complete | Last updated: 2026-03-28
+**Status:** MVP ~96% complete | Last updated: 2026-03-28
 
 > **This is the SINGLE SOURCE OF TRUTH for project status.** All implementation decisions and priority changes must be reflected here first.
 
@@ -392,44 +392,41 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
 
 ## Next Steps (Priority Order)
 
-### Phase A: Critical Fixes (Gemini Research)
+### Phase A: Physics-Informed Improvements ✅ COMPLETE (2026-03-28)
 
-1. **Replace Flight Time with CoM Trajectory** ⚠️ CRITICAL (Gemini)
-   - **Issue:** Flight time has 60% error for low jumps!
-   - **Solution:** Use parabolic CoM trajectory (physically accurate)
-   - **Impact:** Eliminates landing pose bias in jump height
-   - **Estimated:** 2-3 hours
-   - **Reference:** `research/RESEARCH_SUMMARY_2026-03-28.md` Theme 4
+1. **Replace Flight Time with CoM Trajectory** ✅ DONE
+   - `compute_jump_height_com()` uses parabolic CoM trajectory
+   - Deprecation warning added to hip-only method (60% error)
+   - **Files:** `src/metrics.py`
 
-2. **Physics-Informed Pose Validator** ⚠️ HIGH (Gemini)
-   - **Paper:** Leuthold et al. (2025) -10.2% MPJPE
-   - **Method:** Kalman filter + bone length constraints
-   - **Impact:** Eliminates occlusion artifacts, minimal compute
-   - **Estimated:** 3-4 hours
-   - **Files:** `utils/physics_optimizer.py` (new)
+2. **Physics-Informed Pose Validator** ✅ DONE
+   - Hampel filter for outlier rejection (MAD-based)
+   - Enhanced Kalman filter with 6-state model [x, vx, ax, y, vy, ay]
+   - RTS smoother for bidirectional filtering
+   - **Files:** `src/pose_filtering.py`
 
-3. **Fix Auto Phase Detection** ⚠️ HIGH
-   - Implement height threshold for takeoff
-   - Find minimum hip y for peak
-   - Detect landing impact (use CoM acceleration)
-   - Estimated: 2-3 hours
+3. **Fix Auto Phase Detection** ✅ DONE
+   - Improved CoM-based detection with adaptive sigma thresholds
+   - 2-sigma for takeoff, 3-sigma for landing
+   - Physical plausibility validation (min 0.3s airtime)
+   - **Files:** `src/phase_detector.py`
 
-### Phase B: Tracking & Integration
+### Phase B: Multi-Person Tracking ✅ COMPLETE (2026-03-28)
 
-4. **OC-SORT + Pose Biometrics** 🆕 MEDIUM (Gemini)
-   - Solve skeleton switching to background skaters
-   - Use anatomical ratios as biometric ID
-   - Works with identical black clothing
-   - **Estimated:** 4-5 hours
-   - **Files:** `detection/pose_tracker.py` (new)
+4. **OC-SORT + Pose Biometrics** ✅ DONE
+   - PoseTracker class with constant acceleration Kalman filter
+   - Anatomical ratio Re-ID (shoulder/torso, femur/tibia, arm_span/height)
+   - Solves skeleton switching with identical clothing
+   - **Files:** `src/detection/pose_tracker.py`, `src/skeletons.py`
+   - **Tests:** 14 tests for tracker, 14 tests for skeleton hierarchy
 
-5. **Integrate Blade Detection into Pipeline** MEDIUM
+5. **Integrate Blade Detection into Pipeline** PENDING
    - Add blade state to MetricResult
    - Update rules to use edge information
    - Add edge visualization to HUD
    - **Estimated:** 1-2 hours
 
-6. **Fix DTW Tests** MEDIUM
+6. **Fix DTW Tests** PENDING
    - Update test data for 33 keypoints
    - Fix shape mismatches
    - **Estimated:** 1 hour
@@ -573,6 +570,7 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
 | 0.2 | 2026-03-28 | MVP 90% | Blade edge detection (BDA algorithm), research findings |
 | 0.3 | 2026-03-28 | MVP 92% | 3D pose infrastructure, PhysicsEngine, keypoint mapping |
 | 0.4 | 2026-03-28 | MVP 95% | Phase 14 complete: MotionAGFormer integration, 3D viz |
+| 0.5 | 2026-03-28 | MVP 96% | Phase A+B complete: Pose filtering + multi-person tracking |
 
 ---
 
