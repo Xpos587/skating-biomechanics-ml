@@ -392,6 +392,8 @@ class AnalysisReport:
         dtw_distance: DTW distance to reference (lower = better).
         recommendations: List of Russian recommendation strings.
         overall_score: Overall score [0, 10].
+        blade_summary_left: Left foot blade edge summary (optional).
+        blade_summary_right: Right foot blade edge summary (optional).
     """
 
     element_type: str
@@ -400,6 +402,8 @@ class AnalysisReport:
     dtw_distance: float
     recommendations: list[str]
     overall_score: float
+    blade_summary_left: dict[str, Any] = field(default_factory=dict)
+    blade_summary_right: dict[str, Any] = field(default_factory=dict)
 
     def format(self) -> str:
         """Format report as readable Russian text."""
@@ -437,6 +441,23 @@ class AnalysisReport:
 
         for i, rec in enumerate(self.recommendations, 1):
             lines.append(f"  {i}. {rec}")
+
+        # Blade edge information
+        if self.blade_summary_left or self.blade_summary_right:
+            lines.extend([
+                "",
+                "--- Состояние лезвия ---",
+            ])
+            if self.blade_summary_left:
+                lines.append(f"  Левая нога: {self.blade_summary_left.get('dominant_edge', 'unknown')}")
+                if 'type_percentages' in self.blade_summary_left:
+                    types_str = ", ".join(f"{k}: {v:.1f}%" for k, v in self.blade_summary_left['type_percentages'].items())
+                    lines.append(f"    Распределение: {types_str}")
+            if self.blade_summary_right:
+                lines.append(f"  Правая нога: {self.blade_summary_right.get('dominant_edge', 'unknown')}")
+                if 'type_percentages' in self.blade_summary_right:
+                    types_str = ", ".join(f"{k}: {v:.1f}%" for k, v in self.blade_summary_right['type_percentages'].items())
+                    lines.append(f"    Распределение: {types_str}")
 
         lines.extend(
             [

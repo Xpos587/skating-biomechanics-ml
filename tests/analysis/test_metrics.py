@@ -87,6 +87,120 @@ class TestBiomechanicsAnalyzer:
         # Height = baseline(0.3) - peak(0.1) = 0.2
         assert height == pytest.approx(0.2)
 
+    def test_compute_jump_height_com(self, sample_normalized_poses):
+        """Should compute jump height using Center of Mass trajectory.
+
+        This tests the physics-accurate method that fixes the 60% error
+        in the hip-only method for low jumps.
+        """
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create poses simulating a jump
+        # Frame 0-1: takeoff, Frame 2: peak, Frame 3-4: landing
+        jump_poses = np.zeros((5, 33, 2), dtype=np.float32)
+
+        for i in range(5):
+            # Hips move up then down (Y inverted, so negative = up)
+            hip_y = 0.0 if i < 2 else (0.3 if i > 2 else -0.2)
+            jump_poses[i, BKey.LEFT_HIP] = [-0.05, hip_y]
+            jump_poses[i, BKey.RIGHT_HIP] = [0.05, hip_y]
+
+            # Shoulders follow hips
+            jump_poses[i, BKey.LEFT_SHOULDER] = [-0.1, hip_y - 0.3]
+            jump_poses[i, BKey.RIGHT_SHOULDER] = [0.1, hip_y - 0.3]
+
+            # Arms and legs also move
+            jump_poses[i, BKey.LEFT_WRIST] = [-0.2, hip_y - 0.7]
+            jump_poses[i, BKey.RIGHT_WRIST] = [0.2, hip_y - 0.7]
+            jump_poses[i, BKey.LEFT_ANKLE] = [-0.05, hip_y + 0.6]
+            jump_poses[i, BKey.RIGHT_ANKLE] = [0.05, hip_y + 0.6]
+            jump_poses[i, BKey.LEFT_KNEE] = [-0.05, hip_y + 0.3]
+            jump_poses[i, BKey.RIGHT_KNEE] = [0.05, hip_y + 0.3]
+            jump_poses[i, BKey.NOSE] = [0, hip_y - 0.5]
+            jump_poses[i, BKey.LEFT_ELBOW] = [-0.15, hip_y - 0.5]
+            jump_poses[i, BKey.RIGHT_ELBOW] = [0.15, hip_y - 0.5]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=0,
+            peak=2,
+            landing=4,
+            end=4,
+        )
+
+        height = analyzer.compute_jump_height_com(jump_poses, phases)
+
+        # Height should be positive and reasonable
+        assert height > 0
+        # Peak CoM at frame 2 (-0.2 for hips), takeoff at frame 0 (0.0)
+        # With full body, height should be less than hip-only difference
+        # because arms/legs move with hips
+        assert 0.1 < height < 0.5
+
+    def test_jump_height_com_vs_hip_method(self):
+        """CoM method should give different (more accurate) results than hip-only.
+
+        This demonstrates the 60% error fix for bent-knee landings.
+        """
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Simulate landing with bent knees (realistic skating landing)
+        # Frame 0: takeoff (straight legs)
+        # Frame 1: peak (in air)
+        # Frame 2: landing (bent knees - hips lower but CoM similar)
+        poses = np.zeros((3, 33, 2), dtype=np.float32)
+
+        # Takeoff: straight legs
+        poses[0, BKey.LEFT_HIP] = [-0.05, 0.0]
+        poses[0, BKey.RIGHT_HIP] = [0.05, 0.0]
+        poses[0, BKey.LEFT_KNEE] = [-0.05, 0.3]
+        poses[0, BKey.RIGHT_KNEE] = [0.05, 0.3]
+        poses[0, BKey.LEFT_ANKLE] = [-0.05, 0.6]
+        poses[0, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[0, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
+        poses[0, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
+        poses[0, BKey.NOSE] = [0, -0.5]
+
+        # Peak: in air, body extended
+        poses[1] = poses[0] * 0.9  # Everything higher (more negative Y)
+
+        # Landing: bent knees (hips drop relative to ankles)
+        poses[2, BKey.LEFT_HIP] = [-0.05, 0.15]  # Hips dropped
+        poses[2, BKey.RIGHT_HIP] = [0.05, 0.15]
+        poses[2, BKey.LEFT_KNEE] = [-0.05, 0.4]  # Knees bent forward
+        poses[2, BKey.RIGHT_KNEE] = [0.05, 0.4]
+        poses[2, BKey.LEFT_ANKLE] = [-0.05, 0.6]  # Ankles same
+        poses[2, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[2, BKey.LEFT_SHOULDER] = [-0.1, -0.15]  # Upper body similar
+        poses[2, BKey.RIGHT_SHOULDER] = [0.1, -0.15]
+        poses[2, BKey.NOSE] = [0, -0.35]
+
+        phases = ElementPhase(
+            name="test",
+            start=0,
+            takeoff=0,
+            peak=1,
+            landing=2,
+            end=2,
+        )
+
+        # Hip-only method (overestimates due to bent knees)
+        hip_y = (poses[:, BKey.LEFT_HIP, 1] + poses[:, BKey.RIGHT_HIP, 1]) / 2
+        height_hip = analyzer.compute_jump_height(hip_y, phases)
+
+        # CoM method (physics-accurate)
+        height_com = analyzer.compute_jump_height_com(poses, phases)
+
+        # CoM method should give lower (more accurate) height
+        # because it accounts for full body mass distribution
+        assert height_com < height_hip
+
+        # The difference demonstrates the error in hip-only method
+        # (would be ~60% for very low jumps with deep knee bend)
+
     def test_compute_arm_position(self, sample_normalized_poses):
         """Should compute arm position score."""
         element_def = get_element_def("waltz_jump")

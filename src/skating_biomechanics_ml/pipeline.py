@@ -115,6 +115,15 @@ class AnalysisPipeline:
         else:
             smoothed = normalized
 
+        # Stage 3.6: Detect blade edge states (both feet)
+        from skating_biomechanics_ml.utils import BladeEdgeDetector
+
+        blade_detector = BladeEdgeDetector(smoothing_window=3)
+        blade_states_left = blade_detector.detect_sequence(smoothed, meta.fps, foot="left")
+        blade_states_right = blade_detector.detect_sequence(smoothed, meta.fps, foot="right")
+        blade_summary_left = blade_detector.get_blade_summary(blade_states_left)
+        blade_summary_right = blade_detector.get_blade_summary(blade_states_right)
+
         # Stage 4: Detect phases (or use manual)
         if manual_phases is not None:
             phases = manual_phases
@@ -153,6 +162,8 @@ class AnalysisPipeline:
             recommendations=recommendations,
             overall_score=overall_score,
             dtw_distance=dtw_distance,
+            blade_summary_left=blade_summary_left,
+            blade_summary_right=blade_summary_right,
         )
 
     def segment_video(
@@ -340,6 +351,20 @@ class AnalysisPipeline:
         if report.dtw_distance is not None:
             lines.append("\n--- Сходство с референсом ---")
             lines.append(f"  DTW-расстояние: {report.dtw_distance:.3f} (0 = идеально)")
+
+        # Blade edge information
+        if report.blade_summary_left or report.blade_summary_right:
+            lines.append("\n--- Состояние лезвия ---")
+            if report.blade_summary_left:
+                lines.append(f"  Левая нога: {report.blade_summary_left.get('dominant_edge', 'unknown')}")
+                if 'type_percentages' in report.blade_summary_left:
+                    types = report.blade_summary_left['type_percentages']
+                    lines.append(f"    Распределение: {types}")
+            if report.blade_summary_right:
+                lines.append(f"  Правая нога: {report.blade_summary_right.get('dominant_edge', 'unknown')}")
+                if 'type_percentages' in report.blade_summary_right:
+                    types = report.blade_summary_right['type_percentages']
+                    lines.append(f"    Распределение: {types}")
 
         # Recommendations
         if report.recommendations:

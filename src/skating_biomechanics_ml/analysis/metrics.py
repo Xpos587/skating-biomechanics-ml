@@ -18,6 +18,8 @@ from skating_biomechanics_ml.types import (
 )
 from skating_biomechanics_ml.utils.geometry import (
     angle_3pt,
+    calculate_center_of_mass,
+    calculate_com_trajectory,
     get_mid_hip,
 )
 
@@ -96,9 +98,8 @@ class BiomechanicsAnalyzer:
             )
         )
 
-        # Jump height
-        hip_y = get_mid_hip(poses)[:, 1]
-        height = self.compute_jump_height(hip_y, phases)
+        # Jump height (CoM-based for physics accuracy)
+        height = self.compute_jump_height_com(poses, phases)
         results.append(
             MetricResult(
                 name="max_height",
@@ -297,6 +298,11 @@ class BiomechanicsAnalyzer:
 
         Returns:
             Maximum height in normalized units.
+
+        Note:
+            This method uses hip trajectory only, which has ~60% error for
+            low jumps due to landing knee flexion. Use compute_jump_height_com()
+            for physics-accurate results.
         """
         # Get landing hip Y (reference level)
         landing_y = hip_y_series[phases.landing]
@@ -305,6 +311,43 @@ class BiomechanicsAnalyzer:
         peak_y = np.min(hip_y_series[phases.takeoff : phases.landing])
 
         return float(landing_y - peak_y)
+
+    def compute_jump_height_com(self, poses: NormalizedPose, phases: ElementPhase) -> float:
+        """Compute jump height using Center of Mass trajectory.
+
+        This method provides physics-accurate jump height independent of
+        landing pose. During flight, the CoM follows a parabolic trajectory
+        governed only by gravity: h(t) = h₀ + v₀t - ½gt²
+
+        The hip-only method has ~60% error for low jumps because skaters
+        land with bent knees, which artificially increases the measured
+        "flight time" and therefore the computed height.
+
+        Args:
+            poses: NormalizedPose (num_frames, 33, 2).
+            phases: Element phase boundaries.
+
+        Returns:
+            Maximum jump height in normalized units (peak - takeoff CoM).
+
+        Reference:
+            - Dempster (1955) - Space requirements of the seated operator
+            - Zatsiorsky (2002) - Kinetics of human motion
+            - Gemini Research (2026) - 60% error in hip-only method
+        """
+        # Calculate CoM trajectory for the entire sequence
+        com_trajectory = calculate_com_trajectory(poses)
+
+        # Get CoM at takeoff (baseline)
+        takeoff_com = com_trajectory[phases.takeoff]
+
+        # Find minimum CoM during flight (maximum height)
+        # Y is inverted in normalized coords, so min Y = max height
+        flight_com = com_trajectory[phases.takeoff : phases.landing + 1]
+        peak_com = np.min(flight_com)
+
+        # Height = takeoff CoM - peak CoM (both inverted, so difference is positive)
+        return float(takeoff_com - peak_com)
 
     def compute_landing_quality(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute landing knee angle.

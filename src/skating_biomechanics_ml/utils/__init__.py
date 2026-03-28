@@ -1,4 +1,4 @@
-"""Utility modules for video processing, geometry, subtitle parsing, smoothing, visualization, and blade edge detection."""
+"""Utility modules for video processing, geometry, subtitle parsing, smoothing, visualization, blade edge detection, and physics optimization."""
 
 from skating_biomechanics_ml.utils.blade_edge_detector import (
     BladeEdgeDetector,
@@ -12,9 +12,18 @@ from skating_biomechanics_ml.utils.blade_edge_detector import (
 )
 from skating_biomechanics_ml.utils.geometry import (
     angle_3pt,
+    calculate_center_of_mass,
+    calculate_com_trajectory,
     distance,
+    get_mid_hip,
+    get_mid_shoulder,
     normalize_poses,
     smooth_signal,
+)
+from skating_biomechanics_ml.utils.physics_optimizer import (
+    BoneConstraints,
+    PhysicsPoseOptimizer,
+    optimize_poses_with_physics,
 )
 from skating_biomechanics_ml.utils.smoothing import (
     OneEuroFilter,
@@ -50,11 +59,19 @@ __all__ = [
     "distance",
     "normalize_poses",
     "smooth_signal",
+    "calculate_center_of_mass",
+    "calculate_com_trajectory",
+    "get_mid_hip",
+    "get_mid_shoulder",
     # Smoothing utilities
     "OneEuroFilter",
     "OneEuroFilterConfig",
     "PoseSmoother",
     "get_skating_optimized_config",
+    # Physics optimization
+    "BoneConstraints",
+    "PhysicsPoseOptimizer",
+    "optimize_poses_with_physics",
     # Blade edge detection
     "BladeEdgeDetector",
     "BladeState",

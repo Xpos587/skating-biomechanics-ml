@@ -29,7 +29,7 @@ class TestMotionAligner:
         aligner = MotionAligner()
 
         # Create identical sequences
-        seq1 = np.random.randn(50, 17, 2).astype(np.float32)
+        seq1 = np.random.randn(50, 33, 2).astype(np.float32)
         seq2 = seq1.copy()
 
         distance = aligner.compute_distance(seq1, seq2)
@@ -42,7 +42,7 @@ class TestMotionAligner:
         aligner = MotionAligner()
 
         # Create base sequence
-        base = np.zeros((50, 17, 2), dtype=np.float32)
+        base = np.zeros((50, 33, 2), dtype=np.float32)
         for i in range(50):
             base[i, :, 0] = i * 0.01  # Gradual x movement
 
@@ -60,8 +60,8 @@ class TestMotionAligner:
         aligner = MotionAligner()
 
         # Create different sequences
-        seq1 = np.zeros((50, 17, 2), dtype=np.float32)
-        seq2 = np.ones((50, 17, 2), dtype=np.float32)
+        seq1 = np.zeros((50, 33, 2), dtype=np.float32)
+        seq2 = np.ones((50, 33, 2), dtype=np.float32)
 
         distance = aligner.compute_distance(seq1, seq2)
 
@@ -73,14 +73,14 @@ class TestMotionAligner:
         # Disable window constraint for random data
         aligner = MotionAligner(window_type=None)
 
-        user = np.random.randn(30, 17, 2).astype(np.float32)
-        reference = np.random.randn(50, 17, 2).astype(np.float32)
+        user = np.random.randn(30, 33, 2).astype(np.float32)
+        reference = np.random.randn(50, 33, 2).astype(np.float32)
 
         aligned, warp_path = aligner.align(user, reference)
 
         # Aligned should match reference length
         assert aligned.shape[0] == reference.shape[0]
-        assert aligned.shape[1] == 17
+        assert aligned.shape[1] == 33  # BlazePose has 33 keypoints
         assert aligned.shape[2] == 2
 
         # Warp path should have 2 columns
@@ -91,11 +91,13 @@ class TestMotionAligner:
         # Disable window constraint for random data
         aligner = MotionAligner(window_type=None)
 
-        user = np.random.randn(30, 17, 2).astype(np.float32)
-        reference = np.random.randn(50, 17, 2).astype(np.float32)
+        user = np.random.randn(30, 33, 2).astype(np.float32)
+        reference = np.random.randn(50, 33, 2).astype(np.float32)
 
-        # Use only lower body joints
-        joints = list(range(11, 17))  # Hips, knees, ankles
+        # Use only lower body joints (BlazePose 33-keypoint format)
+        # Left hip: 23, Right hip: 24, Left knee: 25, Right knee: 26,
+        # Left ankle: 27, Right ankle: 28
+        joints = [23, 24, 25, 26, 27, 28]
 
         distance = aligner.compute_distance(user, reference, joints=joints)
 
@@ -105,8 +107,8 @@ class TestMotionAligner:
         """Should compute per-phase distances."""
         aligner = MotionAligner()
 
-        user = np.random.randn(100, 17, 2).astype(np.float32)
-        reference = np.random.randn(100, 17, 2).astype(np.float32)
+        user = np.random.randn(100, 33, 2).astype(np.float32)
+        reference = np.random.randn(100, 33, 2).astype(np.float32)
 
         user_phases = ElementPhase(
             name="test_jump",
@@ -140,7 +142,7 @@ class TestMotionAligner:
         """Should extract poses for a specific phase."""
         aligner = MotionAligner()
 
-        poses = np.random.randn(100, 17, 2).astype(np.float32)
+        poses = np.random.randn(100, 33, 2).astype(np.float32)
 
         phase = ElementPhase(
             name="test",
@@ -155,15 +157,15 @@ class TestMotionAligner:
 
         # Should extract from start to end
         assert extracted.shape[0] == 60  # 80 - 20
-        assert extracted.shape[1] == 17
+        assert extracted.shape[1] == 33  # BlazePose has 33 keypoints
         assert extracted.shape[2] == 2
 
     def test_align_no_window(self):
         """Should work without window constraint."""
         aligner = MotionAligner(window_type=None)
 
-        user = np.random.randn(30, 17, 2).astype(np.float32)
-        reference = np.random.randn(50, 17, 2).astype(np.float32)
+        user = np.random.randn(30, 33, 2).astype(np.float32)
+        reference = np.random.randn(50, 33, 2).astype(np.float32)
 
         distance = aligner.compute_distance(user, reference)
 
@@ -177,8 +179,8 @@ class TestMotionAlignerEdgeCases:
         """Should handle empty sequences gracefully."""
         aligner = MotionAligner()
 
-        user = np.zeros((0, 17, 2), dtype=np.float32)
-        reference = np.zeros((50, 17, 2), dtype=np.float32)
+        user = np.zeros((0, 33, 2), dtype=np.float32)
+        reference = np.zeros((50, 33, 2), dtype=np.float32)
 
         # May raise error or return nan/inf
         try:
@@ -194,8 +196,8 @@ class TestMotionAlignerEdgeCases:
         """Should handle single-frame sequences."""
         aligner = MotionAligner()
 
-        user = np.random.randn(1, 17, 2).astype(np.float32)
-        reference = np.random.randn(1, 17, 2).astype(np.float32)
+        user = np.random.randn(1, 33, 2).astype(np.float32)
+        reference = np.random.randn(1, 33, 2).astype(np.float32)
 
         distance = aligner.compute_distance(user, reference)
 
