@@ -5,6 +5,7 @@ Types are annotated for mypy strict mode compatibility.
 """
 
 from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, IntEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -67,13 +68,86 @@ class BladeType(Enum):
     """Figure skating blade edge types.
 
     Based on BDA (Blade Discrimination Algorithm) research.
+    Enhanced with 3D pose detection capabilities.
     """
 
+    # Edge types
     INSIDE = "inside"  # Внутреннее ребро (inside edge)
     OUTSIDE = "outside"  # Наружное ребро (outside edge)
     FLAT = "flat"  # Плоскость лезвия (flat)
-    TOE_PICK = "toe_pick"  # Зубец (toe pick)
+
+    # Blade zone types
+    TOE_PICK = "toe_pick"  # Зубец (toe pick) - передняя часть лезвия
+    ROCKER = "rocker"  # Рокер (rocker) - средняя часть, дуга лезвия
+    HEEL = "heel"  # Пятка (heel) - задняя часть (редко используется)
+
+    # Fallback
     UNKNOWN = "unknown"  # Не удалось определить
+
+
+class MotionDirection(Enum):
+    """Direction of movement on ice.
+
+    Relative to the skater's forward-facing direction.
+    """
+
+    FORWARD = "forward"  # Вперёд
+    BACKWARD = "backward"  # Назад
+    LEFT = "left"  # Влево (левое плечо ведущее)
+    RIGHT = "right"  # Вправо (правое плечо ведущее)
+    DIAGONAL_LEFT = "diagonal_left"  # Диагональ влево-вперёд
+    DIAGONAL_RIGHT = "diagonal_right"  # Диагональ вправо-вперёд
+    ROTATION_LEFT = "rotation_left"  # Вращение влево
+    ROTATION_RIGHT = "rotation_right"  # Вращение вправо
+    STATIONARY = "stationary"  # На месте (спираль, шаги на месте)
+
+
+@dataclass
+class BladeState3D:
+    """Enhanced blade state with 3D pose information.
+
+    Attributes:
+        blade_type: Detected blade edge/zone type.
+        foot: Which foot (left/right).
+        motion_direction: Direction of movement.
+        foot_angle: Foot angle relative to motion (degrees).
+        ankle_angle: Ankle flexion angle (degrees).
+        knee_angle: Knee flexion angle (degrees, for weight distribution).
+        vertical_accel: Vertical acceleration (norm units/s²).
+        position_3d: 3D position of foot on ice (x, y, z).
+        velocity_3d: 3D velocity vector (vx, vy, vz).
+        confidence: Detection confidence [0, 1].
+        frame_idx: Frame index in video.
+    """
+
+    blade_type: BladeType
+    foot: str  # "left" or "right"
+    motion_direction: MotionDirection
+    foot_angle: float
+    ankle_angle: float
+    knee_angle: float
+    vertical_accel: float
+    position_3d: tuple[float, float, float]  # (x, y, z) on ice surface
+    velocity_3d: tuple[float, float, float]  # (vx, vy, vz)
+    confidence: float
+    frame_idx: int
+
+
+@dataclass
+class IceTrace:
+    """Ice trace - path of blade on ice surface.
+
+    Attributes:
+        foot: Which foot (left/right).
+        points: List of 3D points (x, y, z) on ice surface.
+        timestamps: Corresponding frame timestamps.
+        blade_types: Blade type at each point.
+    """
+
+    foot: str
+    points: list[tuple[float, float, float]]  # (x, y, z) positions
+    timestamps: list[float]  # seconds
+    blade_types: list[BladeType]  # blade state at each point
 
 
 # All 33 BlazePose keypoints
