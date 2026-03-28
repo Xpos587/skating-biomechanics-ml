@@ -263,7 +263,7 @@ poses_px = pixelize_normalized_poses(poses_norm, width=1920, height=1080)
 
 - `draw_velocity_vectors()` → normalized [0,1]
 - `draw_trails()` → normalized [0,1]
-- `draw_edge_indicators()` → normalized [0,1]
+- `draw_blade_indicator_hud()` → uses BladeState from BladeEdgeDetector (recommended)
 - `draw_skeleton()` → both (handles conversion internally)
 
 **Common bugs to avoid:**

@@ -41,6 +41,11 @@ COLOR_EDGE_INSIDE = (255, 0, 0)  # Blue (BGR) = inside edge
 COLOR_EDGE_OUTSIDE = (0, 0, 255)  # Red (BGR) = outside edge
 COLOR_EDGE_FLAT = (0, 255, 255)  # Yellow = flat
 
+# Axis alignment colors
+COLOR_AXIS_GOOD = (0, 255, 0)  # Green = upright (<15°)
+COLOR_AXIS_WARNING = (0, 255, 255)  # Yellow = warning (15-30°)
+COLOR_AXIS_BAD = (0, 0, 255)  # Red = bad (>30°)
+
 
 # Velocity color gradient (BGR): blue (slow) -> red (fast)
 def _get_velocity_color(speed: float, max_speed: float = 200.0) -> tuple[int, int, int]:
@@ -331,8 +336,17 @@ def draw_edge_indicators(
 ) -> np.ndarray:
     """Draw skating edge indicators for both feet.
 
+    .. DEPRECATED::
+        This function uses simplified edge detection (sign of foot_vector.x).
+        Use `draw_blade_indicator_hud()` with `BladeEdgeDetector` results instead.
+
     Uses the edge detection logic from element_segmenter.py:
     heel-to-foot vector angle determines edge (+1=inside, -1=outside, 0=flat).
+
+    For proper blade edge visualization:
+    1. Run `BladeEdgeDetector.detect_sequence()` to get BladeState objects
+    2. Call `draw_blade_indicator_hud()` with the blade states
+    3. States appear in HUD with confidence values
 
     Args:
         frame: Video frame (H, W, 3) BGR.
@@ -389,6 +403,93 @@ def draw_edge_indicators(
             color,
             2,
         )
+
+    return frame
+
+
+def calculate_trunk_angle(pose: np.ndarray) -> float:
+    """Calculate trunk tilt angle from vertical.
+
+    Args:
+        pose: Single pose (33, 2) or (33, 3) normalized.
+
+    Returns:
+        Angle in degrees (0 = upright, positive = forward lean).
+    """
+    # Compute mid-shoulder and mid-hip
+    mid_shoulder = (pose[BKey.LEFT_SHOULDER] + pose[BKey.RIGHT_SHOULDER]) / 2
+    mid_hip = (pose[BKey.LEFT_HIP] + pose[BKey.RIGHT_HIP]) / 2
+
+    # Vector from hip to shoulder
+    spine_vector = mid_shoulder - mid_hip
+
+    # Angle from vertical: atan2(x, -y) gives 0° for upright
+    angle = np.arctan2(spine_vector[0], -spine_vector[1])
+    return float(np.degrees(angle))
+
+
+def draw_axis_indicator(
+    frame: np.ndarray,
+    pose: np.ndarray,
+    height: int,
+    width: int,
+    threshold_warning: float = 15.0,
+    threshold_bad: float = 30.0,
+    show_angle: bool = True,
+) -> np.ndarray:
+    """Draw axis alignment indicator (trunk tilt from vertical).
+
+    Visualizes:
+    - Vertical reference line (gray)
+    - Actual spine vector (color-coded by angle)
+    - Angle value with color-coded text
+
+    Args:
+        frame: Video frame (H, W, 3) BGR.
+        pose: Single pose (33, 2) or (33, 3) normalized.
+        height: Frame height.
+        width: Frame width.
+        threshold_warning: Warning threshold in degrees.
+        threshold_bad: Bad threshold in degrees.
+        show_angle: Show angle value text.
+
+    Returns:
+        Frame with axis indicator overlay.
+    """
+    # Calculate angle
+    angle = calculate_trunk_angle(pose)
+    abs_angle = abs(angle)
+
+    # Determine color and status
+    if abs_angle < threshold_warning:
+        color = COLOR_AXIS_GOOD
+        status = "OK"
+    elif abs_angle < threshold_bad:
+        color = COLOR_AXIS_WARNING
+        status = "WARN"
+    else:
+        color = COLOR_AXIS_BAD
+        status = "FAIL"
+
+    # Get keypoint positions in pixels
+    poses_xy = pose[:, :2] if pose.shape[1] == 3 else pose
+    mid_shoulder = ((poses_xy[BKey.LEFT_SHOULDER] + poses_xy[BKey.RIGHT_SHOULDER]) / 2) * [width, height]
+    mid_hip = ((poses_xy[BKey.LEFT_HIP] + poses_xy[BKey.RIGHT_HIP]) / 2) * [width, height]
+
+    # Draw vertical reference line (from hip upward)
+    hip_pos = mid_hip.astype(int)
+    vertical_top = (hip_pos[0], max(0, int(hip_pos[1] - 150)))  # 150px upward
+    cv2.line(frame, tuple(hip_pos), vertical_top, (128, 128, 128), 1, cv2.LINE_AA)
+
+    # Draw actual spine vector (color-coded)
+    shoulder_pos = mid_shoulder.astype(int)
+    cv2.line(frame, tuple(hip_pos), tuple(shoulder_pos), color, 3, cv2.LINE_AA)
+
+    # Draw angle text if requested
+    if show_angle:
+        text = f"AXIS: {abs_angle:.1f}° [{status}]"
+        text_pos = (int(hip_pos[0]) + 20, max(20, int(hip_pos[1]) - 50))
+        draw_text_box(frame, text, text_pos, font_scale=0.6)
 
     return frame
 
@@ -782,46 +883,66 @@ def draw_debug_hud(
 
 def project_3d_to_2d(
     poses_3d: np.ndarray,
-    focal_length: float = 500.0,
-    camera_distance: float = 5.0,
+    camera_matrix: np.ndarray | None = None,
+    dist_coeffs: np.ndarray | None = None,
+    width: int = 1920,
+    height: int = 1080,
+    camera_z: float = 3.0,
 ) -> np.ndarray:
-    """Project 3D poses to 2D using simple perspective projection.
+    """Project 3D poses to 2D using OpenCV cv2.projectPoints().
 
     Args:
-        poses_3d: (N, 17, 3) array with x, y, z in meters
-        focal_length: Camera focal length in pixels
-        camera_distance: Distance from camera to subject in meters
+        poses_3d: (N, 17, 3) array with x, y, z in meters (Y-up coordinate system)
+        camera_matrix: 3x3 camera intrinsic matrix (auto-generated if None)
+        dist_coeffs: Distortion coefficients (zeros if None)
+        width: Image width for default camera matrix
+        height: Image height for default camera matrix
+        camera_z: Distance of camera from subject along Z axis (meters)
 
     Returns:
         poses_2d: (N, 17, 2) array with normalized [0,1] coordinates
     """
-    n_frames = poses_3d.shape[0]
-    poses_2d = np.zeros((n_frames, 17, 2), dtype=np.float32)
+    import cv2
 
-    # Simple perspective projection
-    # x' = x * f / (z + D)
-    # y' = y * f / (z + D)
+    n_frames, n_joints, _ = poses_3d.shape
+    poses_2d = np.zeros((n_frames, n_joints, 2), dtype=np.float32)
+
+    # Default camera matrix if not provided
+    if camera_matrix is None:
+        # Estimate focal length based on image width (typical FOV ~60°)
+        fx = fy = width  # Simple approximation: focal_length ≈ image_width
+        cx = width / 2.0
+        cy = height / 2.0
+        camera_matrix = np.array([
+            [fx, 0, cx],
+            [0, fy, cy],
+            [0, 0, 1]
+        ], dtype=np.float32)
+
+    if dist_coeffs is None:
+        dist_coeffs = np.zeros((5, 1), dtype=np.float32)
+
+    # Camera pose: place camera at Z = camera_z, looking at origin
+    rvec = np.zeros((3, 1), dtype=np.float32)
+    tvec = np.array([0, 0, camera_z], dtype=np.float32)  # Camera moved back by camera_z
 
     for frame_idx in range(n_frames):
-        pose_3d = poses_3d[frame_idx]
+        pose_3d = poses_3d[frame_idx].copy()
 
-        for joint_idx in range(17):
-            x, y, z = pose_3d[joint_idx]
+        # Flip Y axis: our poses use Y-up, OpenCV uses Y-down
+        pose_3d[:, 1] = -pose_3d[:, 1]
 
-            # Avoid division by zero and extreme projections
-            z_safe = z + camera_distance
-            if abs(z_safe) < 0.1:
-                z_safe = 0.1 if z_safe >= 0 else -0.1
+        # Project using OpenCV
+        projected, _ = cv2.projectPoints(
+            pose_3d, rvec, tvec, camera_matrix, dist_coeffs
+        )
 
-            # Perspective projection
-            scale = focal_length / z_safe
-            x_proj = x * scale
-            y_proj = y * scale
-
-            # Normalize to [0, 1] with clipping
+        # Convert pixels to normalized [0, 1]
+        for joint_idx in range(n_joints):
+            px, py = projected[joint_idx][0]
             poses_2d[frame_idx, joint_idx] = [
-                np.clip(x_proj + 0.5, 0, 1),  # Center X
-                np.clip(0.5 - y_proj, 0, 1),  # Center Y (flip Y)
+                np.clip(px / width, 0, 1),
+                np.clip(py / height, 0, 1),
             ]
 
     return poses_2d
@@ -833,32 +954,33 @@ def draw_skeleton_3d(
     skeleton_edges: list[tuple[int, int]],
     height: int,
     width: int,
-    focal_length: float = 500.0,
-    camera_distance: float = 5.0,
-    reference_pose: np.ndarray | None = None,
+    camera_matrix: np.ndarray | None = None,
+    camera_z: float = 3.0,
 ) -> np.ndarray:
-    """Draw 3D skeleton projected onto 2D frame.
-
-    NOTE: This function requires properly scaled 3D poses (e.g., from MotionAGFormer).
-    The biomechanics estimator produces meter-scale poses that don't project correctly.
+    """Draw 3D skeleton projected onto 2D frame using cv2.projectPoints().
 
     Args:
         frame: Input frame (H, W, 3)
-        pose_3d: (17, 3) array with x, y, z coordinates
+        pose_3d: (17, 3) array with x, y, z coordinates (in meters)
         skeleton_edges: List of (joint1, joint2) connections
         height: Frame height
         width: Frame width
-        focal_length: Camera focal length
-        camera_distance: Camera distance
-        reference_pose: Optional reference for alignment
+        camera_matrix: 3x3 camera intrinsic matrix (auto-calculated if None)
+        camera_z: Distance of camera from subject (meters)
 
     Returns:
         Frame with skeleton overlay
     """
     frame = frame.copy()
 
-    # Simple projection - works for properly scaled 3D poses
-    pose_2d = project_3d_to_2d(pose_3d[np.newaxis, ...], focal_length, camera_distance)[0]
+    # Project using OpenCV
+    pose_2d = project_3d_to_2d(
+        pose_3d[np.newaxis, ...],
+        camera_matrix=camera_matrix,
+        width=width,
+        height=height,
+        camera_z=camera_z,
+    )[0]
 
     # Draw edges
     for idx1, idx2 in skeleton_edges:
@@ -883,6 +1005,71 @@ def draw_skeleton_3d(
             z = pose_3d[joint_idx, 2]
             depth_color = _get_depth_color(z)
             cv2.circle(frame, (x, y), 4, depth_color, -1, cv2.LINE_AA)
+
+    return frame
+
+
+def draw_skeleton_3d_pip(
+    frame: np.ndarray,
+    pose_3d: np.ndarray,
+    skeleton_edges: list[tuple[int, int]],
+    height: int,
+    width: int,
+    camera_matrix: np.ndarray | None = None,
+    camera_z: float = 1.8,
+) -> np.ndarray:
+    """Draw 3D skeleton in top-right corner (natural background).
+
+    Args:
+        frame: Input frame (H, W, 3)
+        pose_3d: (17, 3) array with x, y, z coordinates (in meters)
+        skeleton_edges: List of (joint1, joint2) connections
+        height: Frame height (main video)
+        width: Frame width (main video)
+        camera_matrix: 3x3 camera intrinsic matrix (auto-calculated if None)
+        camera_z: Distance of camera from subject (smaller = larger skeleton)
+
+    Returns:
+        Frame with PIP skeleton overlay
+    """
+    frame = frame.copy()
+
+    # PIP area: top-right quadrant
+    pip_width = width // 2
+    pip_height = height // 2
+    pip_x = width - pip_width
+    pip_y = 0
+
+    # Project skeleton to PIP dimensions (closer camera = larger skeleton)
+    pose_2d = project_3d_to_2d(
+        pose_3d[np.newaxis, ...],
+        camera_matrix=camera_matrix,
+        width=pip_width,
+        height=pip_height,
+        camera_z=camera_z,
+    )[0]
+
+    # Draw edges (offset to PIP position)
+    for idx1, idx2 in skeleton_edges:
+        pt1 = pose_2d[idx1]
+        pt2 = pose_2d[idx2]
+
+        x1 = int(pt1[0] * pip_width) + pip_x
+        y1 = int(pt1[1] * pip_height) + pip_y
+        x2 = int(pt2[0] * pip_width) + pip_x
+        y2 = int(pt2[1] * pip_height) + pip_y
+
+        cv2.line(frame, (x1, y1), (x2, y2), COLOR_CENTER, 2, cv2.LINE_AA)
+
+    # Draw joints (offset to PIP position)
+    for joint_idx in range(pose_2d.shape[0]):
+        pt = pose_2d[joint_idx]
+        x = int(pt[0] * pip_width) + pip_x
+        y = int(pt[1] * pip_height) + pip_y
+
+        z = pose_3d[joint_idx, 2]
+        depth_color = _get_depth_color(z)
+        cv2.circle(frame, (x, y), 5, depth_color, -1, cv2.LINE_AA)
 
     return frame
 
@@ -923,45 +1110,56 @@ def draw_3d_trajectory(
     com_trajectory: np.ndarray,
     height: int,
     width: int,
-    focal_length: float = 500.0,
-    camera_distance: float = 5.0,
+    camera_matrix: np.ndarray | None = None,
+    camera_z: float = 3.0,
 ) -> np.ndarray:
-    """Draw Center of Mass trajectory in 3D.
+    """Draw Center of Mass trajectory in 3D using cv2.projectPoints().
 
     Args:
         frame: Input frame (H, W, 3)
         com_trajectory: (N, 3) CoM trajectory over time
         height: Frame height
         width: Frame width
-        focal_length: Camera focal length
-        camera_distance: Camera distance
+        camera_matrix: 3x3 camera intrinsic matrix (auto-generated if None)
+        camera_z: Distance of camera from subject (meters)
 
     Returns:
         Frame with trajectory overlay
     """
+    import cv2
+
     frame = frame.copy()
     n_frames = com_trajectory.shape[0]
 
-    # Project CoM trajectory to 2D (handle (N, 3) input)
+    # Default camera matrix if not provided
+    if camera_matrix is None:
+        fx = fy = width
+        cx = width / 2.0
+        cy = height / 2.0
+        camera_matrix = np.array([
+            [fx, 0, cx],
+            [0, fy, cy],
+            [0, 0, 1]
+        ], dtype=np.float32)
+
+    dist_coeffs = np.zeros((5, 1), dtype=np.float32)
+    rvec = np.zeros((3, 1), dtype=np.float32)
+    tvec = np.array([0, 0, camera_z], dtype=np.float32)
+
+    # Flip Y for OpenCV coordinate system
+    com_trajectory_copy = com_trajectory.copy()
+    com_trajectory_copy[:, 1] = -com_trajectory_copy[:, 1]
+
+    # Project using OpenCV
+    projected, _ = cv2.projectPoints(
+        com_trajectory_copy, rvec, tvec, camera_matrix, dist_coeffs
+    )
+
+    # Convert to normalized [0, 1]
     com_2d = np.zeros((n_frames, 2), dtype=np.float32)
     for i in range(n_frames):
-        x, y, z = com_trajectory[i]
-
-        # Avoid division by zero
-        z_safe = z + camera_distance
-        if abs(z_safe) < 0.1:
-            z_safe = 0.1 if z_safe >= 0 else -0.1
-
-        # Perspective projection
-        scale = focal_length / z_safe
-        x_proj = x * scale
-        y_proj = y * scale
-
-        # Normalize to [0, 1] with clipping
-        com_2d[i] = [
-            np.clip(x_proj + 0.5, 0, 1),
-            np.clip(0.5 - y_proj, 0, 1),
-        ]
+        px, py = projected[i][0]
+        com_2d[i] = [px / width, py / height]
 
     # Draw trajectory line
     points = []

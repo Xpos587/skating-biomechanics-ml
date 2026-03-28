@@ -30,12 +30,13 @@ from src.types import BKey
 from src.video import get_video_meta
 from src.visualization import (
     draw_3d_trajectory,
+    draw_axis_indicator,
     draw_blade_state_3d_hud,
     draw_debug_hud,
-    draw_edge_indicators,
     draw_ice_trace,
     draw_motion_direction_arrow,
     draw_skeleton,
+    draw_skeleton_3d_pip,
     draw_spatial_axes,
     draw_subtitle_cyrillic,
     draw_trails,
@@ -70,6 +71,16 @@ def main() -> int:
         "--blade-3d",
         action="store_true",
         help="Enable 3D blade detection (edge zones, motion direction, ice trace)",
+    )
+    parser.add_argument(
+        "--floor-mode",
+        action="store_true",
+        help="Floor mode: analysis without ice skates (disables blade detection)",
+    )
+    parser.add_argument(
+        "--no-com-trajectory",
+        action="store_true",
+        help="Disable Center of Mass trajectory line (yellow line)",
     )
     parser.add_argument("--output", type=Path, help="Output video path")
     parser.add_argument(
@@ -187,27 +198,38 @@ def main() -> int:
         smooth_jitter = np.abs(np.diff(poses_smoothed_norm[:, :, 0], axis=0)).mean()
         print(f"Jitter reduction: {(1 - smooth_jitter/raw_jitter)*100:.1f}%")
 
-        # Detect blade edge states for both feet
-        print("Detecting blade edge states...")
-        blade_detector = BladeEdgeDetector(smoothing_window=3)
-        blade_states_left = blade_detector.detect_sequence(poses_viz, meta.fps, foot="left", check_supporting=True)
-        blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
+        # Detect blade edge states for both feet (skip in floor mode)
+        if args.floor_mode:
+            print("Floor mode: skipping blade edge detection")
+            blade_states_left = [None] * len(poses_viz)
+            blade_states_right = [None] * len(poses_viz)
+        else:
+            print("Detecting blade edge states...")
+            blade_detector = BladeEdgeDetector(smoothing_window=3)
+            blade_states_left = blade_detector.detect_sequence(poses_viz, meta.fps, foot="left", check_supporting=True)
+            blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
 
-        # Show breakdown
-        from collections import Counter
-        left_breakdown = Counter(s.blade_type.name for s in blade_states_left)
-        right_breakdown = Counter(s.blade_type.name for s in blade_states_right)
-        print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
-        print(f"  Left breakdown: {dict(left_breakdown)}")
-        print(f"  Right breakdown: {dict(right_breakdown)}")
+        # Show breakdown (only if not floor mode)
+        if not args.floor_mode:
+            from collections import Counter
+            left_breakdown = Counter(s.blade_type.name for s in blade_states_left)
+            right_breakdown = Counter(s.blade_type.name for s in blade_states_right)
+            print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
+            print(f"  Left breakdown: {dict(left_breakdown)}")
+            print(f"  Right breakdown: {dict(right_breakdown)}")
 
     # Initialize blade states for loaded poses
     if args.poses and args.poses.exists():
-        print("Detecting blade edge states from loaded poses...")
-        blade_detector = BladeEdgeDetector(smoothing_window=3)
-        blade_states_left = blade_detector.detect_sequence(poses_viz, meta.fps, foot="left", check_supporting=True)
-        blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
-        print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
+        if args.floor_mode:
+            print("Floor mode: skipping blade edge detection")
+            blade_states_left = [None] * len(poses_viz)
+            blade_states_right = [None] * len(poses_viz)
+        else:
+            print("Detecting blade edge states from loaded poses...")
+            blade_detector = BladeEdgeDetector(smoothing_window=3)
+            blade_states_left = blade_detector.detect_sequence(poses_viz, meta.fps, foot="left", check_supporting=True)
+            blade_states_right = blade_detector.detect_sequence(poses_viz, meta.fps, foot="right", check_supporting=True)
+            print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
 
     # Initialize 3D pose extraction if requested
     poses_3d = None
@@ -333,10 +355,22 @@ def main() -> int:
 
         # Layer 0: Skeleton (use pixel coords for direct overlay)
         if args.layer >= 0 and current_pose_idx is not None:
-            # 3D skeleton disabled - biomechanics estimation not accurate enough for visualization
-            # TODO: Re-enable 3D skeleton only when using proper MotionAGFormer model
-            # For now, always use 2D skeleton which works well
-            frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
+            # Draw 3D skeleton in PIP window if enabled
+            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
+                from src.pose_3d.blazepose_to_h36m import H36M_SKELETON_EDGES
+
+                frame = draw_skeleton_3d_pip(
+                    frame,
+                    poses_3d[current_pose_idx],
+                    H36M_SKELETON_EDGES,
+                    meta.height,
+                    meta.width,
+                    camera_matrix=None,  # Auto-generate
+                    camera_z=3.0,        # Camera distance in meters
+                )
+            else:
+                # Draw 2D skeleton (33 keypoints) when 3D is disabled
+                frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
 
         # Layer 1: Kinematics (use normalized coords)
         if args.layer >= 1 and current_pose_idx is not None:
@@ -350,7 +384,7 @@ def main() -> int:
             )
 
             # Draw 3D CoM trajectory if enabled
-            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
+            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d) and not args.no_com_trajectory:
                 from src.visualization import draw_3d_trajectory
                 from src.analysis import PhysicsEngine
 
@@ -361,13 +395,14 @@ def main() -> int:
                 # Draw CoM trajectory
                 if len(com_trajectory) > 1:
                     frame = draw_3d_trajectory(
-                        frame, com_trajectory, meta.height, meta.width
+                        frame, com_trajectory, meta.height, meta.width, camera_z=3.0
                     )
 
-        # Layer 2: Technical (edge indicators - use normalized coords)
+        # Layer 2: Technical (blade states shown in HUD via draw_debug_hud)
         if args.layer >= 2 and current_pose_idx is not None:
-            frame = draw_edge_indicators(
-                frame, poses_viz, current_pose_idx, meta.height, meta.width
+            # Draw axis alignment indicator (trunk tilt)
+            frame = draw_axis_indicator(
+                frame, poses_viz[current_pose_idx], meta.height, meta.width
             )
 
             # 3D blade HUD disabled - too many UNKNOWN states without proper 3D model
