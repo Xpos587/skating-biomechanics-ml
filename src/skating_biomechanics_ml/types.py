@@ -5,7 +5,7 @@ Types are annotated for mypy strict mode compatibility.
 """
 
 from dataclasses import dataclass, field
-from enum import IntEnum
+from enum import Enum, IntEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -63,6 +63,19 @@ class BKey(IntEnum):
     RIGHT_FOOT_INDEX = 32
 
 
+class BladeType(Enum):
+    """Figure skating blade edge types.
+
+    Based on BDA (Blade Discrimination Algorithm) research.
+    """
+
+    INSIDE = "inside"  # Внутреннее ребро (inside edge)
+    OUTSIDE = "outside"  # Наружное ребро (outside edge)
+    FLAT = "flat"  # Плоскость лезвия (flat)
+    TOE_PICK = "toe_pick"  # Зубец (toe pick)
+    UNKNOWN = "unknown"  # Не удалось определить
+
+
 # All 33 BlazePose keypoints
 BLAZEPOSE_INDICES = list(BKey)
 
@@ -114,6 +127,7 @@ __all__ = [
     "PixelPose",
     "TimeSeries",
     "BKey",
+    "BladeType",
     "BLAZEPOSE_INDICES",
     "BLAZEPOSE_SKELETON_EDGES",
     "BoundingBox",

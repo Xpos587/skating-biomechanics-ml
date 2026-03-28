@@ -1,5 +1,15 @@
-"""Utility modules for video processing, geometry, subtitle parsing, smoothing, and visualization."""
+"""Utility modules for video processing, geometry, subtitle parsing, smoothing, visualization, and blade edge detection."""
 
+from skating_biomechanics_ml.utils.blade_edge_detector import (
+    BladeEdgeDetector,
+    BladeState,
+    angle_with_horizontal,
+    calculate_ankle_angle,
+    calculate_foot_angle,
+    calculate_foot_vector,
+    calculate_motion_direction,
+    calculate_vertical_acceleration,
+)
 from skating_biomechanics_ml.utils.geometry import (
     angle_3pt,
     distance,
@@ -45,6 +55,15 @@ __all__ = [
     "OneEuroFilterConfig",
     "PoseSmoother",
     "get_skating_optimized_config",
+    # Blade edge detection
+    "BladeEdgeDetector",
+    "BladeState",
+    "calculate_foot_vector",
+    "calculate_foot_angle",
+    "calculate_ankle_angle",
+    "calculate_vertical_acceleration",
+    "calculate_motion_direction",
+    "angle_with_horizontal",
     # Subtitle utilities
     "SubtitleParser",
     "ElementEvent",

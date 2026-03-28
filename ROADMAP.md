@@ -1,6 +1,6 @@
 # Figure Skating Biomechanics ML - Roadmap
 
-**Status:** MVP ~85% complete | Last updated: 2026-03-27
+**Status:** MVP ~90% complete | Last updated: 2026-03-28
 
 > **This is the SINGLE SOURCE OF TRUTH for project status.** All implementation decisions and priority changes must be reflected here first.
 
@@ -257,6 +257,52 @@ uv run python scripts/visualize_with_skeleton.py video.mp4 --layer 3
 
 ---
 
+### Phase 13: Blade Edge Detection ✅ 100%
+**Status:** Complete (NEW!)
+
+**Based on Research:**
+- "Automated Blade Type Discrimination Algorithm for Figure Skating Based on MediaPipe" (2025)
+- "Automatic Edge Error Judgment in Figure Skating Using 3D Pose Estimation" (2023)
+
+- [x] BladeType enum (INSIDE, OUTSIDE, FLAT, TOE_PICK, UNKNOWN)
+- [x] BladeEdgeDetector class with BDA Algorithm
+- [x] Foot angle calculation relative to motion direction
+- [x] Ankle flexion angle calculation
+- [x] Vertical acceleration for toe pick detection
+- [x] Temporal smoothing (majority voting)
+- [x] Takeoff/landing detection from blade state sequence
+- [x] 19 unit tests (all passing)
+- [x] Blade summary statistics
+
+**Key Insights from Research:**
+1. **AthletePose3D** (2025) - New dataset with figure skating 3D poses!
+2. **FS-Jump3D** - Public dataset for figure skating jumps
+3. **BDA Algorithm** - 4 angular thresholds for blade transitions:
+   - Strong inside: angle < -20°
+   - Weak inside: -20° to -10°
+   - Flat: -10° to 10°
+   - Weak outside: 10° to 20°
+   - Strong outside: angle > 20°
+4. **ISU + Omega** (2026) - Multi-camera system achieving millimeter accuracy
+
+**Files:** `utils/blade_edge_detector.py`, `types.py` (BladeType enum)
+**Tests:** `tests/utils/test_blade_edge_detector.py` (19 passing)
+
+**Usage:**
+```python
+from skating_biomechanics_ml.utils import BladeEdgeDetector
+
+detector = BladeEdgeDetector(
+    inside_threshold=-15.0,
+    outside_threshold=15.0,
+    smoothing_window=3
+)
+states = detector.detect_sequence(poses, fps=30.0, foot="left")
+summary = detector.get_blade_summary(states)
+```
+
+---
+
 ## Current Blockers
 
 ### HIGH Priority
@@ -289,10 +335,11 @@ uv run python scripts/visualize_with_skeleton.py video.mp4 --layer 3
    - Fix shape mismatches
    - Estimated: 1 hour
 
-3. **Commit Current Work** ⚠️ HIGH
-   - 36 untracked files
-   - All phases need commit
-   - Estimated: 30 minutes
+3. **Integrate Blade Detection into Analysis Pipeline** 🆕 MEDIUM
+   - Add blade state to MetricResult
+   - Update rules to use edge information
+   - Add edge visualization to HUD
+   - Estimated: 1-2 hours
 
 4. **Improve Segmentation** 📝 LOW
    - Trim segment boundaries
@@ -301,11 +348,52 @@ uv run python scripts/visualize_with_skeleton.py video.mp4 --layer 3
 
 ---
 
+## Future Enhancements (Research Findings)
+
+### Physics-Based Improvements
+1. **Physics-Informed Pose Validation**
+   - Bone length consistency checks (reduces MPJPE by 10%)
+   - Biomechanically realistic pose filtering
+   - Reference: "Physics Informed Human Posture Estimation" (2025)
+
+2. **3D Pose Estimation for Occlusion**
+   - **PoseMamba** - State Space Model with linear complexity
+   - **STRIDE** - Temporally continuous occlusion-robust 3D pose
+   - **Di²Pose** - Discrete diffusion for occluded poses
+   - **AthletePose3D** - Dataset with 1.3M frames including figure skating!
+
+3. **Physical Parameter Estimation**
+   - **A2B Model** - Anthropometric measurements → SMPL beta (MPJPE -30mm)
+   - **SMPLest-X** - SOTA pose + shape estimation (TPAMI 2025)
+   - Height/weight estimation from skeleton proportions
+
+4. **Multi-Person Tracking**
+   - **Deep HM-SORT** - 80.1 HOTA on SportsMOT
+   - **Basketball-SORT** - Handles 3+ person occlusions
+   - Re-identification during brief occlusions
+
+5. **Hierarchical Element Classification**
+   - **FS-Jump3D** - Public 3D pose dataset for jumps
+   - **MMFS** - 11,672 clips, 256 categories with skeleton data
+   - **MCFS** - Motion-Centered Figure Skating dataset
+   - **VIFSS** - View-Invariant Figure Skating-Specific representation
+
+### Data Resources
+| Dataset | Content | Link |
+|---------|---------|------|
+| FS-Jump3D | 3D pose jumps with optical markerless mocap | github.com/ryota-skating/FS-Jump3D |
+| MMFS | 11,672 clips, 256 categories, skeleton | Multi-modality dataset |
+| MCFS | Temporal action segmentation | shenglanliu.github.io/mcfs-dataset |
+| AthletePose3D | 1.3M frames, 12 sports including skating | Nagoya University |
+
+---
+
 ## Version History
 
 | Version | Date | Status | Notes |
 |---------|------|--------|-------|
 | 0.1 | 2026-03-27 | MVP 85% | Core pipeline working, visualization complete |
+| 0.2 | 2026-03-28 | MVP 90% | Blade edge detection (BDA algorithm), research findings |
 
 ---
 
@@ -313,4 +401,5 @@ uv run python scripts/visualize_with_skeleton.py video.mp4 --layer 3
 
 - Original architecture: `research/RESEARCH.md`
 - Visualization research: `research/VISUALIZATION_RESEARCH_PROMPT.md`
+- **Physics/Blade detection research:** `research/PHYSICS_DETECTION_RESEARCH.md` 🆕
 - API documentation: See individual module docstrings
