@@ -1,10 +1,10 @@
 """H3.6M 17-keypoint pose extractor.
 
-Direct H3.6M format extraction using YOLOv11-Pose backend with integrated conversion.
+Direct H3.6M format extraction using YOLOv8-Pose backend with integrated conversion.
 This is the primary 2D pose extractor for the skating analysis pipeline.
 
 Architecture:
-    YOLOv11-Pose (17kp COCO) → geometric conversion → H3.6M (17kp) output
+    YOLOv8-Pose (17kp COCO) → geometric conversion → H3.6M (17kp) output
 
 The conversion is geometric (not learned) and happens on-the-fly during extraction.
 """
@@ -44,9 +44,9 @@ class H36Key:
     RWRIST = 16
 
 
-# YOLOv11-Pose COCO keypoint indices (for internal mapping)
+# YOLOv8-Pose COCO keypoint indices (for internal mapping)
 class _COCOKey:
-    """YOLOv11-Pose COCO keypoint indices (17 total) - internal use only."""
+    """YOLOv8-Pose COCO keypoint indices (17 total) - internal use only."""
 
     NOSE = 0
     LEFT_EYE = 1
@@ -116,7 +116,7 @@ H36M_KEYPOINT_NAMES = [
 
 
 def _coco_to_h36m_single(coco_pose: np.ndarray) -> np.ndarray:
-    """Convert YOLOv11-Pose COCO 17 keypoints to H3.6M 17 keypoints (single frame).
+    """Convert YOLOv8-Pose COCO 17 keypoints to H3.6M 17 keypoints (single frame).
 
     Args:
         coco_pose: (17, 2) or (17, 3) array in COCO format
@@ -160,7 +160,7 @@ def _coco_to_h36m_single(coco_pose: np.ndarray) -> np.ndarray:
 class H36MExtractor:
     """H3.6M 17-keypoint pose extractor.
 
-    Uses YOLOv11-Pose backend with integrated H3.6M conversion.
+    Uses YOLOv8-Pose backend with integrated H3.6M conversion.
     Outputs H3.6M format directly (17 keypoints) - no intermediate COCO storage.
 
     This is the primary 2D pose extractor for the skating analysis pipeline.
@@ -179,7 +179,7 @@ class H36MExtractor:
         output_format: str = "normalized",  # "normalized" or "pixels"
         skip_model_check: bool = False,
     ):
-        """Initialize H3.6M extractor with YOLOv11-Pose backend.
+        """Initialize H3.6M extractor with YOLOv8-Pose backend.
 
         Args:
             model_size: Model size - 'n' (nano), 's' (small), 'm' (medium)
@@ -209,7 +209,8 @@ class H36MExtractor:
             if self._model_path is not None:
                 self._model = YOLO(str(self._model_path))
             else:
-                model_name = f"yolov11{self.model_size}-pose.pt"
+                # YOLOv8n-Pose (YOLOv8 doesn't have pose models yet)
+                model_name = f"yolov8{self.model_size}-pose.pt"
                 self._model = YOLO(model_name)
         return self._model
 
@@ -364,7 +365,7 @@ def blazepose_to_h36m(blazepose_pose: np.ndarray) -> np.ndarray:
     """Convert BlazePose 33 keypoints to H3.6M 17 keypoints.
 
     .. deprecated::
-        BlazePose is no longer supported. Use YOLOv11-Pose via H36MExtractor instead.
+        BlazePose is no longer supported. Use YOLOv8-Pose via H36MExtractor instead.
         This function provides YOLO-based conversion for backward compatibility.
 
     Args:
@@ -380,7 +381,7 @@ def blazepose_to_h36m(blazepose_pose: np.ndarray) -> np.ndarray:
 
     warnings.warn(
         "blazepose_to_h36m is deprecated and will be removed in a future version. "
-        "Use H36MExtractor with YOLOv11-Pose backend instead.",
+        "Use H36MExtractor with YOLOv8-Pose backend instead.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -390,7 +391,7 @@ def blazepose_to_h36m(blazepose_pose: np.ndarray) -> np.ndarray:
     # The result will be YOLO H3.6M keypoints, not converted BlazePose
     raise NotImplementedError(
         "Direct BlazePose to H3.6M conversion is no longer supported. "
-        "Use H36MExtractor with YOLOv11-Pose backend for new pose extraction. "
+        "Use H36MExtractor with YOLOv8-Pose backend for new pose extraction. "
         "For existing BlazePose data, you must re-extract using H36MExtractor."
     )
 

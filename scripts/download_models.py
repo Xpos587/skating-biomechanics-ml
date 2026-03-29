@@ -2,8 +2,7 @@
 """Download ML models required for the skating analysis system.
 
 This script downloads:
-- YOLOv11n weights for person detection
-- BlazePose models (auto-downloaded by MediaPipe on first use)
+- YOLOv8n-Pose for 2D pose estimation (H3.6M 17-keypoint format)
 
 Run this script once before using the system.
 """
@@ -16,29 +15,25 @@ def main() -> int:
     print("Downloading required ML models...")
     print("=" * 60)
 
-    # Download YOLOv11n
-    print("\n1. Downloading YOLOv11n for person detection...")
+    # Download YOLOv8n-Pose
+    print("\n1. Downloading YOLOv8n-Pose for 2D pose estimation...")
     try:
         from ultralytics import YOLO
 
-        model = YOLO("yolov11n.pt")
-        print("   ✓ YOLOv11n downloaded successfully")
+        model = YOLO("yolov8n-pose.pt")
+        print("   ✓ YOLOv8n-Pose downloaded successfully")
         print("   Model size: ~6MB")
         print(f"   Params: {sum(p.numel() for p in model.model.parameters()) / 1e6:.1f}M")
     except Exception as e:
-        print(f"   ✗ Failed to download YOLOv11n: {e}")
+        print(f"   ✗ Failed to download YOLOv8n-Pose: {e}")
         return 1
-
-    # MediaPipe BlazePose is auto-downloaded on first use
-    print("\n2. BlazePose models:")
-    print("   BlazePose (MediaPipe) will be auto-downloaded on first use")
-    print("   Model size: ~10-20MB depending on complexity")
-    print("   No manual download required")
 
     print("\n" + "=" * 60)
     print("✓ All models ready!")
     print("\nYou can now run:")
     print("  uv run python -m skating_biomechanics_ml.cli analyze video.mp4 --element three_turn")
+    print("\nOr start the Streamlit UI:")
+    print("  uv run streamlit run scripts/streamlit_ui.py")
 
     return 0
 

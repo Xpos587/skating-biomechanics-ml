@@ -3,7 +3,7 @@
 
 H3.6M Architecture:
     Uses H3.6M 17-keypoint format as the primary format.
-    2D extraction: H36MExtractor (YOLOv11-Pose backend)
+    2D extraction: H36MExtractor (YOLOv8-Pose backend)
 
 Usage:
     python -m skating_biomechanics_ml.cli analyze video.mp4 --element waltz_jump
@@ -283,7 +283,7 @@ def main() -> None:
   %(prog)s segment coach_tutorial.mp4 --export-dir data/references
 
 Архитектура:
-  2D Pose: YOLOv11-Pose → H3.6M 17-keypoint format
+  2D Pose: YOLOv8-Pose → H3.6M 17-keypoint format
   3D Pose: MotionAGFormer-S (59MB) or TCPFormer (422MB)
         """,
     )
