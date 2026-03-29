@@ -26,7 +26,12 @@ class AthletePose3DExtractor:
     """Monocular 3D pose estimation using AthletePose3D.
 
     Processes 2D poses (H3.6M 17-keypoint format) and outputs 3D poses.
-    Uses temporal modeling with 81-frame windows.
+    Supports MotionAGFormer and TCPFormer architectures.
+
+    Model Types:
+        - motionagformer-s: Small, fast (59MB)
+        - motionagformer-b: Base model (not tested)
+        - tcpformer: High accuracy (422MB)
     """
 
     # Temporal window size (frames)
@@ -44,11 +49,11 @@ class AthletePose3DExtractor:
         Args:
             model_path: Path to model checkpoint (.pth.tr file), or None for simple mode
             device: "cuda", "cpu", or "auto" (default)
-            model_type: Model architecture type
+            model_type: Model architecture type ("motionagformer-s", "motionagformer-b", "tcpformer")
             use_simple: If True, use biomechanics estimator instead of ML model
         """
         self.model_path = Path(model_path) if model_path else None
-        self.model_type = model_type
+        self.model_type = model_type.lower()
         self.use_simple = use_simple or (model_path is None)
 
         # Set device
@@ -68,14 +73,14 @@ class AthletePose3DExtractor:
         self._simple_estimator = Biomechanics3DEstimator() if self.use_simple else None
 
     def _load_model(self) -> torch.nn.Module:
-        """Load the AthletePose3D model."""
+        """Load the 3D pose model (MotionAGFormer or TCPFormer)."""
         if self._model_loaded:
             return self.model  # type: ignore
 
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model not found: {self.model_path}")
 
-        # Import MotionAGFormer from our models directory
+        # Import models from our models directory
         import sys
         from pathlib import Path
 
@@ -84,8 +89,6 @@ class AthletePose3DExtractor:
         if str(models_dir) not in sys.path:
             sys.path.insert(0, str(models_dir))
 
-        from motionagformer import MotionAGFormer
-
         # Load checkpoint
         checkpoint = torch.load(
             self.model_path,
@@ -93,56 +96,70 @@ class AthletePose3DExtractor:
             weights_only=False,
         )
 
-        # Determine model configuration based on type
-        if self.model_type == "motionagformer-s":
-            # Small model: fewer layers, smaller dimension
-            n_layers = 4
-            dim_feat = 64
-            n_frames = 81
-        elif self.model_type == "motionagformer-b":
-            # Base model
-            n_layers = 8
+        # Choose model class based on type
+        if self.model_type == "tcpformer":
+            from tcpformer import MemoryInducedTransformer
+            ModelClass = MemoryInducedTransformer
+            # TCPFormer uses 3 input channels (x, y, confidence)
+            dim_in = 3
+            # TCPFormer checkpoint has specific configuration
+            n_layers = 16
             dim_feat = 128
-            n_frames = 81
         else:
-            # Default to small config
-            n_layers = 4
-            dim_feat = 64
-            n_frames = 81
+            # Default to MotionAGFormer
+            from motionagformer import MotionAGFormer
+            ModelClass = MotionAGFormer
+            # MotionAGFormer also uses 3 input channels (x, y, confidence)
+            dim_in = 3
+
+            # Determine model configuration based on type
+            if self.model_type == "motionagformer-s":
+                n_layers = 4
+                dim_feat = 64
+            elif self.model_type == "motionagformer-b":
+                n_layers = 8
+                dim_feat = 128
+            else:
+                # Default to small config
+                n_layers = 4
+                dim_feat = 64
 
         # Create model
-        self.model = MotionAGFormer(
+        self.model = ModelClass(
             n_layers=n_layers,
-            dim_in=2,  # 2D input (x, y)
+            dim_in=dim_in,
             dim_feat=dim_feat,
             dim_rep=512,
             dim_out=3,  # 3D output (x, y, z)
             num_heads=4,
             num_joints=17,
-            n_frames=n_frames,
+            n_frames=self.TEMPORAL_WINDOW,
         )
 
-        # Load weights (handle different key formats)
-        if "model_state_dict" in checkpoint:
+        # Extract state dict from checkpoint
+        if "model" in checkpoint:
+            # TCPFormer format
+            state_dict = checkpoint["model"]
+        elif "model_state_dict" in checkpoint:
             state_dict = checkpoint["model_state_dict"]
         elif "state_dict" in checkpoint:
             state_dict = checkpoint["state_dict"]
         else:
             state_dict = checkpoint
 
-        # Try to load state dict, stripping prefixes if needed
-        try:
-            self.model.load_state_dict(state_dict)
-        except RuntimeError:
-            # Try stripping 'model.' prefix
-            new_state_dict = {}
-            for k, v in state_dict.items():
-                if k.startswith("model."):
-                    new_state_dict[k[6:]] = v
-                else:
-                    new_state_dict[k] = v
-            self.model.load_state_dict(new_state_dict, strict=False)
+        # Strip 'module.' prefix (from DataParallel wrapper)
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            new_key = k[7:] if k.startswith("module.") else k
+            new_state_dict[new_key] = v
 
+        # Load weights (handle different architectures)
+        if self.model_type == "tcpformer":
+            # TCPFormer uses strict loading (architecture matches)
+            self.model.load_state_dict(new_state_dict, strict=True)
+        else:
+            # MotionAGFormer - use non-strict (checkpoint has only att branches)
+            self.model.load_state_dict(new_state_dict, strict=False)
         self.model.to(self.device)
         self.model.eval()
         self._model_loaded = True
@@ -188,18 +205,22 @@ class AthletePose3DExtractor:
         Returns:
             poses_3d: (N, 17, 3) array with x, y, z coordinates
         """
-        from .blazepose_to_h36m import blazepose_to_h36m  # noqa: F401
-
         # Use simple estimator if enabled or no model
         if self.use_simple or self._simple_estimator is not None:
             return self._simple_estimator.estimate_3d(poses_2d)
 
         n_frames = poses_2d.shape[0]
 
+        # Ensure correct format (add confidence if needed)
+        if poses_2d.shape[2] == 2:
+            poses_with_conf = np.zeros((n_frames, 17, 3), dtype=np.float32)
+            poses_with_conf[:, :, :2] = poses_2d
+            poses_with_conf[:, :, 2] = 1.0
+            poses_2d = poses_with_conf
+
         # Pad sequence to multiple of window size
         pad_size = (self.TEMPORAL_WINDOW - (n_frames % self.TEMPORAL_WINDOW)) % self.TEMPORAL_WINDOW
         if pad_size > 0:
-            # Repeat last frame for padding
             padding = np.tile(poses_2d[-1:], (pad_size, 1, 1))
             poses_2d_padded = np.vstack([poses_2d, padding])
         else:
@@ -212,7 +233,7 @@ class AthletePose3DExtractor:
 
         for i in range(0, len(poses_2d_padded) - self.TEMPORAL_WINDOW + 1, stride):
             window = poses_2d_padded[i : i + self.TEMPORAL_WINDOW]
-            poses_3d_window = self._extract_window(window)  # (81, 17, 3)
+            poses_3d_window = self._extract_window(window)
 
             # Accumulate poses from this window
             end_idx = i + self.TEMPORAL_WINDOW
@@ -233,16 +254,11 @@ class AthletePose3DExtractor:
         Returns:
             pose_3d: (81, 17, 3) array - all frames in window
         """
-        # Ensure correct format
-        if window.shape[2] == 3:
-            # Drop confidence channel
-            window = window[:, :, :2]
-
         # Convert to tensor
         tensor = torch.from_numpy(window).float().to(self.device)
 
         # Add batch dimension
-        tensor = tensor.unsqueeze(0)  # (1, 81, 17, 2)
+        tensor = tensor.unsqueeze(0)  # (1, 81, 17, 2 or 3)
 
         # Run inference
         with torch.no_grad():
@@ -250,14 +266,7 @@ class AthletePose3DExtractor:
             output = model(tensor)  # (1, 81, 17, 3)
 
         # Extract all frames from output
-        if output.dim() == 4:
-            # Full sequence output - take all frames
-            pose_3d = output[0].cpu().numpy()  # (81, 17, 3)
-        else:
-            # Single frame output - expand to window size
-            pose_3d = np.tile(
-                output[0].cpu().numpy()[np.newaxis, :, :], (self.TEMPORAL_WINDOW, 1, 1)
-            )
+        pose_3d = output[0].cpu().numpy()  # (81, 17, 3)
 
         return pose_3d
 
@@ -282,7 +291,7 @@ def extract_3d_poses(
             - If 33 keypoints: BlazePose format (auto-converted)
             - If 17 keypoints: H3.6M format (direct)
         model_path: Path to model checkpoint
-        model_type: Model architecture type
+        model_type: Model architecture type ("motionagformer-s", "tcpformer")
         device: "cuda", "cpu", or "auto"
 
     Returns:
