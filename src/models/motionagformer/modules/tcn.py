@@ -12,7 +12,8 @@ class TemporalConv(nn.Module):
             kernel_size=(kernel_size, 1),
             padding=(pad, 0),
             stride=(stride, 1),
-            dilation=(dilation, 1))
+            dilation=(dilation, 1),
+        )
 
         self.bn = nn.BatchNorm2d(out_channels)
 
@@ -23,17 +24,21 @@ class TemporalConv(nn.Module):
 
 
 class MultiScaleTCN(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 kernel_size=5,
-                 stride=1,
-                 dilations=(1, 2),
-                 residual=True,
-                 residual_kernel_size=1):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=5,
+        stride=1,
+        dilations=(1, 2),
+        residual=True,
+        residual_kernel_size=1,
+    ):
 
         super().__init__()
-        assert out_channels % (len(dilations) + 2) == 0, '# out channels should be multiples of # branches (6x)'
+        assert out_channels % (len(dilations) + 2) == 0, (
+            "# out channels should be multiples of # branches (6x)"
+        )
 
         # Multiple branches of temporal convolution
         self.num_branches = len(dilations) + 2
@@ -44,38 +49,43 @@ class MultiScaleTCN(nn.Module):
             kernel_size = [kernel_size] * len(dilations)
 
         # Temporal Convolution branches
-        self.branches = nn.ModuleList([
-            nn.Sequential(
-                nn.Conv2d(
-                    in_channels,
-                    branch_channels,
-                    kernel_size=1,
-                    padding=0),
-                nn.BatchNorm2d(branch_channels),
-                nn.ReLU(inplace=True),
-                TemporalConv(
-                    branch_channels,
-                    branch_channels,
-                    kernel_size=ks,
-                    stride=stride,
-                    dilation=dilation),
-            )
-            for ks, dilation in zip(kernel_size, dilations)
-        ])
+        self.branches = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv2d(in_channels, branch_channels, kernel_size=1, padding=0),
+                    nn.BatchNorm2d(branch_channels),
+                    nn.ReLU(inplace=True),
+                    TemporalConv(
+                        branch_channels,
+                        branch_channels,
+                        kernel_size=ks,
+                        stride=stride,
+                        dilation=dilation,
+                    ),
+                )
+                for ks, dilation in zip(kernel_size, dilations)
+            ]
+        )
 
         # Additional Max & 1x1 branch
-        self.branches.append(nn.Sequential(
-            nn.Conv2d(in_channels, branch_channels, kernel_size=1, padding=0),
-            nn.BatchNorm2d(branch_channels),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=(3, 1), stride=(stride, 1), padding=(1, 0)),
-            nn.BatchNorm2d(branch_channels)
-        ))
+        self.branches.append(
+            nn.Sequential(
+                nn.Conv2d(in_channels, branch_channels, kernel_size=1, padding=0),
+                nn.BatchNorm2d(branch_channels),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=(3, 1), stride=(stride, 1), padding=(1, 0)),
+                nn.BatchNorm2d(branch_channels),
+            )
+        )
 
-        self.branches.append(nn.Sequential(
-            nn.Conv2d(in_channels, branch_channels, kernel_size=1, padding=0, stride=(stride, 1)),
-            nn.BatchNorm2d(branch_channels)
-        ))
+        self.branches.append(
+            nn.Sequential(
+                nn.Conv2d(
+                    in_channels, branch_channels, kernel_size=1, padding=0, stride=(stride, 1)
+                ),
+                nn.BatchNorm2d(branch_channels),
+            )
+        )
 
         # Residual connection
         if not residual:
@@ -83,7 +93,9 @@ class MultiScaleTCN(nn.Module):
         elif (in_channels == out_channels) and (stride == 1):
             self.residual = lambda x: x
         else:
-            self.residual = TemporalConv(in_channels, out_channels, kernel_size=residual_kernel_size, stride=stride)
+            self.residual = TemporalConv(
+                in_channels, out_channels, kernel_size=residual_kernel_size, stride=stride
+            )
 
     def forward(self, x):
         """
@@ -109,5 +121,5 @@ if __name__ == "__main__":
     x = torch.randn(8, 243, 17, 528)
     ms_tcn.forward(x)
     for name, param in ms_tcn.named_parameters():
-        print(f'{name}: {param.numel()}')
+        print(f"{name}: {param.numel()}")
     print(sum(p.numel() for p in ms_tcn.parameters() if p.requires_grad))

@@ -27,7 +27,7 @@ from src.blade_edge_detector_3d import BladeEdgeDetector3D, DetectionConfig
 from src.smoothing import PoseSmoother, get_skating_optimized_config
 from src.spatial_reference import SpatialReferenceDetector
 from src.subtitles import SubtitleParser
-from src.types import BKey
+from src.pose_3d.blazepose_to_h36m import BKey
 from src.video import get_video_meta
 from src.visualization import (
     draw_3d_trajectory,
@@ -298,10 +298,9 @@ def main() -> int:
         # Project reference pose
         ref_pose_2d = project_3d_to_2d(
             ref_pose_3d_centered[np.newaxis, ...],
-            camera_matrix=None,
             width=meta.width // 2,
             height=meta.height // 2,
-            camera_z=args.d_3d_scale,
+            camera_distance=args.d_3d_scale,
         )[0]
 
         # Calculate scale from reference pose
@@ -432,14 +431,8 @@ def main() -> int:
                 frame = draw_skeleton_3d_pip(
                     frame,
                     poses_3d[current_pose_idx],
-                    H36M_SKELETON_EDGES,
-                    meta.height,
                     meta.width,
-                    camera_matrix=None,  # Auto-generate
-                    camera_z=args.d_3d_scale,        # Scale from CLI (smaller = larger)
-                    auto_scale=False,  # Use fixed scale instead
-                    fixed_scale=pip_scale,  # Pre-computed from reference frame
-                    fixed_offset=pip_offset,  # Pre-computed from reference frame
+                    meta.height,
                 )
             else:
                 # Draw 2D skeleton (33 keypoints) when 3D is disabled
@@ -447,13 +440,21 @@ def main() -> int:
 
         # Layer 1: Kinematics (use normalized coords)
         if args.layer >= 1 and current_pose_idx is not None:
-            frame = draw_velocity_vectors(
-                frame, poses_viz, current_pose_idx, meta.fps, meta.height, meta.width
-            )
+            # Note: Velocity vectors and trails require H3.6M 17kp format
+            # Skip for BlazePose 33kp format (which we're using here)
+            if poses_viz.shape[1] == 17:  # H3.6M format
+                frame = draw_velocity_vectors(
+                    frame, poses_viz, current_pose_idx, meta.fps, meta.height, meta.width
+                )
             trail_history.append(poses_viz[current_pose_idx].copy())
             # Draw trail for left ankle (free leg in jumps)
+            if poses_viz.shape[1] == 33:  # BlazePose format
+                trail_key = BKey.LEFT_ANKLE
+            else:  # H3.6M format
+                from src.types import H36Key
+                trail_key = H36Key.LFOOT
             frame = draw_trails(
-                frame, trail_history, BKey.LEFT_ANKLE, meta.height, meta.width
+                frame, trail_history, trail_key, meta.height, meta.width
             )
 
             # Draw 3D CoM trajectory if enabled

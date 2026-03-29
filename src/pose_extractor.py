@@ -18,7 +18,7 @@ from .types import BoundingBox, FrameKeypoints
 from .video import extract_frames
 
 if TYPE_CHECKING:
-    from ultralytics.models.yolo.model import YOLO as YOLOModel
+    pass
 
 
 class PoseExtractor:

@@ -12,16 +12,20 @@ from .video import get_video_meta
 
 if TYPE_CHECKING:
     from . import aligner, motion_dtw
+
     MotionAligner = aligner.MotionAligner
     MotionDTWAligner = motion_dtw.MotionDTWAligner
-    from . import metrics, phase_detector, recommender
+    from . import phase_detector, recommender
+
     PhaseDetector = phase_detector.PhaseDetector
     Recommender = recommender.Recommender
     from . import person_detector
+
     PersonDetector = person_detector.PersonDetector
-    from . import blazepose_extractor, normalizer
-    PoseNormalizer = normalizer.PoseNormalizer
-    from . import element_defs, reference_store
+    from .pose_3d import AthletePose3DExtractor
+    from .pose_3d.normalizer_3d import PoseNormalizer3D
+    from . import reference_store
+
     ReferenceStore = reference_store.ReferenceStore
     from .smoothing import OneEuroFilterConfig, PoseSmoother
 
@@ -92,7 +96,8 @@ class AnalysisPipeline:
             ValueError: If video cannot be processed or element type not supported.
         """
         # Validate element type
-        from . import element_defs, reference_builder, reference_store
+        from . import element_defs
+
         element_def = element_defs.get_element_def(element_type)
         if element_def is None:
             raise ValueError(f"Unknown element type: {element_type}")
@@ -111,6 +116,7 @@ class AnalysisPipeline:
         import numpy as np
 
         from . import spatial_reference
+
         SpatialReferenceDetector = spatial_reference.SpatialReferenceDetector
 
         spatial_detector = SpatialReferenceDetector(
@@ -121,7 +127,11 @@ class AnalysisPipeline:
         # Estimate from first frame (could sample multiple frames for robustness)
         cap = cv2.VideoCapture(str(video_path))
         ret, first_frame = cap.read()
-        camera_pose = spatial_detector.estimate_pose(first_frame) if ret else spatial_detector.estimate_pose(np.zeros((100, 100, 3), dtype=np.uint8))
+        camera_pose = (
+            spatial_detector.estimate_pose(first_frame)
+            if ret
+            else spatial_detector.estimate_pose(np.zeros((100, 100, 3), dtype=np.uint8))
+        )
         cap.release()
 
         # Stage 2.6: Compensate poses for camera tilt
@@ -171,12 +181,16 @@ class AnalysisPipeline:
                 blade_states_right.append(right_state)
 
             # Get summaries (using 3D detector's summary method)
-            blade_summary_left = {"inside": sum(1 for s in blade_states_left if s.blade_type.value == "inside"),
-                                  "outside": sum(1 for s in blade_states_left if s.blade_type.value == "outside"),
-                                  "flat": sum(1 for s in blade_states_left if s.blade_type.value == "flat")}
-            blade_summary_right = {"inside": sum(1 for s in blade_states_right if s.blade_type.value == "inside"),
-                                   "outside": sum(1 for s in blade_states_right if s.blade_type.value == "outside"),
-                                   "flat": sum(1 for s in blade_states_right if s.blade_type.value == "flat")}
+            blade_summary_left = {
+                "inside": sum(1 for s in blade_states_left if s.blade_type.value == "inside"),
+                "outside": sum(1 for s in blade_states_left if s.blade_type.value == "outside"),
+                "flat": sum(1 for s in blade_states_left if s.blade_type.value == "flat"),
+            }
+            blade_summary_right = {
+                "inside": sum(1 for s in blade_states_right if s.blade_type.value == "inside"),
+                "outside": sum(1 for s in blade_states_right if s.blade_type.value == "outside"),
+                "flat": sum(1 for s in blade_states_right if s.blade_type.value == "flat"),
+            }
         except Exception:
             # Blade detection is optional, don't fail if it errors
             pass
@@ -219,16 +233,16 @@ class AnalysisPipeline:
                     trajectory = physics_engine.fit_jump_trajectory(
                         poses_3d, phases.takeoff, phases.landing
                     )
-                    physics_dict['jump_height'] = trajectory['height']
-                    physics_dict['flight_time'] = trajectory['flight_time']
-                    physics_dict['takeoff_velocity'] = trajectory['takeoff_velocity']
-                    physics_dict['fit_quality'] = trajectory['fit_quality']
+                    physics_dict["jump_height"] = trajectory["height"]
+                    physics_dict["flight_time"] = trajectory["flight_time"]
+                    physics_dict["takeoff_velocity"] = trajectory["takeoff_velocity"]
+                    physics_dict["fit_quality"] = trajectory["fit_quality"]
 
                 # Calculate average moment of inertia during element
                 inertia = physics_engine.calculate_moment_of_inertia(
-                    poses_3d[phases.start:phases.end]
+                    poses_3d[phases.start : phases.end]
                 )
-                physics_dict['avg_inertia'] = float(np.mean(inertia))
+                physics_dict["avg_inertia"] = float(np.mean(inertia))
             except Exception:
                 # Physics calculation is optional, don't fail if it errors
                 pass
@@ -270,6 +284,7 @@ class AnalysisPipeline:
             # Can export each segment as reference .npz file
         """
         from . import element_segmenter
+
         ElementSegmenter = element_segmenter.ElementSegmenter
 
         # Get video metadata
@@ -286,6 +301,7 @@ class AnalysisPipeline:
         import numpy as np
 
         from . import spatial_reference
+
         SpatialReferenceDetector = spatial_reference.SpatialReferenceDetector
 
         spatial_detector = SpatialReferenceDetector(
@@ -296,7 +312,11 @@ class AnalysisPipeline:
         # Estimate from first frame (could sample multiple frames for robustness)
         cap = cv2.VideoCapture(str(video_path))
         ret, first_frame = cap.read()
-        camera_pose = spatial_detector.estimate_pose(first_frame) if ret else spatial_detector.estimate_pose(np.zeros((100, 100, 3), dtype=np.uint8))
+        camera_pose = (
+            spatial_detector.estimate_pose(first_frame)
+            if ret
+            else spatial_detector.estimate_pose(np.zeros((100, 100, 3), dtype=np.uint8))
+        )
         cap.release()
 
         # Stage 2.6: Compensate poses for camera tilt
@@ -326,22 +346,23 @@ class AnalysisPipeline:
         """Lazy-load person detector."""
         if self._detector is None:
             from . import person_detector
+
             PersonDetector = person_detector.PersonDetector
 
             self._detector = PersonDetector(model_size="n", confidence=0.5)
         return self._detector
 
     def _get_pose_extractor(self) -> "PoseExtractor":  # type: ignore[valid-type]
-        """Lazy-load pose extractor (BlazePose with 33 keypoints)."""
+        """Lazy-load pose extractor (AthletePose3D with H3.6M 17 keypoints 3D)."""
         if self._pose_extractor is None:
-            from . import blazepose_extractor
-            BlazePoseExtractor = blazepose_extractor.BlazePoseExtractor
+            from .pose_3d import AthletePose3DExtractor
 
-            # BlazePose parameters: model_path, min_detection_confidence, min_presence_confidence, num_poses
-            self._pose_extractor = BlazePoseExtractor(
-                min_detection_confidence=0.5,
-                min_presence_confidence=0.5,
-                num_poses=1,
+            # Use AthletePose3D for 3D pose estimation (H3.6M 17kp format)
+            # Fallback to simple biomechanics estimator if model not available
+            model_path = "data/models/motionagformer-s-ap3d.pth.tr"
+            self._pose_extractor = AthletePose3DExtractor(
+                model_path=Path(model_path) if Path(model_path).exists() else None,
+                use_simple=True,  # Use biomechanics estimator for now
             )
         return self._pose_extractor
 
@@ -349,6 +370,7 @@ class AnalysisPipeline:
         """Lazy-load pose normalizer."""
         if self._normalizer is None:
             from . import normalizer
+
             PoseNormalizer = normalizer.PoseNormalizer
 
             self._normalizer = PoseNormalizer(target_spine_length=0.4)
@@ -378,6 +400,7 @@ class AnalysisPipeline:
         """Lazy-load phase detector."""
         if self._phase_detector is None:
             from . import phase_detector
+
             PhaseDetector = phase_detector.PhaseDetector
 
             self._phase_detector = PhaseDetector()
@@ -387,6 +410,7 @@ class AnalysisPipeline:
         """Get analyzer factory (returns BiomechanicsAnalyzer class)."""
         if self._analyzer_factory is None:
             from . import metrics
+
             BiomechanicsAnalyzer = metrics.BiomechanicsAnalyzer
 
             self._analyzer_factory = BiomechanicsAnalyzer
@@ -396,6 +420,7 @@ class AnalysisPipeline:
         """Lazy-load motion aligner (using phase-aware MotionDTW)."""
         if self._aligner is None:
             from . import motion_dtw
+
             MotionDTWAligner = motion_dtw.MotionDTWAligner
 
             self._aligner = MotionDTWAligner(window_type="sakoechiba", window_size=0.2)
@@ -405,6 +430,7 @@ class AnalysisPipeline:
         """Lazy-load recommender."""
         if self._recommender is None:
             from . import recommender
+
             Recommender = recommender.Recommender
 
             self._recommender = Recommender()
@@ -477,14 +503,18 @@ class AnalysisPipeline:
         if report.blade_summary_left or report.blade_summary_right:
             lines.append("\n--- Состояние лезвия ---")
             if report.blade_summary_left:
-                lines.append(f"  Левая нога: {report.blade_summary_left.get('dominant_edge', 'unknown')}")
-                if 'type_percentages' in report.blade_summary_left:
-                    types = report.blade_summary_left['type_percentages']
+                lines.append(
+                    f"  Левая нога: {report.blade_summary_left.get('dominant_edge', 'unknown')}"
+                )
+                if "type_percentages" in report.blade_summary_left:
+                    types = report.blade_summary_left["type_percentages"]
                     lines.append(f"    Распределение: {types}")
             if report.blade_summary_right:
-                lines.append(f"  Правая нога: {report.blade_summary_right.get('dominant_edge', 'unknown')}")
-                if 'type_percentages' in report.blade_summary_right:
-                    types = report.blade_summary_right['type_percentages']
+                lines.append(
+                    f"  Правая нога: {report.blade_summary_right.get('dominant_edge', 'unknown')}"
+                )
+                if "type_percentages" in report.blade_summary_right:
+                    types = report.blade_summary_right["type_percentages"]
                     lines.append(f"    Распределение: {types}")
 
         # Recommendations

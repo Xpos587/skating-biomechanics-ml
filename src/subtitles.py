@@ -118,7 +118,11 @@ class SubtitleParser:
                 current_text = ""
             else:
                 # Accumulate text (skip WEBVTT headers)
-                if not line.startswith("WEBVTT") and not line.startswith("Kind:") and not line.startswith("Language:"):
+                if (
+                    not line.startswith("WEBVTT")
+                    and not line.startswith("Kind:")
+                    and not line.startswith("Language:")
+                ):
                     # Remove VTT formatting tags
                     clean_line = re.sub(r"<\d{2}:\d{2}\.\d{3}>", "", line)  # timestamp tags
                     clean_line = re.sub(r"<c>|</c>", "", clean_line)  # style tags
@@ -174,9 +178,7 @@ class SubtitleParser:
                 count = int(count_match.group(1))
                 # No element name found, save generic event
                 events.append(
-                    ElementEvent(
-                        name="unknown", start_time=start, end_time=end, count=count
-                    )
+                    ElementEvent(name="unknown", start_time=start, end_time=end, count=count)
                 )
             return events
 

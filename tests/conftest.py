@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from src.types import H36Key, BKey, Pose3D
+from src.types import H36Key, Pose3D
 
 
 @pytest.fixture
@@ -57,34 +57,34 @@ def sample_normalized_poses():
     # Centered at origin, scale = 1
     for i in range(3):
         # Hips at origin
-        poses[i, BKey.LEFT_HIP] = [-0.05, 0.0]
-        poses[i, BKey.RIGHT_HIP] = [0.05, 0.0]
+        poses[i, H36Key.LEFT_HIP] = [-0.05, 0.0]
+        poses[i, H36Key.RIGHT_HIP] = [0.05, 0.0]
 
         # Shoulders above (negative Y = up in image coords)
-        poses[i, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
-        poses[i, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
+        poses[i, H36Key.LEFT_SHOULDER] = [-0.1, -0.3]
+        poses[i, H36Key.RIGHT_SHOULDER] = [0.1, -0.3]
 
         # Elbows
-        poses[i, BKey.LEFT_ELBOW] = [-0.15, -0.5]
-        poses[i, BKey.RIGHT_ELBOW] = [0.15, -0.5]
+        poses[i, H36Key.LEFT_ELBOW] = [-0.15, -0.5]
+        poses[i, H36Key.RIGHT_ELBOW] = [0.15, -0.5]
 
         # Wrists
-        poses[i, BKey.LEFT_WRIST] = [-0.2, -0.7]
-        poses[i, BKey.RIGHT_WRIST] = [0.2, -0.7]
+        poses[i, H36Key.LEFT_WRIST] = [-0.2, -0.7]
+        poses[i, H36Key.RIGHT_WRIST] = [0.2, -0.7]
 
         # Knees
-        poses[i, BKey.LEFT_KNEE] = [-0.05, 0.3]
-        poses[i, BKey.RIGHT_KNEE] = [0.05, 0.3]
+        poses[i, H36Key.LEFT_KNEE] = [-0.05, 0.3]
+        poses[i, H36Key.RIGHT_KNEE] = [0.05, 0.3]
 
         # Ankles
-        poses[i, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses[i, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[i, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses[i, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
 
         # Heels and foot index (for edge detection)
-        poses[i, BKey.LEFT_HEEL] = [-0.08, 0.6]
-        poses[i, BKey.RIGHT_HEEL] = [0.08, 0.6]
-        poses[i, BKey.LEFT_FOOT_INDEX] = [-0.02, 0.65]
-        poses[i, BKey.RIGHT_FOOT_INDEX] = [0.02, 0.65]
+        poses[i, H36Key.LEFT_HEEL] = [-0.08, 0.6]
+        poses[i, H36Key.RIGHT_HEEL] = [0.08, 0.6]
+        poses[i, H36Key.LEFT_FOOT_INDEX] = [-0.02, 0.65]
+        poses[i, H36Key.RIGHT_FOOT_INDEX] = [0.02, 0.65]
 
     return poses
 

@@ -5,7 +5,7 @@ Updated for H3.6M 17kp format.
 
 import numpy as np
 
-from src.types import H36Key, BKey
+from src.types import H36Key
 from src.visualization import (
     draw_debug_hud,
     draw_edge_indicators,

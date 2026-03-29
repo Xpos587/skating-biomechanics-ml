@@ -4,8 +4,6 @@ This module generates specific, actionable recommendations in Russian
 based on biomechanics metrics analysis.
 """
 
-from typing import TYPE_CHECKING
-
 from . import jump_rules, three_turn_rules
 from .types import MetricResult, RecommendationRule
 

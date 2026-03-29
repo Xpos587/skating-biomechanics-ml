@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from .types import H36Key, FrameKeypoints, NormalizedPose, Pose3D, TimeSeries
+from .types import H36Key, FrameKeypoints, NormalizedPose, TimeSeries
 
 
 def angle_3pt(a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.float64]) -> float:
@@ -181,8 +181,9 @@ def calculate_center_of_mass(poses: NormalizedPose, frame_idx: int) -> float:
     head_mass = 0.081
 
     # Torso (mid-shoulder to mid-hip midpoint)
-    torso = (pose[H36Key.LSHOULDER] + pose[H36Key.RSHOULDER] +
-             pose[H36Key.LHIP] + pose[H36Key.RHIP]) / 4
+    torso = (
+        pose[H36Key.LSHOULDER] + pose[H36Key.RSHOULDER] + pose[H36Key.LHIP] + pose[H36Key.RHIP]
+    ) / 4
     torso_mass = 0.497
 
     # Arms (elbow-wrist midpoint for upper arm, wrist for forearm)
@@ -204,11 +205,11 @@ def calculate_center_of_mass(poses: NormalizedPose, frame_idx: int) -> float:
 
     # Weighted sum of Y-coordinates only (for height)
     com_y = (
-        head_mass * head[1] +
-        torso_mass * torso[1] +
-        arm_mass_each * (l_upper_arm[1] + r_upper_arm[1] + l_forearm[1] + r_forearm[1]) +
-        thigh_mass_each * (l_thigh[1] + r_thigh[1]) +
-        leg_mass_each * (l_leg[1] + r_leg[1])
+        head_mass * head[1]
+        + torso_mass * torso[1]
+        + arm_mass_each * (l_upper_arm[1] + r_upper_arm[1] + l_forearm[1] + r_forearm[1])
+        + thigh_mass_each * (l_thigh[1] + r_thigh[1])
+        + leg_mass_each * (l_leg[1] + r_leg[1])
     )
 
     return float(com_y)

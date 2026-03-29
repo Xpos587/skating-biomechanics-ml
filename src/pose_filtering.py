@@ -16,7 +16,7 @@ Dependencies:
 from dataclasses import dataclass
 
 import numpy as np
-from filterpy.kalman import KalmanFilter, rts_smoother
+from filterpy.kalman import KalmanFilter
 from scipy.ndimage import median_filter
 
 
@@ -56,13 +56,13 @@ def hampel_filter(
             signal = poses[:, kp_idx, coord_idx]
 
             # Apply median filter for sliding window median
-            median = median_filter(signal, size=window_size, mode='nearest')
+            median = median_filter(signal, size=window_size, mode="nearest")
 
             # Calculate Median Absolute Deviation (MAD)
-            mad = median_filter(np.abs(signal - median), size=window_size, mode='nearest')
+            mad = median_filter(np.abs(signal - median), size=window_size, mode="nearest")
 
             # Modified z-score (0.6745 makes it consistent with standard deviation for normal distributions)
-            with np.errstate(divide='ignore', invalid='ignore'):
+            with np.errstate(divide="ignore", invalid="ignore"):
                 z_score = 0.6745 * (signal - median) / (mad + 1e-8)
 
             # Identify and replace outliers
@@ -272,9 +272,7 @@ class EnhancedPoseFilter:
 
         return poses_filtered
 
-    def _apply_rts_smoother(
-        self, state_estimates: list[np.ndarray]
-    ) -> list[np.ndarray]:
+    def _apply_rts_smoother(self, state_estimates: list[np.ndarray]) -> list[np.ndarray]:
         """Apply Rauch-Tung-Striebel (RTS) smoother for bidirectional filtering.
 
         RTS smoothing uses future measurements to improve past estimates,

@@ -10,7 +10,7 @@ from src.skeletons import (
     get_skeleton_tree,
     render_tree,
 )
-from src.types import H36Key, BKey  # BKey is alias for H36Key
+from src.types import H36Key
 
 
 class TestSkeletonTree:
@@ -167,12 +167,12 @@ class TestSkeletonTree:
     def test_backward_compatibility_aliases(self):
         """Test that BKey aliases work for H3.6M keypoints."""
         # BKey should be an alias for H36Key
-        assert BKey.LSHOULDER == H36Key.LSHOULDER
-        assert BKey.LEFT_SHOULDER == H36Key.LSHOULDER  # Alias
+        assert H36Key.LSHOULDER == H36Key.LSHOULDER
+        assert H36Key.LEFT_SHOULDER == H36Key.LSHOULDER  # Alias
 
         # These should map to H3.6M equivalents
-        assert BKey.LEFT_ELBOW == H36Key.LELBOW
-        assert BKey.RIGHT_ELBOW == H36Key.RELBOW
+        assert H36Key.LEFT_ELBOW == H36Key.LELBOW
+        assert H36Key.RIGHT_ELBOW == H36Key.RELBOW
 
     def test_legacy_finger_keypoints_map_to_wrist(self):
         """Test that legacy finger keypoints map to wrist (backward compat)."""

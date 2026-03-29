@@ -14,14 +14,11 @@ from .types import (
     H36Key,
     MetricResult,
     NormalizedPose,
-    Pose3D,
     TimeSeries,
 )
 from .geometry import (
     angle_3pt,
-    calculate_center_of_mass,
     calculate_com_trajectory,
-    get_mid_hip,
 )
 
 if TYPE_CHECKING:
@@ -395,9 +392,7 @@ class BiomechanicsAnalyzer:
         """
         # Calculate average wrist-to-shoulder distance
         left_dist = np.linalg.norm(poses[:, H36Key.LWRIST] - poses[:, H36Key.LSHOULDER], axis=1)
-        right_dist = np.linalg.norm(
-            poses[:, H36Key.RWRIST] - poses[:, H36Key.RSHOULDER], axis=1
-        )
+        right_dist = np.linalg.norm(poses[:, H36Key.RWRIST] - poses[:, H36Key.RSHOULDER], axis=1)
 
         avg_dist = float(np.mean(left_dist + right_dist) / 2)
 
@@ -429,9 +424,7 @@ class BiomechanicsAnalyzer:
 
         return leans
 
-    def compute_knee_angle_series(
-        self, poses: NormalizedPose, side: str = "left"
-    ) -> TimeSeries:
+    def compute_knee_angle_series(self, poses: NormalizedPose, side: str = "left") -> TimeSeries:
         """Compute knee angle series for step elements.
 
         Args:

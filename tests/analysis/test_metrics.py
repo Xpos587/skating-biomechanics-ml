@@ -5,7 +5,7 @@ import pytest
 
 from src.metrics import BiomechanicsAnalyzer
 from src.element_defs import ElementDef, get_element_def
-from src.types import BKey, ElementPhase, MetricResult
+from src.types import H36Key, ElementPhase, MetricResult
 
 
 class TestBiomechanicsAnalyzer:
@@ -43,9 +43,9 @@ class TestBiomechanicsAnalyzer:
 
         angles = analyzer.compute_angle_series(
             sample_normalized_poses,
-            BKey.LEFT_SHOULDER,
-            BKey.LEFT_ELBOW,
-            BKey.LEFT_WRIST,
+            H36Key.LEFT_SHOULDER,
+            H36Key.LEFT_ELBOW,
+            H36Key.LEFT_WRIST,
         )
 
         assert len(angles) == 3
@@ -103,23 +103,23 @@ class TestBiomechanicsAnalyzer:
         for i in range(5):
             # Hips move up then down (Y inverted, so negative = up)
             hip_y = 0.0 if i < 2 else (0.3 if i > 2 else -0.2)
-            jump_poses[i, BKey.LEFT_HIP] = [-0.05, hip_y]
-            jump_poses[i, BKey.RIGHT_HIP] = [0.05, hip_y]
+            jump_poses[i, H36Key.LEFT_HIP] = [-0.05, hip_y]
+            jump_poses[i, H36Key.RIGHT_HIP] = [0.05, hip_y]
 
             # Shoulders follow hips
-            jump_poses[i, BKey.LEFT_SHOULDER] = [-0.1, hip_y - 0.3]
-            jump_poses[i, BKey.RIGHT_SHOULDER] = [0.1, hip_y - 0.3]
+            jump_poses[i, H36Key.LEFT_SHOULDER] = [-0.1, hip_y - 0.3]
+            jump_poses[i, H36Key.RIGHT_SHOULDER] = [0.1, hip_y - 0.3]
 
             # Arms and legs also move
-            jump_poses[i, BKey.LEFT_WRIST] = [-0.2, hip_y - 0.7]
-            jump_poses[i, BKey.RIGHT_WRIST] = [0.2, hip_y - 0.7]
-            jump_poses[i, BKey.LEFT_ANKLE] = [-0.05, hip_y + 0.6]
-            jump_poses[i, BKey.RIGHT_ANKLE] = [0.05, hip_y + 0.6]
-            jump_poses[i, BKey.LEFT_KNEE] = [-0.05, hip_y + 0.3]
-            jump_poses[i, BKey.RIGHT_KNEE] = [0.05, hip_y + 0.3]
-            jump_poses[i, BKey.NOSE] = [0, hip_y - 0.5]
-            jump_poses[i, BKey.LEFT_ELBOW] = [-0.15, hip_y - 0.5]
-            jump_poses[i, BKey.RIGHT_ELBOW] = [0.15, hip_y - 0.5]
+            jump_poses[i, H36Key.LEFT_WRIST] = [-0.2, hip_y - 0.7]
+            jump_poses[i, H36Key.RIGHT_WRIST] = [0.2, hip_y - 0.7]
+            jump_poses[i, H36Key.LEFT_ANKLE] = [-0.05, hip_y + 0.6]
+            jump_poses[i, H36Key.RIGHT_ANKLE] = [0.05, hip_y + 0.6]
+            jump_poses[i, H36Key.LEFT_KNEE] = [-0.05, hip_y + 0.3]
+            jump_poses[i, H36Key.RIGHT_KNEE] = [0.05, hip_y + 0.3]
+            jump_poses[i, H36Key.NOSE] = [0, hip_y - 0.5]
+            jump_poses[i, H36Key.LEFT_ELBOW] = [-0.15, hip_y - 0.5]
+            jump_poses[i, H36Key.RIGHT_ELBOW] = [0.15, hip_y - 0.5]
 
         phases = ElementPhase(
             name="waltz_jump",
@@ -154,29 +154,29 @@ class TestBiomechanicsAnalyzer:
         poses = np.zeros((3, 33, 2), dtype=np.float32)
 
         # Takeoff: straight legs
-        poses[0, BKey.LEFT_HIP] = [-0.05, 0.0]
-        poses[0, BKey.RIGHT_HIP] = [0.05, 0.0]
-        poses[0, BKey.LEFT_KNEE] = [-0.05, 0.3]
-        poses[0, BKey.RIGHT_KNEE] = [0.05, 0.3]
-        poses[0, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses[0, BKey.RIGHT_ANKLE] = [0.05, 0.6]
-        poses[0, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
-        poses[0, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
-        poses[0, BKey.NOSE] = [0, -0.5]
+        poses[0, H36Key.LEFT_HIP] = [-0.05, 0.0]
+        poses[0, H36Key.RIGHT_HIP] = [0.05, 0.0]
+        poses[0, H36Key.LEFT_KNEE] = [-0.05, 0.3]
+        poses[0, H36Key.RIGHT_KNEE] = [0.05, 0.3]
+        poses[0, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses[0, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[0, H36Key.LEFT_SHOULDER] = [-0.1, -0.3]
+        poses[0, H36Key.RIGHT_SHOULDER] = [0.1, -0.3]
+        poses[0, H36Key.NOSE] = [0, -0.5]
 
         # Peak: in air, body extended
         poses[1] = poses[0] * 0.9  # Everything higher (more negative Y)
 
         # Landing: bent knees (hips drop relative to ankles)
-        poses[2, BKey.LEFT_HIP] = [-0.05, 0.15]  # Hips dropped
-        poses[2, BKey.RIGHT_HIP] = [0.05, 0.15]
-        poses[2, BKey.LEFT_KNEE] = [-0.05, 0.4]  # Knees bent forward
-        poses[2, BKey.RIGHT_KNEE] = [0.05, 0.4]
-        poses[2, BKey.LEFT_ANKLE] = [-0.05, 0.6]  # Ankles same
-        poses[2, BKey.RIGHT_ANKLE] = [0.05, 0.6]
-        poses[2, BKey.LEFT_SHOULDER] = [-0.1, -0.15]  # Upper body similar
-        poses[2, BKey.RIGHT_SHOULDER] = [0.1, -0.15]
-        poses[2, BKey.NOSE] = [0, -0.35]
+        poses[2, H36Key.LEFT_HIP] = [-0.05, 0.15]  # Hips dropped
+        poses[2, H36Key.RIGHT_HIP] = [0.05, 0.15]
+        poses[2, H36Key.LEFT_KNEE] = [-0.05, 0.4]  # Knees bent forward
+        poses[2, H36Key.RIGHT_KNEE] = [0.05, 0.4]
+        poses[2, H36Key.LEFT_ANKLE] = [-0.05, 0.6]  # Ankles same
+        poses[2, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[2, H36Key.LEFT_SHOULDER] = [-0.1, -0.15]  # Upper body similar
+        poses[2, H36Key.RIGHT_SHOULDER] = [0.1, -0.15]
+        poses[2, H36Key.NOSE] = [0, -0.35]
 
         phases = ElementPhase(
             name="test",
@@ -188,7 +188,7 @@ class TestBiomechanicsAnalyzer:
         )
 
         # Hip-only method (overestimates due to bent knees)
-        hip_y = (poses[:, BKey.LEFT_HIP, 1] + poses[:, BKey.RIGHT_HIP, 1]) / 2
+        hip_y = (poses[:, H36Key.LEFT_HIP, 1] + poses[:, H36Key.RIGHT_HIP, 1]) / 2
         height_hip = analyzer.compute_jump_height(hip_y, phases)
 
         # CoM method (physics-accurate)

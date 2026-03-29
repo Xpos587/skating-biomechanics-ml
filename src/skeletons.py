@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from anytree import Node, RenderTree
 
-from .types import H36Key, BKey  # BKey is alias for H36Key during migration
+from .types import H36Key
 
 
 @dataclass
@@ -54,40 +54,92 @@ H36M_HIERARCHY = BoneNode(
     name="root",
     children=[
         # Root/Hips
-        BoneNode(name="hip_center", keypoint_idx=H36Key.HIP_CENTER, children=[
-            # Right leg
-            BoneNode(name="right_hip", keypoint_idx=H36Key.RHIP, children=[
-                BoneNode(name="right_knee", keypoint_idx=H36Key.RKNEE, children=[
-                    BoneNode(name="right_foot", keypoint_idx=H36Key.RFOOT),
-                ]),
-            ]),
-            # Left leg
-            BoneNode(name="left_hip", keypoint_idx=H36Key.LHIP, children=[
-                BoneNode(name="left_knee", keypoint_idx=H36Key.LKNEE, children=[
-                    BoneNode(name="left_foot", keypoint_idx=H36Key.LFOOT),
-                ]),
-            ]),
-            # Spine/Torso
-            BoneNode(name="spine", keypoint_idx=H36Key.SPINE, children=[
-                BoneNode(name="thorax", keypoint_idx=H36Key.THORAX, children=[
-                    BoneNode(name="neck", keypoint_idx=H36Key.NECK, children=[
-                        BoneNode(name="head", keypoint_idx=H36Key.HEAD),
-                    ]),
-                    # Right arm (from thorax in H3.6M)
-                    BoneNode(name="right_shoulder", keypoint_idx=H36Key.RSHOULDER, children=[
-                        BoneNode(name="right_elbow", keypoint_idx=H36Key.RELBOW, children=[
-                            BoneNode(name="right_wrist", keypoint_idx=H36Key.RWRIST),
-                        ]),
-                    ]),
-                    # Left arm (from thorax in H3.6M)
-                    BoneNode(name="left_shoulder", keypoint_idx=H36Key.LSHOULDER, children=[
-                        BoneNode(name="left_elbow", keypoint_idx=H36Key.LELBOW, children=[
-                            BoneNode(name="left_wrist", keypoint_idx=H36Key.LWRIST),
-                        ]),
-                    ]),
-                ]),
-            ]),
-        ]),
+        BoneNode(
+            name="hip_center",
+            keypoint_idx=H36Key.HIP_CENTER,
+            children=[
+                # Right leg
+                BoneNode(
+                    name="right_hip",
+                    keypoint_idx=H36Key.RHIP,
+                    children=[
+                        BoneNode(
+                            name="right_knee",
+                            keypoint_idx=H36Key.RKNEE,
+                            children=[
+                                BoneNode(name="right_foot", keypoint_idx=H36Key.RFOOT),
+                            ],
+                        ),
+                    ],
+                ),
+                # Left leg
+                BoneNode(
+                    name="left_hip",
+                    keypoint_idx=H36Key.LHIP,
+                    children=[
+                        BoneNode(
+                            name="left_knee",
+                            keypoint_idx=H36Key.LKNEE,
+                            children=[
+                                BoneNode(name="left_foot", keypoint_idx=H36Key.LFOOT),
+                            ],
+                        ),
+                    ],
+                ),
+                # Spine/Torso
+                BoneNode(
+                    name="spine",
+                    keypoint_idx=H36Key.SPINE,
+                    children=[
+                        BoneNode(
+                            name="thorax",
+                            keypoint_idx=H36Key.THORAX,
+                            children=[
+                                BoneNode(
+                                    name="neck",
+                                    keypoint_idx=H36Key.NECK,
+                                    children=[
+                                        BoneNode(name="head", keypoint_idx=H36Key.HEAD),
+                                    ],
+                                ),
+                                # Right arm (from thorax in H3.6M)
+                                BoneNode(
+                                    name="right_shoulder",
+                                    keypoint_idx=H36Key.RSHOULDER,
+                                    children=[
+                                        BoneNode(
+                                            name="right_elbow",
+                                            keypoint_idx=H36Key.RELBOW,
+                                            children=[
+                                                BoneNode(
+                                                    name="right_wrist", keypoint_idx=H36Key.RWRIST
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                                # Left arm (from thorax in H3.6M)
+                                BoneNode(
+                                    name="left_shoulder",
+                                    keypoint_idx=H36Key.LSHOULDER,
+                                    children=[
+                                        BoneNode(
+                                            name="left_elbow",
+                                            keypoint_idx=H36Key.LELBOW,
+                                            children=[
+                                                BoneNode(
+                                                    name="left_wrist", keypoint_idx=H36Key.LWRIST
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        ),
     ],
 )
 
@@ -202,26 +254,26 @@ def render_tree(tree: Node | None = None) -> str:
 # These match the standard H3.6M skeleton connections
 H36M_BONE_PAIRS = [
     # Torso/Spine
-    (0, 7),   # hip_center -> spine
-    (7, 8),   # spine -> thorax
-    (8, 9),   # thorax -> neck
+    (0, 7),  # hip_center -> spine
+    (7, 8),  # spine -> thorax
+    (8, 9),  # thorax -> neck
     (9, 10),  # neck -> head
     # Right leg
-    (0, 1),   # hip_center -> right_hip
-    (1, 2),   # right_hip -> right_knee
-    (2, 3),   # right_knee -> right_foot
+    (0, 1),  # hip_center -> right_hip
+    (1, 2),  # right_hip -> right_knee
+    (2, 3),  # right_knee -> right_foot
     # Left leg
-    (0, 4),   # hip_center -> left_hip
-    (4, 5),   # left_hip -> left_knee
-    (5, 6),   # left_knee -> left_foot
+    (0, 4),  # hip_center -> left_hip
+    (4, 5),  # left_hip -> left_knee
+    (5, 6),  # left_knee -> left_foot
     # Right arm (from thorax)
     (8, 14),  # thorax -> right_shoulder
-    (14, 15), # right_shoulder -> right_elbow
-    (15, 16), # right_elbow -> right_wrist
+    (14, 15),  # right_shoulder -> right_elbow
+    (15, 16),  # right_elbow -> right_wrist
     # Left arm (from thorax)
     (8, 11),  # thorax -> left_shoulder
-    (11, 12), # left_shoulder -> left_elbow
-    (12, 13), # left_elbow -> left_wrist
+    (11, 12),  # left_shoulder -> left_elbow
+    (12, 13),  # left_elbow -> left_wrist
 ]
 
 # Legacy alias for backward compatibility
@@ -235,10 +287,10 @@ BIOMECHANICS_BONE_PAIRS = [
     (14, 15),  # right_shoulder -> right_elbow
     (15, 16),  # right_elbow -> right_wrist
     # Legs
-    (4, 5),    # left_hip -> left_knee
-    (5, 6),    # left_knee -> left_foot
-    (1, 2),    # right_hip -> right_knee
-    (2, 3),    # right_knee -> right_foot
+    (4, 5),  # left_hip -> left_knee
+    (5, 6),  # left_knee -> left_foot
+    (1, 2),  # right_hip -> right_knee
+    (2, 3),  # right_knee -> right_foot
     # Torso
-    (0, 8),    # hip_center -> thorax (simplified)
+    (0, 8),  # hip_center -> thorax (simplified)
 ]

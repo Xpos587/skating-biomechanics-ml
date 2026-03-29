@@ -366,27 +366,27 @@ class TestIntegration:
 
     def test_smoothing_after_normalization(self):
         """Test that smoothing works after pose normalization."""
-        from src.types import BKey
+        from src.types import H36Key
 
         # Create normalized poses (centered at origin)
         poses = np.zeros((30, 17, 2), dtype=np.float32)
         t = np.arange(30) / 30.0
         for i in range(30):
-            poses[i, BKey.LEFT_HIP, 0] = -0.05
-            poses[i, BKey.LEFT_HIP, 1] = 0.0
-            poses[i, BKey.RIGHT_HIP, 0] = 0.05
-            poses[i, BKey.RIGHT_HIP, 1] = 0.0
-            poses[i, BKey.LEFT_SHOULDER, 0] = -0.1
-            poses[i, BKey.LEFT_SHOULDER, 1] = -0.3
-            poses[i, BKey.RIGHT_SHOULDER, 0] = 0.1
-            poses[i, BKey.RIGHT_SHOULDER, 1] = -0.3
+            poses[i, H36Key.LEFT_HIP, 0] = -0.05
+            poses[i, H36Key.LEFT_HIP, 1] = 0.0
+            poses[i, H36Key.RIGHT_HIP, 0] = 0.05
+            poses[i, H36Key.RIGHT_HIP, 1] = 0.0
+            poses[i, H36Key.LEFT_SHOULDER, 0] = -0.1
+            poses[i, H36Key.LEFT_SHOULDER, 1] = -0.3
+            poses[i, H36Key.RIGHT_SHOULDER, 0] = 0.1
+            poses[i, H36Key.RIGHT_SHOULDER, 1] = -0.3
 
         smoother = PoseSmoother(freq=30.0)
         smoothed = smoother.smooth(poses)
 
         # Should preserve normalization properties
         # Check that mid-hip is still near origin
-        mid_hip = (smoothed[:, BKey.LEFT_HIP] + smoothed[:, BKey.RIGHT_HIP]) / 2
+        mid_hip = (smoothed[:, H36Key.LEFT_HIP] + smoothed[:, H36Key.RIGHT_HIP]) / 2
         assert np.allclose(mid_hip, 0.0, atol=0.1)  # Still centered
 
     def test_smoothing_preserves_phase_boundaries(self):

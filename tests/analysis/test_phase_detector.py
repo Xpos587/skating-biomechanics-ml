@@ -5,7 +5,7 @@ import pytest
 
 from src.phase_detector import PhaseDetector
 from src.metrics import PhaseDetectionResult
-from src.types import BKey, ElementPhase
+from src.types import H36Key, ElementPhase
 
 
 class TestPhaseDetector:
@@ -22,27 +22,27 @@ class TestPhaseDetector:
         detector = PhaseDetector()
 
         # Create simple jump trajectory: baseline -> peak -> baseline
-        poses = np.zeros((50, 33, 2), dtype=np.float32)
+        poses = np.zeros((50, 17, 2), dtype=np.float32)
 
         # Set hip Y to simulate jump with clear phases
         for i in range(50):
             if i < 10:
-                poses[i, BKey.LEFT_HIP, 1] = 0.3  # left_hip baseline
-                poses[i, BKey.RIGHT_HIP, 1] = 0.3  # right_hip baseline
+                poses[i, H36Key.LHIP, 1] = 0.3  # left_hip baseline
+                poses[i, H36Key.RHIP, 1] = 0.3  # right_hip baseline
             elif i < 20:
                 # Rising phase (10 frames)
                 progress = (i - 10) / 10
-                poses[i, BKey.LEFT_HIP, 1] = 0.3 - 0.2 * progress
-                poses[i, BKey.RIGHT_HIP, 1] = 0.3 - 0.2 * progress
+                poses[i, H36Key.LHIP, 1] = 0.3 - 0.2 * progress
+                poses[i, H36Key.RHIP, 1] = 0.3 - 0.2 * progress
             elif i < 30:
                 # Hang time at peak (10 frames)
-                poses[i, BKey.LEFT_HIP, 1] = 0.1  # peak height
-                poses[i, BKey.RIGHT_HIP, 1] = 0.1
+                poses[i, H36Key.LHIP, 1] = 0.1  # peak height
+                poses[i, H36Key.RHIP, 1] = 0.1
             else:
                 # Landing phase (20 frames)
                 progress = (i - 30) / 20
-                poses[i, BKey.LEFT_HIP, 1] = 0.1 + 0.2 * progress
-                poses[i, BKey.RIGHT_HIP, 1] = 0.1 + 0.2 * progress
+                poses[i, H36Key.LHIP, 1] = 0.1 + 0.2 * progress
+                poses[i, H36Key.RHIP, 1] = 0.1 + 0.2 * progress
 
         result = detector.detect_jump_phases(poses, fps=30.0)
 
@@ -56,20 +56,19 @@ class TestPhaseDetector:
         detector = PhaseDetector()
 
         # Create simple trajectory with edge change
-        # Note: BlazePose 33 format has detailed foot points for edge detection
-        poses = np.zeros((50, 33, 2), dtype=np.float32)
+        # H3.6M 17 format
+        poses = np.zeros((50, 17, 2), dtype=np.float32)
 
         result = detector.detect_three_turn_phases(poses, fps=30.0)
 
         assert isinstance(result, PhaseDetectionResult)
-        # BlazePose format can detect edge-based patterns
         assert result.phases.end < len(poses)
 
     def test_detect_phases_jump(self):
         """Should route jump elements correctly."""
         detector = PhaseDetector()
 
-        poses = np.zeros((50, 33, 2), dtype=np.float32)
+        poses = np.zeros((50, 17, 2), dtype=np.float32)
 
         result = detector.detect_phases(poses, fps=30.0, element_type="waltz_jump")
 
@@ -80,7 +79,7 @@ class TestPhaseDetector:
         """Should route step elements correctly."""
         detector = PhaseDetector()
 
-        poses = np.zeros((50, 33, 2), dtype=np.float32)
+        poses = np.zeros((50, 17, 2), dtype=np.float32)
 
         result = detector.detect_phases(poses, fps=30.0, element_type="three_turn")
 
@@ -91,7 +90,7 @@ class TestPhaseDetector:
         """Should handle unknown elements gracefully."""
         detector = PhaseDetector()
 
-        poses = np.zeros((50, 33, 2), dtype=np.float32)
+        poses = np.zeros((50, 17, 2), dtype=np.float32)
 
         result = detector.detect_phases(poses, fps=30.0, element_type="unknown")
 

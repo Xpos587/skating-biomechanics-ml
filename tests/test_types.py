@@ -6,7 +6,6 @@ from pathlib import Path
 
 from src.types import (
     H36Key,
-    BKey,  # Alias for H36Key during migration
     BoundingBox,
     VideoMeta,
     ElementPhase,
@@ -15,8 +14,6 @@ from src.types import (
     ReferenceData,
     H36M_INDICES,
     H36M_SKELETON_EDGES,
-    BLAZEPOSE_INDICES,  # Alias for H36M_INDICES
-    BLAZEPOSE_SKELETON_EDGES,  # Alias for H36M_SKELETON_EDGES
 )
 
 
@@ -56,15 +53,6 @@ class TestH36Key:
         assert H36Key.LEFT_EAR == H36Key.HEAD
 
 
-class TestBKeyAlias:
-    """Test BKey alias for backward compatibility."""
-
-    def test_bkey_is_h36key(self):
-        """BKey should be an alias for H36Key."""
-        assert BKey is H36Key
-        assert BKey.HIP_CENTER == H36Key.HIP_CENTER
-
-
 class TestH36MIndices:
     """Test H3.6M indices."""
 
@@ -80,10 +68,6 @@ class TestH36MIndices:
         assert H36Key.LHIP in H36M_INDICES
         assert H36Key.RHIP in H36M_INDICES
         assert H36Key.LFOOT in H36M_INDICES
-
-    def test_legacy_blazepose_indices_alias(self):
-        """BLAZEPOSE_INDICES should alias H36M_INDICES."""
-        assert BLAZEPOSE_INDICES is H36M_INDICES
 
 
 class TestSkeletonEdges:
@@ -118,10 +102,6 @@ class TestSkeletonEdges:
         # Leg connections
         assert (H36Key.LHIP, H36Key.LKNEE) in H36M_SKELETON_EDGES
         assert (H36Key.LKNEE, H36Key.LFOOT) in H36M_SKELETON_EDGES
-
-    def test_legacy_blazepose_edges_alias(self):
-        """BLAZEPOSE_SKELETON_EDGES should alias H36M_SKELETON_EDGES."""
-        assert BLAZEPOSE_SKELETON_EDGES is H36M_SKELETON_EDGES
 
 
 class TestBoundingBox:

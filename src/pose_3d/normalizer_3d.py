@@ -7,7 +7,6 @@ This module provides normalization utilities for 3D poses to make them invariant
 """
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ..types import H36Key, Pose3D
 

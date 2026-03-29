@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from src.pose_extractor import PoseExtractor
-from src.types import BKey
+from src.types import H36Key
 
 
 @pytest.mark.slow
@@ -60,9 +60,9 @@ class TestPoseExtractorKeypoints:
     def test_keypoint_names(self):
         """Should have expected keypoint names (H3.6M format)."""
         # H3.6M 17kp indices
-        assert BKey.HIP_CENTER == 0
-        assert BKey.HEAD == 10  # NOSE maps to HEAD in backward compat
-        assert BKey.LSHOULDER == 11
-        assert BKey.RSHOULDER == 14
-        assert BKey.LHIP == 4
-        assert BKey.RHIP == 1
+        assert H36Key.HIP_CENTER == 0
+        assert H36Key.HEAD == 10  # NOSE maps to HEAD in backward compat
+        assert H36Key.LSHOULDER == 11
+        assert H36Key.RSHOULDER == 14
+        assert H36Key.LHIP == 4
+        assert H36Key.RHIP == 1

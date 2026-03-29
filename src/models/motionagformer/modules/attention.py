@@ -7,12 +7,21 @@ class Attention(nn.Module):
     (B * T, J, C)
     """
 
-    def __init__(self, dim_in, dim_out, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.,
-                 mode='spatial'):
+    def __init__(
+        self,
+        dim_in,
+        dim_out,
+        num_heads=8,
+        qkv_bias=False,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        mode="spatial",
+    ):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim_in // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim**-0.5
 
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim_in, dim_out)
@@ -23,12 +32,15 @@ class Attention(nn.Module):
     def forward(self, x):
         B, T, J, C = x.shape
 
-        qkv = self.qkv(x).reshape(B, T, J, 3, self.num_heads, C // self.num_heads).permute(3, 0, 4, 1, 2,
-                                                                                           5)  # (3, B, H, T, J, C)
-        if self.mode == 'temporal':
+        qkv = (
+            self.qkv(x)
+            .reshape(B, T, J, 3, self.num_heads, C // self.num_heads)
+            .permute(3, 0, 4, 1, 2, 5)
+        )  # (3, B, H, T, J, C)
+        if self.mode == "temporal":
             q, k, v = qkv[0], qkv[1], qkv[2]
             x = self.forward_temporal(q, k, v)
-        elif self.mode == 'spatial':
+        elif self.mode == "spatial":
             q, k, v = qkv[0], qkv[1], qkv[2]
             x = self.forward_spatial(q, k, v)
         else:

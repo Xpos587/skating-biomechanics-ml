@@ -167,9 +167,7 @@ class MotionDTWAligner:
         aligned_user = self._warp_with_path(user, full_warp_path, len(reference))
 
         # Compute total distance
-        total_distance = sum(p.distance for p in phase_alignments) / max(
-            len(phase_alignments), 1
-        )
+        total_distance = sum(p.distance for p in phase_alignments) / max(len(phase_alignments), 1)
 
         return MotionDTWResult(
             total_distance=total_distance,
@@ -207,16 +205,12 @@ class MotionDTWAligner:
         # Landing
         if user_phases.landing > 0 and ref_phases.landing > 0:
             keyframes.append(
-                KeyFrame(
-                    name="landing", user_idx=user_phases.landing, ref_idx=ref_phases.landing
-                )
+                KeyFrame(name="landing", user_idx=user_phases.landing, ref_idx=ref_phases.landing)
             )
 
         return keyframes
 
-    def _split_into_phases(
-        self, user_phases: ElementPhase, ref_phases: ElementPhase
-    ) -> list[dict]:
+    def _split_into_phases(self, user_phases: ElementPhase, ref_phases: ElementPhase) -> list[dict]:
         """Split sequences into biomechanically meaningful phases.
 
         For jumps: entry -> flight -> landing
@@ -316,9 +310,7 @@ class MotionDTWAligner:
 
         return distance, warp_path
 
-    def _compute_dtw(
-        self, x: np.ndarray, y: np.ndarray, window_size: float
-    ) -> "DTW":  # type: ignore[valid-type]
+    def _compute_dtw(self, x: np.ndarray, y: np.ndarray, window_size: float) -> "DTW":  # type: ignore[valid-type]
         """Compute DTW with specified window.
 
         Args:
@@ -455,8 +447,12 @@ class MotionDTWAligner:
             joints = list(range(33))
 
         # Create default phases (full sequence)
-        user_phases = ElementPhase(name="full", start=0, takeoff=0, peak=0, landing=0, end=len(user) - 1)
-        ref_phases = ElementPhase(name="full", start=0, takeoff=0, peak=0, landing=0, end=len(reference) - 1)
+        user_phases = ElementPhase(
+            name="full", start=0, takeoff=0, peak=0, landing=0, end=len(user) - 1
+        )
+        ref_phases = ElementPhase(
+            name="full", start=0, takeoff=0, peak=0, landing=0, end=len(reference) - 1
+        )
 
         # Use phase-aware alignment
         result = self.align_with_keyframes(user, user_phases, reference, ref_phases, joints)

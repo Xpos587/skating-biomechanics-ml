@@ -75,9 +75,7 @@ class BlazePoseExtractor:
             FileNotFoundError: If model file doesn't exist.
         """
         if mp is None or vision is None:
-            raise ImportError(
-                "MediaPipe is not installed. Install with: uv add mediapipe"
-            )
+            raise ImportError("MediaPipe is not installed. Install with: uv add mediapipe")
 
         # Determine model path
         if model_path is None:
@@ -179,6 +177,7 @@ class BlazePoseExtractor:
         # Get FPS if not provided
         if fps is None:
             import cv2
+
             cap = cv2.VideoCapture(str(video_path))
             fps = cap.get(cv2.CAP_PROP_FPS)
             cap.release()

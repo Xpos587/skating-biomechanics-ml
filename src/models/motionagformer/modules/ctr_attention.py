@@ -2,18 +2,47 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 
-CONNECTIONS = {10: [9], 9: [8, 10], 8: [7, 9], 14: [15, 8], 15: [16, 14], 11: [12, 8], 12: [13, 11],
-               7: [0, 8], 0: [1, 7], 1: [2, 0], 2: [3, 1], 4: [5, 0], 5: [6, 4], 16: [15], 13: [12], 3: [2], 6: [5]}
+CONNECTIONS = {
+    10: [9],
+    9: [8, 10],
+    8: [7, 9],
+    14: [15, 8],
+    15: [16, 14],
+    11: [12, 8],
+    12: [13, 11],
+    7: [0, 8],
+    0: [1, 7],
+    1: [2, 0],
+    2: [3, 1],
+    4: [5, 0],
+    5: [6, 4],
+    16: [15],
+    13: [12],
+    3: [2],
+    6: [5],
+}
 
 
 class CTRAttention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.,
-                 downsample_ratio=2, adaptive=True, n_frames=243, temporal_connection_length=1, mode='spatial',
-                 use_self_similarity=False):
+    def __init__(
+        self,
+        dim,
+        num_heads=8,
+        qkv_bias=False,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        downsample_ratio=2,
+        adaptive=True,
+        n_frames=243,
+        temporal_connection_length=1,
+        mode="spatial",
+        use_self_similarity=False,
+    ):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim**-0.5
         self.inter_channel = dim // downsample_ratio
 
         self.attn_drop = nn.Dropout(attn_drop)
@@ -72,17 +101,20 @@ class CTRAttention(nn.Module):
     def forward(self, x):
         B, T, J, C = x.shape
 
-        qkv = self.qkv(x).reshape(B, T, J, 3, self.num_heads,
-                                  self.inter_channel // self.num_heads).permute(3, 0, 4, 1, 2, 5)  # (3, B, H, T, J, C)
+        qkv = (
+            self.qkv(x)
+            .reshape(B, T, J, 3, self.num_heads, self.inter_channel // self.num_heads)
+            .permute(3, 0, 4, 1, 2, 5)
+        )  # (3, B, H, T, J, C)
         q, k, v = qkv[0], qkv[1], qkv[2]
-        if self.mode == 'temporal':
+        if self.mode == "temporal":
             xx = None
             if self.use_self_similarity:
                 x_ = x.transpose(1, 2)  # (B, J, T, C)
                 x_T = x_.transpose(2, 3)  # (B, J, C, T)
                 xx = x_ @ x_T  # (B, J, T, T)
             x = self.forward_temporal(q, k, v, xx)
-        elif self.mode == 'spatial':
+        elif self.mode == "spatial":
             xx = None
             if self.use_self_similarity:
                 xT = x.transpose(2, 3)  # (B, T, C, J)

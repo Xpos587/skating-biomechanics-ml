@@ -151,7 +151,7 @@ class SpatialReferenceDetector:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Only look at top 1/3 of frame for horizon (ignore ice/skater)
-        horizon_region = gray[:h//3, :]
+        horizon_region = gray[: h // 3, :]
 
         # Edge detection (Canny) - lower thresholds for more edges
         edges = cv2.Canny(horizon_region, 30, 100, apertureSize=3)

@@ -256,15 +256,21 @@ class PoseSmoother:
         """Smooth pose sequence using One-Euro Filter.
 
         Args:
-            poses: NormalizedPose (num_frames, 17, 2).
+            poses: NormalizedPose (num_frames, num_joints, 2).
+                   Supports H3.6M (17 joints) or BlazePose (33 joints).
 
         Returns:
-            Smoothed poses (num_frames, 17, 2).
+            Smoothed poses (num_frames, num_joints, 2).
         """
         _num_frames, num_joints, num_coords = poses.shape
 
-        if num_joints != 17 or num_coords != 2:
-            msg = f"Expected shape (N, 17, 2), got {poses.shape}"
+        if num_coords != 2:
+            msg = f"Expected shape (N, J, 2), got {poses.shape}"
+            raise ValueError(msg)
+
+        # Support both H3.6M (17) and BlazePose (33) formats
+        if num_joints not in (17, 33):
+            msg = f"Expected 17 or 33 joints, got {num_joints}"
             raise ValueError(msg)
 
         # Create output array

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.types import BKey
+from src.types import H36Key
 from src.physics_optimizer import (
     BoneConstraints,
     PhysicsPoseOptimizer,
@@ -23,18 +23,18 @@ def sample_poses_with_jitter():
 
     for i in range(num_frames):
         # Base T-pose
-        poses[i, BKey.LEFT_HIP] = [-0.05, 0.0]
-        poses[i, BKey.RIGHT_HIP] = [0.05, 0.0]
-        poses[i, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
-        poses[i, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
-        poses[i, BKey.LEFT_ELBOW] = [-0.15, -0.5]
-        poses[i, BKey.RIGHT_ELBOW] = [0.15, -0.5]
-        poses[i, BKey.LEFT_WRIST] = [-0.2, -0.7]
-        poses[i, BKey.RIGHT_WRIST] = [0.2, -0.7]
-        poses[i, BKey.LEFT_KNEE] = [-0.05, 0.3]
-        poses[i, BKey.RIGHT_KNEE] = [0.05, 0.3]
-        poses[i, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses[i, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[i, H36Key.LEFT_HIP] = [-0.05, 0.0]
+        poses[i, H36Key.RIGHT_HIP] = [0.05, 0.0]
+        poses[i, H36Key.LEFT_SHOULDER] = [-0.1, -0.3]
+        poses[i, H36Key.RIGHT_SHOULDER] = [0.1, -0.3]
+        poses[i, H36Key.LEFT_ELBOW] = [-0.15, -0.5]
+        poses[i, H36Key.RIGHT_ELBOW] = [0.15, -0.5]
+        poses[i, H36Key.LEFT_WRIST] = [-0.2, -0.7]
+        poses[i, H36Key.RIGHT_WRIST] = [0.2, -0.7]
+        poses[i, H36Key.LEFT_KNEE] = [-0.05, 0.3]
+        poses[i, H36Key.RIGHT_KNEE] = [0.05, 0.3]
+        poses[i, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses[i, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
 
     # Add jitter (simulating detection noise)
     jitter = np.random.randn(num_frames, 33, 2).astype(np.float32) * 0.02
@@ -54,22 +54,22 @@ def poses_with_bone_length_violations():
 
     for i in range(5):
         # Normal body structure
-        poses[i, BKey.LEFT_HIP] = [-0.05, 0.0]
-        poses[i, BKey.RIGHT_HIP] = [0.05, 0.0]
-        poses[i, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
-        poses[i, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
-        poses[i, BKey.LEFT_KNEE] = [-0.05, 0.3]
-        poses[i, BKey.RIGHT_KNEE] = [0.05, 0.3]
-        poses[i, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses[i, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[i, H36Key.LEFT_HIP] = [-0.05, 0.0]
+        poses[i, H36Key.RIGHT_HIP] = [0.05, 0.0]
+        poses[i, H36Key.LEFT_SHOULDER] = [-0.1, -0.3]
+        poses[i, H36Key.RIGHT_SHOULDER] = [0.1, -0.3]
+        poses[i, H36Key.LEFT_KNEE] = [-0.05, 0.3]
+        poses[i, H36Key.RIGHT_KNEE] = [0.05, 0.3]
+        poses[i, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses[i, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
 
     # Frame 2: Elbow position violates bone length (simulating occlusion)
-    poses[2, BKey.LEFT_ELBOW] = [-0.05, -0.6]  # Too close to shoulder
-    poses[2, BKey.LEFT_WRIST] = [-0.06, -0.9]  # Compressed forearm
+    poses[2, H36Key.LEFT_ELBOW] = [-0.05, -0.6]  # Too close to shoulder
+    poses[2, H36Key.LEFT_WRIST] = [-0.06, -0.9]  # Compressed forearm
 
     # Frame 3: Knee position violates bone length
-    poses[3, BKey.LEFT_KNEE] = [-0.04, 0.15]  # Too close to hip
-    poses[3, BKey.LEFT_ANKLE] = [-0.03, 0.5]  # Compressed shin
+    poses[3, H36Key.LEFT_KNEE] = [-0.04, 0.15]  # Too close to hip
+    poses[3, H36Key.LEFT_ANKLE] = [-0.03, 0.5]  # Compressed shin
 
     return poses
 
@@ -200,8 +200,8 @@ class TestPhysicsPoseOptimizer:
         """Should handle single-frame sequence."""
         optimizer = PhysicsPoseOptimizer()
         single = np.zeros((1, 33, 2), dtype=np.float32)
-        single[0, BKey.LEFT_HIP] = [-0.05, 0.0]
-        single[0, BKey.RIGHT_HIP] = [0.05, 0.0]
+        single[0, H36Key.LEFT_HIP] = [-0.05, 0.0]
+        single[0, H36Key.RIGHT_HIP] = [0.05, 0.0]
 
         result = optimizer.optimize_sequence(single)
 

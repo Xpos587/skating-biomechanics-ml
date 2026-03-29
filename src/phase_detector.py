@@ -12,14 +12,8 @@ from .element_defs import ElementDef
 from .types import ElementPhase, NormalizedPose
 from .geometry import calculate_com_trajectory
 
-# BladeEdgeDetector is optional (requires 3D poses)
-try:
-    from . import blade_edge_detector
-
-    BladeEdgeDetector = blade_edge_detector.BladeEdgeDetector
-    BLADE_DETECTOR_AVAILABLE = True
-except Exception:
-    BLADE_DETECTOR_AVAILABLE = False
+# NOTE: 2D blade detector removed in 3D-only migration
+# Phase detection now uses CoM-based method only
 
 
 class PhaseDetector:
@@ -64,7 +58,7 @@ class PhaseDetector:
 
         Uses improved Center of Mass (CoM) trajectory with velocity-based detection
         and adaptive sigma-based thresholds for better accuracy across different
-        video qualities and jump types. Falls back to blade detection if CoM fails.
+        video qualities and jump types.
 
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
@@ -73,85 +67,7 @@ class PhaseDetector:
         Returns:
             PhaseDetectionResult with jump phase boundaries.
         """
-        # Try improved CoM-based detection first (adaptive thresholds)
-        com_result = self._detect_jump_phases_com_improved(poses, fps)
-
-        # If low confidence and blade detector is available, try blade detection as backup
-        if com_result.confidence < 0.5 and BLADE_DETECTOR_AVAILABLE:
-            blade_result = self._detect_jump_phases_blade(poses, fps)
-            # Use the result with higher confidence
-            if blade_result.confidence > com_result.confidence:
-                return blade_result
-
-        return com_result
-
-    def _detect_jump_phases_com(self, poses: NormalizedPose, fps: float) -> PhaseDetectionResult:
-        """Detect jump phases using Center of Mass trajectory.
-
-        Uses acceleration spikes to detect takeoff (upward acceleration)
-        and landing (downward acceleration/impact). This is the physics-accurate
-        method that fixes the 60% error in hip-only methods.
-
-        Args:
-            poses: NormalizedPose (num_frames, 33, 2).
-            fps: Frame rate.
-
-        Returns:
-            PhaseDetectionResult with jump phase boundaries.
-        """
-        # Calculate CoM trajectory
-        com_y = calculate_com_trajectory(poses)
-
-        # Find peaks (local minima in Y = maxima in height)
-        peaks, properties = find_peaks(-com_y, prominence=0.02, distance=10)
-
-        if len(peaks) == 0:
-            # No clear jump detected
-            return PhaseDetectionResult(
-                phases=ElementPhase(
-                    name="jump",
-                    start=0,
-                    takeoff=0,
-                    peak=len(poses) // 2,
-                    landing=len(poses) - 1,
-                    end=len(poses) - 1,
-                ),
-                confidence=0.0,
-            )
-
-        # Use highest peak
-        peak_idx = peaks[np.argmax(-properties["prominences"])]
-
-        # Detect takeoff using acceleration spike
-        takeoff_idx = self._find_takeoff_accel(com_y, fps, peak_idx)
-
-        # Detect landing using negative acceleration (impact)
-        landing_idx = self._find_landing_accel(com_y, fps, peak_idx, takeoff_idx)
-
-        # Validate phases
-        if takeoff_idx >= peak_idx:
-            takeoff_idx = max(0, peak_idx - 10)
-        if landing_idx <= peak_idx:
-            landing_idx = min(len(poses) - 1, peak_idx + 10)
-
-        # Set boundaries
-        start_idx = max(0, takeoff_idx - 10)
-        end_idx = min(len(poses) - 1, landing_idx + 10)
-
-        phases = ElementPhase(
-            name="jump",
-            start=start_idx,
-            takeoff=takeoff_idx,
-            peak=peak_idx,
-            landing=landing_idx,
-            end=end_idx,
-        )
-
-        # Confidence based on peak prominence
-        prominence = float(properties["prominences"][np.argmax(-properties["prominences"])])
-        confidence = min(1.0, prominence / 0.1)
-
-        return PhaseDetectionResult(phases=phases, confidence=confidence)
+        return self._detect_jump_phases_com_improved(poses, fps)
 
     def _detect_jump_phases_com_improved(
         self, poses: NormalizedPose, fps: float
@@ -285,62 +201,6 @@ class PhaseDetector:
                 + min(1.0, landing_signal / (3 * vy_std)) * 0.2  # Landing clarity
             ),
         )
-
-        return PhaseDetectionResult(phases=phases, confidence=confidence)
-
-    def _detect_jump_phases_blade(self, poses: NormalizedPose, fps: float) -> PhaseDetectionResult:
-        """Detect jump phases using blade edge detection as backup.
-
-        Uses blade state transitions (edge → toe pick → edge) to detect
-        takeoff and landing.
-
-        Args:
-            poses: NormalizedPose (num_frames, 33, 2).
-            fps: Frame rate.
-
-        Returns:
-            PhaseDetectionResult with jump phase boundaries.
-        """
-        detector = BladeEdgeDetector(smoothing_window=3)
-
-        # Detect blade states for both feet
-        left_states = detector.detect_sequence(poses, fps, foot="left")
-        right_states = detector.detect_sequence(poses, fps, foot="right")
-
-        # Use left foot as primary (takeoff foot for most jumps)
-        takeoff, landing = detector.detect_takeoff_landing(left_states, fps)
-
-        # If left foot detection failed, try right foot
-        if takeoff is None or landing is None:
-            takeoff, landing = detector.detect_takeoff_landing(right_states, fps)
-
-        # Fallback values
-        if takeoff is None:
-            takeoff = 0
-        if landing is None:
-            landing = len(poses) - 1
-
-        # Find peak between takeoff and landing
-        com_y = calculate_com_trajectory(poses)
-        flight_y = com_y[takeoff : landing + 1]
-        peak_offset = np.argmin(flight_y)  # Minimum Y = maximum height
-        peak_idx = takeoff + peak_offset
-
-        # Set boundaries
-        start_idx = max(0, takeoff - 10)
-        end_idx = min(len(poses) - 1, landing + 10)
-
-        phases = ElementPhase(
-            name="jump",
-            start=start_idx,
-            takeoff=takeoff,
-            peak=peak_idx,
-            landing=landing,
-            end=end_idx,
-        )
-
-        # Confidence based on blade detection quality
-        confidence = 0.6 if takeoff > 0 and landing < len(poses) - 1 else 0.3
 
         return PhaseDetectionResult(phases=phases, confidence=confidence)
 

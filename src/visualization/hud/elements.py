@@ -11,8 +11,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from src.blade_edge_detector import BladeState
-from src.types import MetricResult
+from src.types import BladeState3D, MetricResult
 from src.visualization.config import (
     blade_flat_color,
     blade_indicator_size,
@@ -293,7 +292,7 @@ def draw_phase_indicator(
 
 def draw_blade_indicator_hud(
     frame: Frame,
-    blade_state: BladeState,
+    blade_state: BladeState3D,
     position: Position = (10, 30),
     size: int = blade_indicator_size,
     thickness: int = blade_indicator_thickness,
@@ -302,7 +301,7 @@ def draw_blade_indicator_hud(
 
     Args:
         frame: OpenCV image (H, W, 3) BGR format.
-        blade_state: BladeState with blade type and angles.
+        blade_state: BladeState3D with blade type and angles.
         position: (x, y) center position for indicator.
         size: Size of indicator arrow in pixels.
         thickness: Thickness of indicator lines.
@@ -311,8 +310,10 @@ def draw_blade_indicator_hud(
         Frame with blade indicator drawn.
 
     Example:
-        >>> from src.types import BladeState, BladeType
-        >>> state = BladeState(blade_type=BladeType.INSIDE, foot_angle=-15.0)
+        >>> from src.types import BladeState3D, BladeType, MotionDirection
+        >>> state = BladeState3D(blade_type=BladeType.INSIDE, foot="left", motion_direction=MotionDirection.FORWARD,
+        ...     foot_angle=-15.0, ankle_angle=90.0, knee_angle=120.0, vertical_accel=0.0,
+        ...     position_3d=(0, 0, 0), velocity_3d=(0, 0, 0), confidence=0.8, frame_idx=0)
         >>> frame = np.zeros((480, 640, 3), dtype=np.uint8)
         >>> draw_blade_indicator_hud(frame, state)
     """

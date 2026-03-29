@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.signal import savgol_filter
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
@@ -118,13 +117,13 @@ class PhysicsPoseOptimizer:
         # Learn bone lengths for key body segments
         bone_pairs = [
             ((11, 13), "left_upper_arm"),  # LEFT_SHOULDER -> LEFT_ELBOW
-            ((13, 15), "left_forearm"),    # LEFT_ELBOW -> LEFT_WRIST
-            ((12, 14), "right_upper_arm"), # RIGHT_SHOULDER -> RIGHT_ELBOW
-            ((14, 16), "right_forearm"),   # RIGHT_ELBOW -> RIGHT_WRIST
-            ((23, 25), "left_thigh"),      # LEFT_HIP -> LEFT_KNEE
-            ((25, 27), "left_shin"),       # LEFT_KNEE -> LEFT_ANKLE
-            ((24, 26), "right_thigh"),     # RIGHT_HIP -> RIGHT_KNEE
-            ((26, 28), "right_shin"),      # RIGHT_KNEE -> RIGHT_ANKLE
+            ((13, 15), "left_forearm"),  # LEFT_ELBOW -> LEFT_WRIST
+            ((12, 14), "right_upper_arm"),  # RIGHT_SHOULDER -> RIGHT_ELBOW
+            ((14, 16), "right_forearm"),  # RIGHT_ELBOW -> RIGHT_WRIST
+            ((23, 25), "left_thigh"),  # LEFT_HIP -> LEFT_KNEE
+            ((25, 27), "left_shin"),  # LEFT_KNEE -> LEFT_ANKLE
+            ((24, 26), "right_thigh"),  # RIGHT_HIP -> RIGHT_KNEE
+            ((26, 28), "right_shin"),  # RIGHT_KNEE -> RIGHT_ANKLE
         ]
 
         for (start_idx, end_idx), name in bone_pairs:
@@ -216,7 +215,9 @@ class PhysicsPoseOptimizer:
 
         # Kalman gain: K = P * H^T * (H * P * H^T + R)^-1
         # Simplified: K = P / (P + R)
-        innovation_covariance = self._covariance + np.eye(66, dtype=np.float64) * self.measurement_noise
+        innovation_covariance = (
+            self._covariance + np.eye(66, dtype=np.float64) * self.measurement_noise
+        )
         kalman_gain = self._covariance @ np.linalg.inv(innovation_covariance)
 
         # Update state: x = x + K * (z - x)
@@ -250,13 +251,13 @@ class PhysicsPoseOptimizer:
         bone_constraints = [
             # (start_idx, end_idx, ratio_from_constraints)
             (11, 13, self.constraints.SPINE_TO_UPPER_ARM),  # LEFT_SHOULDER -> ELBOW
-            (13, 15, self.constraints.SPINE_TO_FOREARM),    # LEFT_ELBOW -> WRIST
+            (13, 15, self.constraints.SPINE_TO_FOREARM),  # LEFT_ELBOW -> WRIST
             (12, 14, self.constraints.SPINE_TO_UPPER_ARM),  # RIGHT_SHOULDER -> ELBOW
-            (14, 16, self.constraints.SPINE_TO_FOREARM),    # RIGHT_ELBOW -> WRIST
-            (23, 25, self.constraints.SPINE_TO_THIGH),      # LEFT_HIP -> KNEE
-            (25, 27, self.constraints.SPINE_TO_SHIN),       # LEFT_KNEE -> ANKLE
-            (24, 26, self.constraints.SPINE_TO_THIGH),      # RIGHT_HIP -> KNEE
-            (26, 28, self.constraints.SPINE_TO_SHIN),       # RIGHT_KNEE -> ANKLE
+            (14, 16, self.constraints.SPINE_TO_FOREARM),  # RIGHT_ELBOW -> WRIST
+            (23, 25, self.constraints.SPINE_TO_THIGH),  # LEFT_HIP -> KNEE
+            (25, 27, self.constraints.SPINE_TO_SHIN),  # LEFT_KNEE -> ANKLE
+            (24, 26, self.constraints.SPINE_TO_THIGH),  # RIGHT_HIP -> KNEE
+            (26, 28, self.constraints.SPINE_TO_SHIN),  # RIGHT_KNEE -> ANKLE
         ]
 
         for i in range(len(result)):

@@ -17,39 +17,6 @@ if TYPE_CHECKING:
     from .video import VideoMeta
 
 
-class BKey(IntEnum):
-    """H3.6M 17 keypoint indices for 3D-only pipeline.
-
-    Note: Previously BlazePose 33kp, now migrated to H3.6M 17kp format.
-    This enum is now an alias for H36Key for backward compatibility.
-
-    H3.6M format is the standard for 3D human pose estimation.
-    """
-    # H3.6M 17 keypoints - using H36Key enum for 3D-only
-    HIP_CENTER = 0
-    RHIP = 1
-    RKNEE = 2
-    RFOOT = 3
-    LHIP = 4
-    LKNEE = 5
-    LFOOT = 6
-    SPINE = 7
-    THORAX = 8
-    NECK = 9
-    HEAD = 10
-    LSHOULDER = 11
-    LELBOW = 12
-    LWRIST = 13
-    RSHOULDER = 14
-    RELBOW = 15
-    RWRIST = 16
-
-
-# The original BKey enum has been replaced with H36Key
-# This class is now an alias for backward compatibility during migration
-_BKey_ORIGINAL = BKey
-
-
 class H36Key(IntEnum):
     """H3.6M 17-keypoint indices (primary 3D format).
 
@@ -131,10 +98,6 @@ class H36Key(IntEnum):
 
     # Nose - map to HEAD
     NOSE = HEAD
-
-
-# For backward compatibility during migration
-BKey = H36Key
 
 
 class BladeType(Enum):
@@ -226,9 +189,6 @@ class IceTrace:
 # All 17 H3.6M keypoints
 H36M_INDICES = list(H36Key)
 
-# Legacy alias for backward compatibility during migration
-BLAZEPOSE_INDICES = H36M_INDICES
-
 
 # Skeleton edges for H3.6M 17-keypoint format (3D-only pipeline)
 H36M_SKELETON_EDGES = [
@@ -255,9 +215,6 @@ H36M_SKELETON_EDGES = [
     (H36Key.LELBOW, H36Key.LWRIST),
 ]
 
-# Legacy alias for backward compatibility during migration
-BLAZEPOSE_SKELETON_EDGES = H36M_SKELETON_EDGES
-
 
 # H3.6M 17-keypoint pose types (primary format for 3D-only pipeline)
 Pose3D = NDArray[np.float32]  # (num_frames, 17, 3) with x, y, z in meters
@@ -279,11 +236,8 @@ __all__ = [
     "H36MPose2D",
     "H36MPose3D",
     "H36Key",
-    "BKey",  # Alias for H36Key during migration
     "H36M_INDICES",
     "H36M_SKELETON_EDGES",
-    "BLAZEPOSE_INDICES",  # Alias for H36M_INDICES during migration
-    "BLAZEPOSE_SKELETON_EDGES",  # Alias for H36M_SKELETON_EDGES during migration
     "BladeType",
     "BoundingBox",
     "VideoMeta",
@@ -602,41 +556,55 @@ class AnalysisReport:
 
         # Blade edge information
         if self.blade_summary_left or self.blade_summary_right:
-            lines.extend([
-                "",
-                "--- Состояние лезвия ---",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "--- Состояние лезвия ---",
+                ]
+            )
             if self.blade_summary_left:
-                lines.append(f"  Левая нога: {self.blade_summary_left.get('dominant_edge', 'unknown')}")
-                if 'type_percentages' in self.blade_summary_left:
-                    types_str = ", ".join(f"{k}: {v:.1f}%" for k, v in self.blade_summary_left['type_percentages'].items())
+                lines.append(
+                    f"  Левая нога: {self.blade_summary_left.get('dominant_edge', 'unknown')}"
+                )
+                if "type_percentages" in self.blade_summary_left:
+                    types_str = ", ".join(
+                        f"{k}: {v:.1f}%"
+                        for k, v in self.blade_summary_left["type_percentages"].items()
+                    )
                     lines.append(f"    Распределение: {types_str}")
             if self.blade_summary_right:
-                lines.append(f"  Правая нога: {self.blade_summary_right.get('dominant_edge', 'unknown')}")
-                if 'type_percentages' in self.blade_summary_right:
-                    types_str = ", ".join(f"{k}: {v:.1f}%" for k, v in self.blade_summary_right['type_percentages'].items())
+                lines.append(
+                    f"  Правая нога: {self.blade_summary_right.get('dominant_edge', 'unknown')}"
+                )
+                if "type_percentages" in self.blade_summary_right:
+                    types_str = ", ".join(
+                        f"{k}: {v:.1f}%"
+                        for k, v in self.blade_summary_right["type_percentages"].items()
+                    )
                     lines.append(f"    Распределение: {types_str}")
 
         # Physics information
         if self.physics:
-            lines.extend([
-                "",
-                "--- Физические метрики ---",
-            ])
-            if 'jump_height' in self.physics:
-                h = self.physics['jump_height']
+            lines.extend(
+                [
+                    "",
+                    "--- Физические метрики ---",
+                ]
+            )
+            if "jump_height" in self.physics:
+                h = self.physics["jump_height"]
                 lines.append(f"  Высота прыжка (CoM): {h:.2f} м")
-            if 'flight_time' in self.physics:
-                t = self.physics['flight_time']
+            if "flight_time" in self.physics:
+                t = self.physics["flight_time"]
                 lines.append(f"  Время полёта: {t:.2f} с")
-            if 'takeoff_velocity' in self.physics:
-                v = self.physics['takeoff_velocity']
+            if "takeoff_velocity" in self.physics:
+                v = self.physics["takeoff_velocity"]
                 lines.append(f"  Скорость отрыва: {v:.2f} м/с")
-            if 'avg_inertia' in self.physics:
-                i = self.physics['avg_inertia']
+            if "avg_inertia" in self.physics:
+                i = self.physics["avg_inertia"]
                 lines.append(f"  Средний момент инерции: {i:.3f} кг·м²")
-            if 'fit_quality' in self.physics:
-                q = self.physics['fit_quality']
+            if "fit_quality" in self.physics:
+                q = self.physics["fit_quality"]
                 lines.append(f"  Качество траектории (R²): {q:.2f}")
 
         lines.extend(

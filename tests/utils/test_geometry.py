@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.types import BKey
+from src.types import H36Key
 from src.geometry import (
     calculate_center_of_mass,
     calculate_com_trajectory,
@@ -37,27 +37,27 @@ class TestCalculateCenterOfMass:
         poses = np.zeros((1, 33, 2), dtype=np.float32)
 
         # Hips at origin
-        poses[0, BKey.LEFT_HIP] = [-0.05, 0.0]
-        poses[0, BKey.RIGHT_HIP] = [0.05, 0.0]
+        poses[0, H36Key.LEFT_HIP] = [-0.05, 0.0]
+        poses[0, H36Key.RIGHT_HIP] = [0.05, 0.0]
 
         # Shoulders (above hips, negative Y)
-        poses[0, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
-        poses[0, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
+        poses[0, H36Key.LEFT_SHOULDER] = [-0.1, -0.3]
+        poses[0, H36Key.RIGHT_SHOULDER] = [0.1, -0.3]
 
         # Arms (symmetric, extended upward)
-        poses[0, BKey.LEFT_ELBOW] = [-0.15, -0.5]
-        poses[0, BKey.RIGHT_ELBOW] = [0.15, -0.5]
-        poses[0, BKey.LEFT_WRIST] = [-0.2, -0.7]
-        poses[0, BKey.RIGHT_WRIST] = [0.2, -0.7]
+        poses[0, H36Key.LEFT_ELBOW] = [-0.15, -0.5]
+        poses[0, H36Key.RIGHT_ELBOW] = [0.15, -0.5]
+        poses[0, H36Key.LEFT_WRIST] = [-0.2, -0.7]
+        poses[0, H36Key.RIGHT_WRIST] = [0.2, -0.7]
 
         # Legs (symmetric, below hips)
-        poses[0, BKey.LEFT_KNEE] = [-0.05, 0.3]
-        poses[0, BKey.RIGHT_KNEE] = [0.05, 0.3]
-        poses[0, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses[0, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses[0, H36Key.LEFT_KNEE] = [-0.05, 0.3]
+        poses[0, H36Key.RIGHT_KNEE] = [0.05, 0.3]
+        poses[0, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses[0, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
 
         # Add head (nose) - this contributes to head mass
-        poses[0, BKey.NOSE] = [0, -0.5]
+        poses[0, H36Key.NOSE] = [0, -0.5]
 
         com_y = calculate_center_of_mass(poses, 0)
 
@@ -69,7 +69,7 @@ class TestCalculateCenterOfMass:
     def test_com_changes_with_pose(self, sample_normalized_poses):
         """CoM should change when pose changes."""
         # Modify second frame to have different pose
-        sample_normalized_poses[1, BKey.LEFT_WRIST, 1] = -0.9  # Raise arm
+        sample_normalized_poses[1, H36Key.LEFT_WRIST, 1] = -0.9  # Raise arm
 
         com_0 = calculate_center_of_mass(sample_normalized_poses, 0)
         com_1 = calculate_center_of_mass(sample_normalized_poses, 1)
@@ -90,24 +90,24 @@ class TestCalculateCenterOfMass:
 
         # Same upper body
         for pose in [poses_straight, poses_bent]:
-            pose[0, BKey.LEFT_HIP] = [-0.05, 0.0]
-            pose[0, BKey.RIGHT_HIP] = [0.05, 0.0]
-            pose[0, BKey.LEFT_SHOULDER] = [-0.1, -0.3]
-            pose[0, BKey.RIGHT_SHOULDER] = [0.1, -0.3]
-            pose[0, BKey.NOSE] = [0, -0.5]
+            pose[0, H36Key.LEFT_HIP] = [-0.05, 0.0]
+            pose[0, H36Key.RIGHT_HIP] = [0.05, 0.0]
+            pose[0, H36Key.LEFT_SHOULDER] = [-0.1, -0.3]
+            pose[0, H36Key.RIGHT_SHOULDER] = [0.1, -0.3]
+            pose[0, H36Key.NOSE] = [0, -0.5]
 
         # Straight legs (hips high)
-        poses_straight[0, BKey.LEFT_KNEE] = [-0.05, 0.3]
-        poses_straight[0, BKey.RIGHT_KNEE] = [0.05, 0.3]
-        poses_straight[0, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses_straight[0, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses_straight[0, H36Key.LEFT_KNEE] = [-0.05, 0.3]
+        poses_straight[0, H36Key.RIGHT_KNEE] = [0.05, 0.3]
+        poses_straight[0, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses_straight[0, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
 
         # Bent knees (hips lower relative to ankles)
         # Ankles same position, but knees bend downward
-        poses_bent[0, BKey.LEFT_KNEE] = [-0.05, 0.45]
-        poses_bent[0, BKey.RIGHT_KNEE] = [0.05, 0.45]
-        poses_bent[0, BKey.LEFT_ANKLE] = [-0.05, 0.6]
-        poses_bent[0, BKey.RIGHT_ANKLE] = [0.05, 0.6]
+        poses_bent[0, H36Key.LEFT_KNEE] = [-0.05, 0.45]
+        poses_bent[0, H36Key.RIGHT_KNEE] = [0.05, 0.45]
+        poses_bent[0, H36Key.LEFT_ANKLE] = [-0.05, 0.6]
+        poses_bent[0, H36Key.RIGHT_ANKLE] = [0.05, 0.6]
 
         com_straight = calculate_center_of_mass(poses_straight, 0)
         com_bent = calculate_center_of_mass(poses_bent, 0)

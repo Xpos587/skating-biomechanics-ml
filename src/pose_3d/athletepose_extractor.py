@@ -17,7 +17,7 @@ import numpy as np
 import torch
 
 if TYPE_CHECKING:
-    from .blazepose_to_h36m import blazepose_to_h36m
+    pass
 
 from .biomechanics_estimator import Biomechanics3DEstimator
 
@@ -133,7 +133,7 @@ class AthletePose3DExtractor:
         # Try to load state dict, stripping prefixes if needed
         try:
             self.model.load_state_dict(state_dict)
-        except RuntimeError as e:
+        except RuntimeError:
             # Try stripping 'model.' prefix
             new_state_dict = {}
             for k, v in state_dict.items():
@@ -211,7 +211,7 @@ class AthletePose3DExtractor:
         poses_3d_count = np.zeros(len(poses_2d_padded), dtype=np.int32)
 
         for i in range(0, len(poses_2d_padded) - self.TEMPORAL_WINDOW + 1, stride):
-            window = poses_2d_padded[i:i + self.TEMPORAL_WINDOW]
+            window = poses_2d_padded[i : i + self.TEMPORAL_WINDOW]
             poses_3d_window = self._extract_window(window)  # (81, 17, 3)
 
             # Accumulate poses from this window
@@ -255,7 +255,9 @@ class AthletePose3DExtractor:
             pose_3d = output[0].cpu().numpy()  # (81, 17, 3)
         else:
             # Single frame output - expand to window size
-            pose_3d = np.tile(output[0].cpu().numpy()[np.newaxis, :, :], (self.TEMPORAL_WINDOW, 1, 1))
+            pose_3d = np.tile(
+                output[0].cpu().numpy()[np.newaxis, :, :], (self.TEMPORAL_WINDOW, 1, 1)
+            )
 
         return pose_3d
 

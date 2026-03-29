@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from src.element_segmenter import ElementSegmenter
-from src.types import BKey, NormalizedPose, SegmentationResult
+from src.types import H36Key, NormalizedPose, SegmentationResult
 from src.video import VideoMeta
 
 
@@ -23,7 +23,7 @@ def sample_normalized_poses() -> NormalizedPose:
     - Frames 70-90: Active (second motion)
     """
     num_frames = 90
-    poses = np.zeros((num_frames, 33, 2), dtype=np.float32)
+    poses = np.zeros((num_frames, 17, 2), dtype=np.float32)
 
     # Add some motion to key joints
     t = np.linspace(0, 1, num_frames)
@@ -31,15 +31,15 @@ def sample_normalized_poses() -> NormalizedPose:
     for i in range(num_frames):
         # Left wrist moves (active phases)
         if 0 <= i < 20:
-            poses[i, BKey.LEFT_WRIST, 0] = 0.2 * np.sin(2 * np.pi * t[i] * 2)
-            poses[i, BKey.LEFT_WRIST, 1] = 0.1 * np.cos(2 * np.pi * t[i] * 2)
+            poses[i, H36Key.LEFT_WRIST, 0] = 0.2 * np.sin(2 * np.pi * t[i] * 2)
+            poses[i, H36Key.LEFT_WRIST, 1] = 0.1 * np.cos(2 * np.pi * t[i] * 2)
         elif 30 <= i < 60:
             # Jump-like hip motion
-            poses[i, BKey.LEFT_HIP, 1] = -0.1 * np.sin(np.pi * (i - 30) / 30)
-            poses[i, BKey.RIGHT_HIP, 1] = -0.1 * np.sin(np.pi * (i - 30) / 30)
+            poses[i, H36Key.LEFT_HIP, 1] = -0.1 * np.sin(np.pi * (i - 30) / 30)
+            poses[i, H36Key.RIGHT_HIP, 1] = -0.1 * np.sin(np.pi * (i - 30) / 30)
         elif 70 <= i < 90:
-            poses[i, BKey.LEFT_WRIST, 0] = 0.15 * np.sin(2 * np.pi * t[i] * 3)
-            poses[i, BKey.LEFT_WRIST, 1] = 0.08 * np.cos(2 * np.pi * t[i] * 3)
+            poses[i, H36Key.LEFT_WRIST, 0] = 0.15 * np.sin(2 * np.pi * t[i] * 3)
+            poses[i, H36Key.LEFT_WRIST, 1] = 0.08 * np.cos(2 * np.pi * t[i] * 3)
 
     return poses
 
@@ -264,7 +264,7 @@ class TestElementSegmenter:
         """Test segmentation with completely still video."""
 
         # Create still poses
-        poses = np.zeros((50, 33, 2), dtype=np.float32)
+        poses = np.zeros((50, 17, 2), dtype=np.float32)
 
         segmenter = ElementSegmenter()
         result = segmenter.segment(poses, Path("test.mp4"), video_meta)
@@ -378,31 +378,31 @@ class TestJumpSequence:
         - Frames 60-70: Complete stillness
         """
         num_frames = 70
-        poses = np.zeros((num_frames, 33, 2), dtype=np.float32)
+        poses = np.zeros((num_frames, 17, 2), dtype=np.float32)
 
         # High motion phase (frames 10-35) - full body motion
         for i in range(10, 35):
             t = (i - 10) / 25
 
             # Hip trajectory (jump pattern)
-            poses[i, BKey.LEFT_HIP, 1] = -0.2 * np.sin(t * np.pi)
-            poses[i, BKey.RIGHT_HIP, 1] = -0.2 * np.sin(t * np.pi)
+            poses[i, H36Key.LEFT_HIP, 1] = -0.2 * np.sin(t * np.pi)
+            poses[i, H36Key.RIGHT_HIP, 1] = -0.2 * np.sin(t * np.pi)
 
             # Large arm movements
-            poses[i, BKey.LEFT_WRIST, 0] = 0.3 * np.sin(t * 2 * np.pi)
-            poses[i, BKey.LEFT_WRIST, 1] = 0.2 * np.cos(t * 2 * np.pi)
-            poses[i, BKey.RIGHT_WRIST, 0] = -0.3 * np.sin(t * 2 * np.pi)
-            poses[i, BKey.RIGHT_WRIST, 1] = 0.2 * np.cos(t * 2 * np.pi)
+            poses[i, H36Key.LEFT_WRIST, 0] = 0.3 * np.sin(t * 2 * np.pi)
+            poses[i, H36Key.LEFT_WRIST, 1] = 0.2 * np.cos(t * 2 * np.pi)
+            poses[i, H36Key.RIGHT_WRIST, 0] = -0.3 * np.sin(t * 2 * np.pi)
+            poses[i, H36Key.RIGHT_WRIST, 1] = 0.2 * np.cos(t * 2 * np.pi)
 
             # Knee motion
-            poses[i, BKey.LEFT_KNEE, 1] = 0.1 * np.sin(t * np.pi)
-            poses[i, BKey.RIGHT_KNEE, 1] = 0.1 * np.sin(t * np.pi)
+            poses[i, H36Key.LEFT_KNEE, 1] = 0.1 * np.sin(t * np.pi)
+            poses[i, H36Key.RIGHT_KNEE, 1] = 0.1 * np.sin(t * np.pi)
 
         # Recovery motion (frames 45-60)
         for i in range(45, 60):
             t = (i - 45) / 15
-            poses[i, BKey.LEFT_WRIST, 0] = 0.15 * np.sin(t * np.pi)
-            poses[i, BKey.RIGHT_WRIST, 0] = -0.15 * np.sin(t * np.pi)
+            poses[i, H36Key.LEFT_WRIST, 0] = 0.15 * np.sin(t * np.pi)
+            poses[i, H36Key.RIGHT_WRIST, 0] = -0.15 * np.sin(t * np.pi)
 
         # All other frames remain at zero (stillness)
 

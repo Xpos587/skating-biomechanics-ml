@@ -19,7 +19,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 if TYPE_CHECKING:
-    from src.pose_3d.blazepose_to_h36m import H36Key
+    pass
 
 
 # Anthropometric data (segment mass ratios)
@@ -48,6 +48,7 @@ DEFAULT_BODY_MASS = 60.0  # Typical figure skater
 @dataclass
 class PhysicsResult:
     """Result of physics calculations."""
+
     center_of_mass: np.ndarray  # (N, 3) CoM trajectory
     moment_of_inertia: np.ndarray  # (N,) I values
     angular_momentum: np.ndarray  # (N,) L values
@@ -74,8 +75,7 @@ class PhysicsEngine:
         """
         self.body_mass = body_mass
         self.segment_masses = {
-            name: ratio * body_mass
-            for name, ratio in SEGMENT_MASS_RATIOS.items()
+            name: ratio * body_mass for name, ratio in SEGMENT_MASS_RATIOS.items()
         }
 
     def calculate_center_of_mass(
@@ -133,14 +133,10 @@ class PhysicsEngine:
 
                 # Forearm: elbow to wrist midpoint
                 forearm_pos = (pose[elbow_idx] + pose[wrist_idx]) / 2
-                com_trajectory[frame_idx] += (
-                    self.segment_masses[f"{side}_forearm"] * forearm_pos
-                )
+                com_trajectory[frame_idx] += self.segment_masses[f"{side}_forearm"] * forearm_pos
 
                 # Hand: wrist position
-                com_trajectory[frame_idx] += (
-                    self.segment_masses[f"{side}_hand"] * pose[wrist_idx]
-                )
+                com_trajectory[frame_idx] += self.segment_masses[f"{side}_hand"] * pose[wrist_idx]
 
             # Legs (thigh, shin, foot)
             for side, prefix in [("left", "l"), ("right", "r")]:
@@ -150,20 +146,14 @@ class PhysicsEngine:
 
                 # Thigh: hip to knee midpoint
                 thigh_pos = (pose[hip_idx] + pose[knee_idx]) / 2
-                com_trajectory[frame_idx] += (
-                    self.segment_masses[f"{side}_thigh"] * thigh_pos
-                )
+                com_trajectory[frame_idx] += self.segment_masses[f"{side}_thigh"] * thigh_pos
 
                 # Shin: knee to ankle midpoint
                 shin_pos = (pose[knee_idx] + pose[ankle_idx]) / 2
-                com_trajectory[frame_idx] += (
-                    self.segment_masses[f"{side}_shin"] * shin_pos
-                )
+                com_trajectory[frame_idx] += self.segment_masses[f"{side}_shin"] * shin_pos
 
                 # Foot: ankle position
-                com_trajectory[frame_idx] += (
-                    self.segment_masses[f"{side}_foot"] * pose[ankle_idx]
-                )
+                com_trajectory[frame_idx] += self.segment_masses[f"{side}_foot"] * pose[ankle_idx]
 
         # Normalize by total mass
         com_trajectory /= self.body_mass
@@ -226,30 +216,22 @@ class PhysicsEngine:
                 # Upper arm
                 upper_arm_pos = (pose[shoulder_idx] + pose[elbow_idx]) / 2
                 r = np.linalg.norm(upper_arm_pos - com)
-                inertia[frame_idx] += (
-                    self.segment_masses[f"{side}_upper_arm"] * r**2
-                )
+                inertia[frame_idx] += self.segment_masses[f"{side}_upper_arm"] * r**2
 
                 # Forearm
                 forearm_pos = (pose[elbow_idx] + pose[wrist_idx]) / 2
                 r = np.linalg.norm(forearm_pos - com)
-                inertia[frame_idx] += (
-                    self.segment_masses[f"{side}_forearm"] * r**2
-                )
+                inertia[frame_idx] += self.segment_masses[f"{side}_forearm"] * r**2
 
                 # Thigh
                 thigh_pos = (pose[hip_idx] + pose[knee_idx]) / 2
                 r = np.linalg.norm(thigh_pos - com)
-                inertia[frame_idx] += (
-                    self.segment_masses[f"{side}_thigh"] * r**2
-                )
+                inertia[frame_idx] += self.segment_masses[f"{side}_thigh"] * r**2
 
                 # Shin
                 shin_pos = (pose[knee_idx] + pose[ankle_idx]) / 2
                 r = np.linalg.norm(shin_pos - com)
-                inertia[frame_idx] += (
-                    self.segment_masses[f"{side}_shin"] * r**2
-                )
+                inertia[frame_idx] += self.segment_masses[f"{side}_shin"] * r**2
 
         return inertia
 
@@ -298,7 +280,7 @@ class PhysicsEngine:
         com_trajectory = self.calculate_center_of_mass(poses_3d)
 
         # Extract flight phase (vertical component = Y axis)
-        flight_com = com_trajectory[takeoff_idx:landing_idx + 1, 1]  # Y coordinate
+        flight_com = com_trajectory[takeoff_idx : landing_idx + 1, 1]  # Y coordinate
         n_frames = len(flight_com)
         t = np.arange(n_frames) / 30.0  # Assume 30 fps
 
@@ -327,7 +309,7 @@ class PhysicsEngine:
             # R² for fit quality
             residuals = flight_com - parabola(t, a, b, c)
             ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((flight_com - np.mean(flight_com))**2)
+            ss_tot = np.sum((flight_com - np.mean(flight_com)) ** 2)
             r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
 
             return {

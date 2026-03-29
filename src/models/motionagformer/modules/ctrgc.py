@@ -34,7 +34,7 @@ def get_spatial_graph(self_link, inward, outward, num_node):
 
 def conv_init(conv):
     if conv.weight is not None:
-        nn.init.kaiming_normal_(conv.weight, mode='fan_out')
+        nn.init.kaiming_normal_(conv.weight, mode="fan_out")
     if conv.bias is not None:
         nn.init.constant_(conv.bias, 0)
 
@@ -67,8 +67,10 @@ class CTRGC(nn.Module):
     def forward(self, x, A=None, alpha=1):
         x1, x2, x3 = self.conv1(x).mean(-2), self.conv2(x).mean(-2), self.conv3(x)
         x1 = self.tanh(x1.unsqueeze(-1) - x2.unsqueeze(-2))
-        x1 = self.conv4(x1) * alpha + (A.unsqueeze(0).unsqueeze(0) if A is not None else 0)  # N,C,V,V
-        x1 = torch.einsum('ncuv,nctv->nctu', x1, x3)
+        x1 = self.conv4(x1) * alpha + (
+            A.unsqueeze(0).unsqueeze(0) if A is not None else 0
+        )  # N,C,V,V
+        x1 = torch.einsum("ncuv,nctv->nctu", x1, x3)
         return x1
 
 
@@ -86,8 +88,7 @@ class CTRGCBlock(nn.Module):
 
         if in_channels != out_channels:
             self.down = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, 1),
-                nn.BatchNorm2d(out_channels)
+                nn.Conv2d(in_channels, out_channels, 1), nn.BatchNorm2d(out_channels)
             )
         else:
             self.down = lambda x: x
@@ -111,8 +112,24 @@ class CTRGCBlock(nn.Module):
     @staticmethod
     def _init_A():
         self_link = [(i, i) for i in range(17)]
-        inward_ori_index = [(0, 7), (7, 8), (9, 8), (10, 9), (14, 8), (15, 14), (16, 15), (11, 8), (12, 11), (13, 12),
-                            (4, 0), (5, 4), (6, 5), (1, 0), (2, 1), (3, 2)]
+        inward_ori_index = [
+            (0, 7),
+            (7, 8),
+            (9, 8),
+            (10, 9),
+            (14, 8),
+            (15, 14),
+            (16, 15),
+            (11, 8),
+            (12, 11),
+            (13, 12),
+            (4, 0),
+            (5, 4),
+            (6, 5),
+            (1, 0),
+            (2, 1),
+            (3, 2),
+        ]
         inward = [(i - 1, j - 1) for (i, j) in inward_ori_index]
         outward = [(j, i) for (i, j) in inward]
         A = get_spatial_graph(self_link, inward, outward, num_node=17)

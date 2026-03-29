@@ -98,24 +98,28 @@ class PoseTracker:
         # State transition matrix (constant acceleration)
         # x(t+dt) = x(t) + vx(t)*dt + 0.5*ax(t)*dt^2
         dt = self.dt
-        kf.F = np.array([
-            [1, 0, dt, 0, 0.5 * dt**2, 0],  # x
-            [0, 1, 0, dt, 0, 0.5 * dt**2],  # y
-            [0, 0, 1, 0, dt, 0],            # vx
-            [0, 0, 0, 1, 0, dt],            # vy
-            [0, 0, 0, 0, 1, 0],             # ax
-            [0, 0, 0, 0, 0, 1],             # ay
-        ])
+        kf.F = np.array(
+            [
+                [1, 0, dt, 0, 0.5 * dt**2, 0],  # x
+                [0, 1, 0, dt, 0, 0.5 * dt**2],  # y
+                [0, 0, 1, 0, dt, 0],  # vx
+                [0, 0, 0, 1, 0, dt],  # vy
+                [0, 0, 0, 0, 1, 0],  # ax
+                [0, 0, 0, 0, 0, 1],  # ay
+            ]
+        )
 
         # Measurement matrix (observe x, y only)
-        kf.H = np.array([
-            [1, 0, 0, 0, 0, 0],  # Observe x
-            [0, 1, 0, 0, 0, 0],  # Observe y
-        ])
+        kf.H = np.array(
+            [
+                [1, 0, 0, 0, 0, 0],  # Observe x
+                [0, 1, 0, 0, 0, 0],  # Observe y
+            ]
+        )
 
         # Noise covariance
         kf.Q = np.eye(6) * 0.01  # Process noise
-        kf.R = np.eye(2) * 0.1   # Measurement noise
+        kf.R = np.eye(2) * 0.1  # Measurement noise
 
         # Initial state covariance
         kf.P = np.eye(6) * 1.0
@@ -325,7 +329,7 @@ class PoseTracker:
 
         femur_length = np.linalg.norm(pose[23] - pose[25])  # Left hip-knee
         tibia_length = np.linalg.norm(pose[25] - pose[27])  # Left knee-ankle
-        arm_span = np.linalg.norm(pose[15] - pose[16])      # Left-right wrist
+        arm_span = np.linalg.norm(pose[15] - pose[16])  # Left-right wrist
 
         # Total height estimate (from visible joints)
         height = torso_length + femur_length + tibia_length
@@ -358,8 +362,13 @@ class PoseTracker:
             return 1.0
 
         # Compare all ratios
-        keys = ["shoulder_width/torso", "femur/tibia", "arm_span/height",
-                "torso/height", "shoulder_width/height"]
+        keys = [
+            "shoulder_width/torso",
+            "femur/tibia",
+            "arm_span/height",
+            "torso/height",
+            "shoulder_width/height",
+        ]
 
         vec1 = np.array([bio1.get(k, 0) for k in keys])
         vec2 = np.array([bio2.get(k, 0) for k in keys])
@@ -369,10 +378,7 @@ class PoseTracker:
 
     def _remove_lost_tracks(self) -> None:
         """Remove tracks that haven't been detected for too long."""
-        self.tracks = [
-            t for t in self.tracks
-            if t.time_since_update <= self.max_disappeared
-        ]
+        self.tracks = [t for t in self.tracks if t.time_since_update <= self.max_disappeared]
 
     def get_confirmed_tracks(self) -> list[Track]:
         """Get tracks that have enough detections to be confirmed.

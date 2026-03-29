@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from src.normalizer import PoseNormalizer
-from src.types import H36Key, BKey
+from src.types import H36Key
 
 
 class TestPoseNormalizer:

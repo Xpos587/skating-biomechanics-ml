@@ -32,9 +32,11 @@ H3.6M Keypoints (17):
 
 import numpy as np
 
+
 # BlazePose keypoint indices
 class BKey:
     """BlazePose keypoint indices (33 total)."""
+
     NOSE = 0
     LEFT_EYE_INNER = 1
     LEFT_EYE = 2
@@ -73,6 +75,7 @@ class BKey:
 # H3.6M keypoint indices
 class H36Key:
     """H3.6M keypoint indices (17 total)."""
+
     HIP_CENTER = 0
     RHIP = 1
     RKNEE = 2
@@ -144,10 +147,12 @@ def blazepose_to_h36m(blazepose_pose: np.ndarray) -> np.ndarray:
         (H36Key.LHIP, lambda: blazepose_pose[BKey.LEFT_HIP], [BKey.LEFT_HIP]),
         (H36Key.LKNEE, lambda: blazepose_pose[BKey.LEFT_KNEE], [BKey.LEFT_KNEE]),
         (H36Key.LFOOT, lambda: blazepose_pose[BKey.LEFT_ANKLE], [BKey.LEFT_ANKLE]),
-        (H36Key.SPINE, lambda: (mid_shoulder * 0.5 + mid_hip * 0.5),
-         [BKey.LEFT_HIP, BKey.RIGHT_HIP, BKey.LEFT_SHOULDER, BKey.RIGHT_SHOULDER]),
-        (H36Key.THORAX, lambda: mid_shoulder,
-         [BKey.LEFT_SHOULDER, BKey.RIGHT_SHOULDER]),
+        (
+            H36Key.SPINE,
+            lambda: mid_shoulder * 0.5 + mid_hip * 0.5,
+            [BKey.LEFT_HIP, BKey.RIGHT_HIP, BKey.LEFT_SHOULDER, BKey.RIGHT_SHOULDER],
+        ),
+        (H36Key.THORAX, lambda: mid_shoulder, [BKey.LEFT_SHOULDER, BKey.RIGHT_SHOULDER]),
         (H36Key.NECK, lambda: blazepose_pose[BKey.NOSE], [BKey.NOSE]),
         (H36Key.HEAD, lambda: blazepose_pose[BKey.NOSE], [BKey.NOSE]),
         (H36Key.LSHOULDER, lambda: blazepose_pose[BKey.LEFT_SHOULDER], [BKey.LEFT_SHOULDER]),
@@ -220,11 +225,23 @@ def h36m_to_blazepose(h36m_pose: np.ndarray) -> np.ndarray:
 
 # H3.6M keypoint names for visualization/debugging
 H36M_KEYPOINT_NAMES = [
-    "hip_center", "rhip", "rknee", "rfoot",
-    "lhip", "lknee", "lfoot",
-    "spine", "thorax", "neck", "head",
-    "lshoulder", "lelbow", "lwrist",
-    "rshoulder", "relbow", "rwrist",
+    "hip_center",
+    "rhip",
+    "rknee",
+    "rfoot",
+    "lhip",
+    "lknee",
+    "lfoot",
+    "spine",
+    "thorax",
+    "neck",
+    "head",
+    "lshoulder",
+    "lelbow",
+    "lwrist",
+    "rshoulder",
+    "relbow",
+    "rwrist",
 ]
 
 # H3.6M skeleton connections for visualization

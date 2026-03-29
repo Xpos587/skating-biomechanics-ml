@@ -3,13 +3,39 @@ import math
 import torch
 from torch import nn
 
-CONNECTIONS = {10: [9], 9: [8, 10], 8: [7, 9], 14: [15, 8], 15: [16, 14], 11: [12, 8], 12: [13, 11],
-               7: [0, 8], 0: [1, 7], 1: [2, 0], 2: [3, 1], 4: [5, 0], 5: [6, 4], 16: [15], 13: [12], 3: [2], 6: [5]}
+CONNECTIONS = {
+    10: [9],
+    9: [8, 10],
+    8: [7, 9],
+    14: [15, 8],
+    15: [16, 14],
+    11: [12, 8],
+    12: [13, 11],
+    7: [0, 8],
+    0: [1, 7],
+    1: [2, 0],
+    2: [3, 1],
+    4: [5, 0],
+    5: [6, 4],
+    16: [15],
+    13: [12],
+    3: [2],
+    6: [5],
+}
 
 
 class GCN(nn.Module):
-    def __init__(self, dim_in, dim_out, num_nodes, neighbour_num=4, mode='spatial', use_temporal_similarity=True,
-                 temporal_connection_len=1, connections=None):
+    def __init__(
+        self,
+        dim_in,
+        dim_out,
+        num_nodes,
+        neighbour_num=4,
+        mode="spatial",
+        use_temporal_similarity=True,
+        temporal_connection_len=1,
+        connections=None,
+    ):
         self.nodes_ = """
         :param dim_int: Channel input dimension
         :param dim_out: Channel output dimension
@@ -21,7 +47,7 @@ class GCN(nn.Module):
         :param connections: Spatial connections for graph edges (Optional)
         """
         super().__init__()
-        assert mode in ['spatial', 'temporal'], "Mode is undefined"
+        assert mode in ["spatial", "temporal"], "Mode is undefined"
 
         self.relu = nn.ReLU()
         self.neighbour_num = neighbour_num
@@ -38,14 +64,14 @@ class GCN(nn.Module):
 
         self._init_gcn()
 
-        if mode == 'spatial':
+        if mode == "spatial":
             self.adj = self._init_spatial_adj()
-        elif mode == 'temporal' and not self.use_temporal_similarity:
+        elif mode == "temporal" and not self.use_temporal_similarity:
             self.adj = self._init_temporal_adj(temporal_connection_len)
 
     def _init_gcn(self):
-        self.U.weight.data.normal_(0, math.sqrt(2. / self.dim_in))
-        self.V.weight.data.normal_(0, math.sqrt(2. / self.dim_in))
+        self.U.weight.data.normal_(0, math.sqrt(2.0 / self.dim_in))
+        self.V.weight.data.normal_(0, math.sqrt(2.0 / self.dim_in))
         self.batch_norm.weight.data.fill_(1)
         self.batch_norm.bias.data.zero_()
 
@@ -76,7 +102,7 @@ class GCN(nn.Module):
         b, n, c = adj.shape
 
         node_degrees = adj.detach().sum(dim=-1)
-        deg_inv_sqrt = node_degrees ** -0.5
+        deg_inv_sqrt = node_degrees**-0.5
         norm_deg_matrix = torch.eye(n)
         dev = adj.get_device()
         if dev >= 0:
@@ -97,12 +123,14 @@ class GCN(nn.Module):
         x: tensor with shape [B, T, J, C]
         """
         b, t, j, c = x.shape
-        if self.mode == 'temporal':
+        if self.mode == "temporal":
             x = x.transpose(1, 2)  # (B, T, J, C) -> (B, J, T, C)
             x = x.reshape(-1, t, c)
             if self.use_temporal_similarity:
                 similarity = x @ x.transpose(1, 2)
-                threshold = similarity.topk(k=self.neighbour_num, dim=-1, largest=True)[0][..., -1].view(b * j, t, 1)
+                threshold = similarity.topk(k=self.neighbour_num, dim=-1, largest=True)[0][
+                    ..., -1
+                ].view(b * j, t, 1)
                 adj = (similarity >= threshold).float()
             else:
                 adj = self.adj
@@ -123,6 +151,9 @@ class GCN(nn.Module):
         else:
             x = self.relu(self.batch_norm(aggregate + self.U(x)))
 
-        x = x.reshape(-1, t, j, self.dim_out) if self.mode == 'spatial' \
+        x = (
+            x.reshape(-1, t, j, self.dim_out)
+            if self.mode == "spatial"
             else x.reshape(-1, j, t, self.dim_out).transpose(1, 2)
+        )
         return x

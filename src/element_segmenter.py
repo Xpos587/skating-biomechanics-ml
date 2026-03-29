@@ -413,6 +413,7 @@ class ElementSegmenter:
         """
         try:
             from . import phase_detector
+
             PhaseDetector = phase_detector.PhaseDetector  # noqa: PLC0415
 
             detector = PhaseDetector()
@@ -450,27 +451,31 @@ class ElementSegmenter:
     def _compute_edge_indicator(self, poses: NormalizedPose) -> NDArray[np.float32]:
         """Compute edge indicator for step/turn detection.
 
+        Note: Simplified for H3.6M 17kp format (3D-only pipeline).
+        The original BlazePose 33kp version used heel-to-foot vectors,
+        but H3.6M only has single foot point per side.
+
         Args:
-            poses: NormalizedPose sequence.
+            poses: NormalizedPose sequence (H3.6M 17kp format).
 
         Returns:
             Edge indicator signal (+1=inside, -1=outside, 0=flat).
         """
-        # Use heel-to-foot vector to determine edge
-        # This is a simplified version
+        # Simplified: use foot velocity direction as edge indicator
+        # For H3.6M format, use LFOOT and RFOOT keypoints
+        from .types import H36Key
 
-        left_heel = poses[:, 29, :]  # LEFT_HEEL
-        left_foot = poses[:, 31, :]  # LEFT_FOOT_INDEX
-        right_heel = poses[:, 30, :]  # RIGHT_HEEL
-        right_foot = poses[:, 32, :]  # RIGHT_FOOT_INDEX
+        left_foot = poses[:, H36Key.LFOOT, :]
+        right_foot = poses[:, H36Key.RFOOT, :]
 
-        # Compute foot vectors
-        left_vector = left_foot - left_heel
-        right_vector = right_foot - right_heel
+        # Compute foot velocity (difference between consecutive frames)
+        left_vel = np.diff(left_foot, axis=0, prepend=left_foot[:1])
+        right_vel = np.diff(right_foot, axis=0, prepend=right_foot[:1])
 
-        # Use x-component as edge indicator (simplified)
-        edge_left = np.sign(left_vector[:, 0])
-        edge_right = np.sign(right_vector[:, 0])
+        # Use x-component of velocity as edge indicator
+        # (positive = outside edge, negative = inside edge)
+        edge_left = np.sign(left_vel[:, 0])
+        edge_right = np.sign(right_vel[:, 0])
 
         # Average both feet
         edge = (edge_left + edge_right) / 2
@@ -481,13 +486,15 @@ class ElementSegmenter:
         """Compute shoulder rotation angle over time.
 
         Args:
-            poses: NormalizedPose sequence.
+            poses: NormalizedPose sequence (H3.6M 17kp format).
 
         Returns:
             Shoulder rotation angles in radians.
         """
-        left_shoulder = poses[:, 11, :]
-        right_shoulder = poses[:, 12, :]
+        from .types import H36Key  # noqa: PLC0415
+
+        left_shoulder = poses[:, H36Key.LSHOULDER, :]
+        right_shoulder = poses[:, H36Key.RSHOULDER, :]
 
         # Compute shoulder axis vector
         shoulder_vector = right_shoulder - left_shoulder
@@ -505,22 +512,23 @@ class ElementSegmenter:
         """Compute knee angle series.
 
         Args:
-            poses: NormalizedPose sequence.
+            poses: NormalizedPose sequence (H3.6M 17kp format).
             side: "left" or "right".
 
         Returns:
             Knee angles in degrees.
         """
         from .geometry import angle_3pt  # noqa: PLC0415
+        from .types import H36Key  # noqa: PLC0415
 
         if side == "left":
-            hip_idx = 23  # LEFT_HIP
-            knee_idx = 25  # LEFT_KNEE
-            ankle_idx = 27  # LEFT_ANKLE
+            hip_idx = H36Key.LHIP
+            knee_idx = H36Key.LKNEE
+            ankle_idx = H36Key.LFOOT
         else:
-            hip_idx = 24  # RIGHT_HIP
-            knee_idx = 26  # RIGHT_KNEE
-            ankle_idx = 28  # RIGHT_ANKLE
+            hip_idx = H36Key.RHIP
+            knee_idx = H36Key.RKNEE
+            ankle_idx = H36Key.RFOOT
 
         angles = []
         for i in range(len(poses)):
