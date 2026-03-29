@@ -37,10 +37,10 @@ class PoseProcessor:
 
         # Create appropriate extractor based on type
         if pose_extractor_type == "yolo":
-            from ..pose_estimation import YOLOPoseExtractor
+            from src.pose_estimation import YOLOPoseExtractor
             self._extractor = YOLOPoseExtractor(model_size="n")
         else:  # Default to BlazePose backend (H3.6M format)
-            from ..pose_estimation import H36MExtractor
+            from src.pose_estimation import H36MExtractor
             self._extractor = H36MExtractor(
                 min_detection_confidence=0.5,
                 min_presence_confidence=0.5,
@@ -53,6 +53,7 @@ class PoseProcessor:
         video_path: Path,
         enable_3d: bool = False,
         blade_3d: bool = False,
+        model_3d_type: str = "motionagformer-s",
     ) -> ProcessedPoses:
         """Извлечь позы из видео.
 
@@ -114,12 +115,12 @@ class PoseProcessor:
                 "motionagformer-s": "data/models/motionagformer-s-ap3d.pth.tr",
                 "tcpformer": "data/models/TCPFormer_ap3d_81.pth.tr",
             }
-            model_path = model_paths.get(settings.model_3d_type, "data/models/motionagformer-s-ap3d.pth.tr")
+            model_path = model_paths.get(model_3d_type, "data/models/motionagformer-s-ap3d.pth.tr")
 
             estimator = AthletePose3DExtractor(
                 model_path=model_path,
                 device="auto",
-                model_type=settings.model_3d_type,
+                model_type=model_3d_type,
             )
             poses_3d = estimator.extract_sequence(poses_final)
             result.poses_3d = poses_3d

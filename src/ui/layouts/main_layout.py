@@ -113,6 +113,7 @@ class MainLayout:
                     video_path,
                     enable_3d=settings.enable_3d,
                     blade_3d=settings.blade_3d,
+                    model_3d_type=settings.model_3d_type,
                 )
                 self._state.poses = poses
                 self._state.is_processed = True
