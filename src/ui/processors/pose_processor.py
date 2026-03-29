@@ -101,10 +101,17 @@ class PoseProcessor:
         poses_3d = None
         if enable_3d:
             status_text.text("3D оценка поз...")
+            # Select model path based on model_type
+            model_paths = {
+                "motionagformer-s": "data/models/motionagformer-s-ap3d.pth.tr",
+                "tcpformer": "data/models/TCPFormer_ap3d_81.pth.tr",
+            }
+            model_path = model_paths.get(settings.model_3d_type, "data/models/motionagformer-s-ap3d.pth.tr")
+
             estimator = AthletePose3DExtractor(
-                model_path="data/models/motionagformer-s-ap3d.pth.tr",
+                model_path=model_path,
                 device="auto",
-                model_type="motionagformer-s",
+                model_type=settings.model_3d_type,
             )
             poses_3d = estimator.extract_sequence(poses_final)
             result.poses_3d = poses_3d

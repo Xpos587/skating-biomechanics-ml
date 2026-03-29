@@ -26,6 +26,7 @@ class LayerSettings:
 
     # Advanced options
     enable_3d: bool = False
+    model_3d_type: str = "motionagformer-s"  # "motionagformer-s" or "tcpformer"
     blade_3d: bool = False
     com_trajectory: bool = False
     floor_mode: bool = False

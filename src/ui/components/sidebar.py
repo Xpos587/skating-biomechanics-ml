@@ -46,6 +46,22 @@ def render_sidebar(config: UIConfig, events: EventBus | None = None) -> LayerSet
         advanced = config.get_advanced_settings()
 
         enable_3d = st.checkbox("3D поза", value=advanced.get("enable_3d", False), key="adv_3d")
+
+        # 3D model selection (only show if 3D is enabled)
+        model_3d_type = "motionagformer-s"
+        if enable_3d:
+            model_3d_type = st.selectbox(
+                "3D модель",
+                options=["motionagformer-s", "tcpformer"],
+                index=0,
+                format_func=lambda x: {
+                    "motionagformer-s": "MotionAGFormer-S (59MB, быстрый)",
+                    "tcpformer": "TCPFormer (422MB, точный)"
+                }.get(x, x),
+                key="adv_model_3d",
+                help="MotionAGFormer-S: real-time, TCPFormer: higher accuracy"
+            )
+
         blade_3d = st.checkbox("3D детекция ребра", value=advanced.get("blade_3d", False), key="adv_blade")
         com_trajectory = st.checkbox("Траектория ЦТ (CoM)", value=advanced.get("com_trajectory", False), key="adv_com")
         floor_mode = st.checkbox("Режим без коньков", value=advanced.get("floor_mode", False), key="adv_floor")
@@ -111,6 +127,7 @@ def render_sidebar(config: UIConfig, events: EventBus | None = None) -> LayerSet
             edge_indicators=True,
             subtitles=True,
             enable_3d=enable_3d,
+            model_3d_type=model_3d_type if enable_3d else "motionagformer-s",
             blade_3d=blade_3d and enable_3d,  # Only if 3d enabled
             com_trajectory=com_trajectory and enable_3d,  # Only if 3d enabled
             floor_mode=floor_mode,
