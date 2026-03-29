@@ -10,12 +10,12 @@ from scipy.signal import find_peaks
 from .metrics import BiomechanicsAnalyzer, PhaseDetectionResult
 from .element_defs import ElementDef
 from .types import ElementPhase, NormalizedPose
-from . import spatial_reference
-from .geometry import calculate_com_trajectory, get_mid_hip
+from .geometry import calculate_com_trajectory
 
 # BladeEdgeDetector is optional (requires 3D poses)
 try:
     from . import blade_edge_detector
+
     BladeEdgeDetector = blade_edge_detector.BladeEdgeDetector
     BLADE_DETECTOR_AVAILABLE = True
 except Exception:
@@ -177,19 +177,14 @@ class PhaseDetector:
 
         # Calculate standard deviation for adaptive thresholds
         vy_std = np.std(vy)
-        com_y_std = np.std(com_y)
 
         # Detect takeoff: positive velocity peak (skater pushing upward)
         # Use 2-sigma threshold for sensitivity
-        takeoff_candidates, takeoff_props = find_peaks(
-            vy, height=2 * vy_std, distance=10
-        )
+        takeoff_candidates, takeoff_props = find_peaks(vy, height=2 * vy_std, distance=10)
 
         # Detect landing: negative velocity spike (impact)
         # Use 3-sigma threshold for robustness against false positives
-        landing_candidates, landing_props = find_peaks(
-            -vy, height=3 * vy_std, distance=10
-        )
+        landing_candidates, landing_props = find_peaks(-vy, height=3 * vy_std, distance=10)
 
         # Find peak: minimum CoM Y (maximum height)
         if len(takeoff_candidates) > 0 and len(landing_candidates) > 0:
@@ -234,8 +229,7 @@ class PhaseDetector:
         # Validate physical plausibility
         airtime = (landing_idx - takeoff_idx) / fps
 
-        # Minimum airtime validation (0.3 seconds = ~9 frames at 30fps)
-        min_airtime_frames = int(0.3 * fps)
+        # Minimum airtime validation (0.3 seconds)
         if airtime < 0.3:
             # Airtime too short, likely false positive
             return PhaseDetectionResult(
@@ -273,7 +267,7 @@ class PhaseDetector:
         # Confidence based on multiple factors
         # 1. Peak prominence (how distinct the jump is)
         if takeoff_idx < peak_idx < landing_idx:
-            flight_com = com_y[takeoff_idx:landing_idx + 1]
+            flight_com = com_y[takeoff_idx : landing_idx + 1]
             prominence = float(np.max(flight_com) - np.min(flight_com))
         else:
             prominence = 0.01
@@ -283,11 +277,14 @@ class PhaseDetector:
         landing_signal = abs(vy[landing_idx]) if landing_idx < len(vy) else 0
 
         # Combine factors
-        confidence = min(1.0, (
-            min(1.0, prominence / 0.05) * 0.5 +  # Peak prominence (max 0.05)
-            min(1.0, takeoff_signal / (2 * vy_std)) * 0.3 +  # Takeoff clarity
-            min(1.0, landing_signal / (3 * vy_std)) * 0.2   # Landing clarity
-        ))
+        confidence = min(
+            1.0,
+            (
+                min(1.0, prominence / 0.05) * 0.5  # Peak prominence (max 0.05)
+                + min(1.0, takeoff_signal / (2 * vy_std)) * 0.3  # Takeoff clarity
+                + min(1.0, landing_signal / (3 * vy_std)) * 0.2  # Landing clarity
+            ),
+        )
 
         return PhaseDetectionResult(phases=phases, confidence=confidence)
 
@@ -325,7 +322,7 @@ class PhaseDetector:
 
         # Find peak between takeoff and landing
         com_y = calculate_com_trajectory(poses)
-        flight_y = com_y[takeoff:landing + 1]
+        flight_y = com_y[takeoff : landing + 1]
         peak_offset = np.argmin(flight_y)  # Minimum Y = maximum height
         peak_idx = takeoff + peak_offset
 

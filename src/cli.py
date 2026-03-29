@@ -14,10 +14,12 @@ import traceback
 from pathlib import Path
 
 from .pipeline import AnalysisPipeline
-from . import blazepose_extractor, pose_extractor, normalizer
+from . import pose_extractor, normalizer
+
 PoseExtractor = pose_extractor.PoseExtractor
 PoseNormalizer = normalizer.PoseNormalizer
 from . import element_defs, reference_builder, reference_store
+
 ReferenceBuilder = reference_builder.ReferenceBuilder
 ReferenceStore = reference_store.ReferenceStore
 get_element_def = element_defs.get_element_def
@@ -189,8 +191,9 @@ def cmd_segment(args: argparse.Namespace) -> int:
         # Export segments as references if output-dir specified
         if args.export_dir:
             # Get full poses for export
-            import .person_detector as detection import PersonDetector
-            import .blazepose_extractor, .pose_extractor, .normalizer as pose_2d import BlazePoseExtractor
+            from .person_detector import PersonDetector
+            from .blazepose_extractor import BlazePoseExtractor
+            from .normalizer import PoseNormalizer
 
             detector = PersonDetector(model_size="n", confidence=0.5)
             bbox = detector.detect_first_frame(args.video)

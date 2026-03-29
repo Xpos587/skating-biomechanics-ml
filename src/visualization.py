@@ -24,7 +24,6 @@ from PIL import Image, ImageDraw, ImageFont
 from .types import (
     H36Key,
     H36M_SKELETON_EDGES,
-    BladeType,
     MotionDirection,
     assert_pose_format,
 )
@@ -834,6 +833,7 @@ def draw_debug_hud(
 # 3D Pose Visualization
 # ============================================================================
 
+
 def project_3d_to_2d(
     poses_3d: np.ndarray,
     camera_matrix: np.ndarray | None = None,
@@ -866,11 +866,7 @@ def project_3d_to_2d(
         fx = fy = width  # Simple approximation: focal_length ≈ image_width
         cx = width / 2.0
         cy = height / 2.0
-        camera_matrix = np.array([
-            [fx, 0, cx],
-            [0, fy, cy],
-            [0, 0, 1]
-        ], dtype=np.float32)
+        camera_matrix = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float32)
 
     if dist_coeffs is None:
         dist_coeffs = np.zeros((5, 1), dtype=np.float32)
@@ -886,9 +882,7 @@ def project_3d_to_2d(
         pose_3d[:, 1] = -pose_3d[:, 1]
 
         # Project using OpenCV
-        projected, _ = cv2.projectPoints(
-            pose_3d, rvec, tvec, camera_matrix, dist_coeffs
-        )
+        projected, _ = cv2.projectPoints(pose_3d, rvec, tvec, camera_matrix, dist_coeffs)
 
         # Convert pixels to normalized [0, 1]
         for joint_idx in range(n_joints):
@@ -1135,11 +1129,7 @@ def draw_3d_trajectory(
         fx = fy = width
         cx = width / 2.0
         cy = height / 2.0
-        camera_matrix = np.array([
-            [fx, 0, cx],
-            [0, fy, cy],
-            [0, 0, 1]
-        ], dtype=np.float32)
+        camera_matrix = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float32)
 
     dist_coeffs = np.zeros((5, 1), dtype=np.float32)
     rvec = np.zeros((3, 1), dtype=np.float32)
@@ -1150,9 +1140,7 @@ def draw_3d_trajectory(
     com_trajectory_copy[:, 1] = -com_trajectory_copy[:, 1]
 
     # Project using OpenCV
-    projected, _ = cv2.projectPoints(
-        com_trajectory_copy, rvec, tvec, camera_matrix, dist_coeffs
-    )
+    projected, _ = cv2.projectPoints(com_trajectory_copy, rvec, tvec, camera_matrix, dist_coeffs)
 
     # Convert to normalized [0, 1]
     com_2d = np.zeros((n_frames, 2), dtype=np.float32)
@@ -1182,6 +1170,7 @@ def draw_3d_trajectory(
 # ============================================================================
 # 3D Blade Detection Visualization
 # ============================================================================
+
 
 def draw_ice_trace(
     frame: np.ndarray,
@@ -1213,13 +1202,13 @@ def draw_ice_trace(
 
     # Color mapping for blade types
     color_map = {
-        BladeType.INSIDE: (255, 100, 100),    # Red/Cyan
-        BladeType.OUTSIDE: (100, 100, 255),   # Blue/Cyan
-        BladeType.FLAT: (100, 255, 100),      # Green
-        BladeType.TOE_PICK: (255, 255, 0),    # Cyan
-        BladeType.ROCKER: (255, 150, 0),      # Orange
-        BladeType.HEEL: (150, 0, 255),        # Purple
-        BladeType.UNKNOWN: (128, 128, 128),   # Gray
+        BladeType.INSIDE: (255, 100, 100),  # Red/Cyan
+        BladeType.OUTSIDE: (100, 100, 255),  # Blue/Cyan
+        BladeType.FLAT: (100, 255, 100),  # Green
+        BladeType.TOE_PICK: (255, 255, 0),  # Cyan
+        BladeType.ROCKER: (255, 150, 0),  # Orange
+        BladeType.HEEL: (150, 0, 255),  # Purple
+        BladeType.UNKNOWN: (128, 128, 128),  # Gray
     }
 
     # Project 3D points to 2D
@@ -1279,7 +1268,7 @@ def draw_blade_state_3d_hud(
     Returns:
         Frame with HUD overlay
     """
-    from .types import BladeType, MotionDirection
+    from .types import BladeType
 
     frame = frame.copy()
     x, y = position
@@ -1289,11 +1278,9 @@ def draw_blade_state_3d_hud(
     box_width = 180
     box_height = int(line_height * 4.5)
     overlay = frame.copy()
-    cv2.rectangle(overlay, (x, y), (x + box_width, y + box_height),
-                 (0, 0, 0), -1, cv2.LINE_AA)
+    cv2.rectangle(overlay, (x, y), (x + box_width, y + box_height), (0, 0, 0), -1, cv2.LINE_AA)
     cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
-    cv2.rectangle(frame, (x, y), (x + box_width, y + box_height),
-                 (255, 255, 255), 1, cv2.LINE_AA)
+    cv2.rectangle(frame, (x, y), (x + box_width, y + box_height), (255, 255, 255), 1, cv2.LINE_AA)
 
     # Foot + Blade (combined, color-coded)
     blade_color = {
@@ -1318,29 +1305,59 @@ def draw_blade_state_3d_hud(
 
     # Main info: Foot + Blade + Direction
     main_label = f"{blade_state.foot.upper()[0]} {blade_short} {blade_state.motion_direction.value.upper()[:5]}"
-    cv2.putText(frame, main_label, (x + 5, y + int(line_height * 0.7)), cv2.FONT_HERSHEY_SIMPLEX,
-                font_scale * 0.7, blade_color, 2, cv2.LINE_AA)
+    cv2.putText(
+        frame,
+        main_label,
+        (x + 5, y + int(line_height * 0.7)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale * 0.7,
+        blade_color,
+        2,
+        cv2.LINE_AA,
+    )
     y += line_height
 
     # Angles (combined)
     angle_label = f"Foot:{blade_state.foot_angle:.0f}° Ankle:{blade_state.ankle_angle:.0f}°"
-    cv2.putText(frame, angle_label, (x + 5, y + int(line_height * 0.7)), cv2.FONT_HERSHEY_SIMPLEX,
-                font_scale * 0.55, (220, 220, 220), 1, cv2.LINE_AA)
+    cv2.putText(
+        frame,
+        angle_label,
+        (x + 5, y + int(line_height * 0.7)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale * 0.55,
+        (220, 220, 220),
+        1,
+        cv2.LINE_AA,
+    )
     y += line_height
 
     # Velocity (simplified)
     vx, vy, vz = np.clip(list(blade_state.velocity_3d), -100.0, 100.0)
-    vel_mag = min((vx**2 + vy**2 + vz**2)**0.5, 50.0)
+    vel_mag = min((vx**2 + vy**2 + vz**2) ** 0.5, 50.0)
     vel_label = f"V:{vel_mag:.1f}m/s"
-    cv2.putText(frame, vel_label, (x + 5, y + int(line_height * 0.7)), cv2.FONT_HERSHEY_SIMPLEX,
-                font_scale * 0.55, (200, 200, 200), 1, cv2.LINE_AA)
+    cv2.putText(
+        frame,
+        vel_label,
+        (x + 5, y + int(line_height * 0.7)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale * 0.55,
+        (200, 200, 200),
+        1,
+        cv2.LINE_AA,
+    )
     y += line_height
 
     # Confidence bar (visual)
     conf_width = int(box_width * blade_state.confidence)
     conf_color = (0, 255, 0) if blade_state.confidence > 0.7 else (0, 165, 255)
-    cv2.rectangle(frame, (x + 5, y + int(line_height * 0.3)), (x + 5 + conf_width, y + int(line_height * 0.7)),
-                 conf_color, -1, cv2.LINE_AA)
+    cv2.rectangle(
+        frame,
+        (x + 5, y + int(line_height * 0.3)),
+        (x + 5 + conf_width, y + int(line_height * 0.7)),
+        conf_color,
+        -1,
+        cv2.LINE_AA,
+    )
 
     return frame
 
@@ -1383,20 +1400,35 @@ def draw_motion_direction_arrow(
         if direction == MotionDirection.ROTATION_LEFT:
             # Draw counter-clockwise circle
             cv2.circle(frame, (x, y), arrow_length // 2, (255, 255, 0), 2, cv2.LINE_AA)
-            cv2.putText(frame, "↺", (x - 10, y + 10), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8, (255, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(
+                frame,
+                "↺",
+                (x - 10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
         elif direction == MotionDirection.ROTATION_RIGHT:
             # Draw clockwise circle
             cv2.circle(frame, (x, y), arrow_length // 2, (255, 255, 0), 2, cv2.LINE_AA)
-            cv2.putText(frame, "↻", (x - 10, y + 10), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8, (255, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(
+                frame,
+                "↻",
+                (x - 10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
         # STATIONARY: draw nothing
         return frame
 
     # Draw arrow
     end_x = x + offset[0]
     end_y = y + offset[1]
-    cv2.arrowedLine(frame, (x, y), (end_x, end_y), (255, 255, 0),
-                    3, cv2.LINE_AA, tipLength=0.3)
+    cv2.arrowedLine(frame, (x, y), (end_x, end_y), (255, 255, 0), 3, cv2.LINE_AA, tipLength=0.3)
 
     return frame

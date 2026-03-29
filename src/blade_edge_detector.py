@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from .types import BKey, BladeType, NormalizedPose, TimeSeries
+from .types import BKey, BladeType, NormalizedPose
 
 
 def angle_with_horizontal(x: float, y: float) -> float:
@@ -240,7 +240,7 @@ def calculate_vertical_acceleration(
     v_next = -poses[frame_idx + 1, foot_idx, 1]
 
     # Acceleration using central difference
-    accel = (v_next - 2 * v_curr + v_prev) * (fps ** 2)
+    accel = (v_next - 2 * v_curr + v_prev) * (fps**2)
     return float(accel)
 
 
@@ -480,7 +480,6 @@ def classify_blade_from_lean_and_curvature(
     return blade_type, max(0.3, min(1.0, confidence))
 
     y_positions = -poses[frame_idx - 2 : frame_idx + 3, foot_idx, 1]  # Negate for up=positive
-    t = np.arange(len(y_positions)) / fps
 
     # Fit quadratic to get acceleration
     if len(y_positions) >= 3:
@@ -557,11 +556,12 @@ class BladeEdgeDetector:
             use_lean_method: Use improved lean+curvature classification (default: True).
         """
         import warnings
+
         warnings.warn(
             "BladeEdgeDetector is deprecated for H3.6M 17kp format. "
             "Use BladeEdgeDetector3D from blade_edge_detector_3d.py instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
         self.inside_threshold = inside_threshold
@@ -643,7 +643,9 @@ class BladeEdgeDetector:
         else:
             blade_type = BladeType.FLAT
             # Confidence is highest near 0 degrees (true flat)
-            confidence = 1.0 - (abs(foot_angle) / max(abs(self.inside_threshold), abs(self.outside_threshold)))
+            confidence = 1.0 - (
+                abs(foot_angle) / max(abs(self.inside_threshold), abs(self.outside_threshold))
+            )
 
         return BladeState(
             blade_type=blade_type,
@@ -676,7 +678,9 @@ class BladeEdgeDetector:
         states = []
 
         for frame_idx in range(num_frames):
-            state = self.classify_frame(poses, frame_idx, fps, foot, check_supporting=check_supporting)
+            state = self.classify_frame(
+                poses, frame_idx, fps, foot, check_supporting=check_supporting
+            )
             states.append(state)
 
         # Apply temporal smoothing
@@ -817,7 +821,9 @@ class BladeEdgeDetector:
             "total_frames": n,
             "type_percentages": type_percentages,
             "average_confidence": total_confidence / n,
-            "dominant_edge": max(type_counts, key=type_counts.get).value if type_counts else "unknown",
+            "dominant_edge": max(type_counts, key=type_counts.get).value
+            if type_counts
+            else "unknown",
         }
 
 

@@ -80,12 +80,18 @@ class BladeEdgeDetector3D:
         self.fps = fps
 
         # History buffers for smoothing
-        self._velocity_history: dict[str, deque] = {"left": deque(maxlen=self.config.velocity_window),
-                                                     "right": deque(maxlen=self.config.velocity_window)}
-        self._position_history: dict[str, deque] = {"left": deque(maxlen=100),  # For ice trace
-                                                      "right": deque(maxlen=100)}
-        self._direction_history: dict[str, deque] = {"left": deque(maxlen=self.config.direction_window),
-                                                       "right": deque(maxlen=self.config.direction_window)}
+        self._velocity_history: dict[str, deque] = {
+            "left": deque(maxlen=self.config.velocity_window),
+            "right": deque(maxlen=self.config.velocity_window),
+        }
+        self._position_history: dict[str, deque] = {
+            "left": deque(maxlen=100),  # For ice trace
+            "right": deque(maxlen=100),
+        }
+        self._direction_history: dict[str, deque] = {
+            "left": deque(maxlen=self.config.direction_window),
+            "right": deque(maxlen=self.config.direction_window),
+        }
 
     def detect_frame(
         self,
@@ -126,8 +132,6 @@ class BladeEdgeDetector3D:
         shin_angle = np.degrees(np.arctan2(shin_vector[0], shin_vector[1]))
 
         # Calculate knee flexion angle (for weight distribution)
-        # Vector from hip to knee
-        thigh_vector = knee - hip
         knee_angle = self._calculate_knee_angle(hip, knee, ankle)
 
         # Calculate velocity
@@ -160,9 +164,7 @@ class BladeEdgeDetector3D:
             frame_idx=frame_idx,
         )
 
-    def _calculate_knee_angle(
-        self, hip: NDArray, knee: NDArray, ankle: NDArray
-    ) -> float:
+    def _calculate_knee_angle(self, hip: NDArray, knee: NDArray, ankle: NDArray) -> float:
         """Calculate knee flexion angle.
 
         Returns angle in degrees (0° = fully extended, >90° = deeply flexed).
@@ -176,9 +178,7 @@ class BladeEdgeDetector3D:
         angle = np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0)))
         return angle
 
-    def _calculate_velocity(
-        self, current_pos: NDArray, foot: str
-    ) -> NDArray[np.float32]:
+    def _calculate_velocity(self, current_pos: NDArray, foot: str) -> NDArray[np.float32]:
         """Calculate velocity from position history.
 
         Returns 3D velocity vector (vx, vy, vz).
@@ -198,9 +198,7 @@ class BladeEdgeDetector3D:
 
         return velocity * self.fps  # Convert to units/s
 
-    def _detect_motion_direction(
-        self, velocity: NDArray, foot: str
-    ) -> MotionDirection:
+    def _detect_motion_direction(self, velocity: NDArray, foot: str) -> MotionDirection:
         """Detect motion direction from velocity vector.
 
         Uses smoothed velocity from history.

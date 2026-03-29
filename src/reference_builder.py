@@ -11,14 +11,14 @@ import numpy as np
 
 from .types import (
     ElementPhase,
-    NormalizedPose,
     ReferenceData,
     VideoMeta,
 )
 from .video import get_video_meta
 
 if TYPE_CHECKING:
-    import .blazepose_extractor, .pose_extractor, .normalizer as pose_2d import PoseExtractor, PoseNormalizer
+    from .blazepose_extractor import BlazePoseExtractor as PoseExtractor
+    from .normalizer import PoseNormalizer
 
 
 class ReferenceBuilder:
