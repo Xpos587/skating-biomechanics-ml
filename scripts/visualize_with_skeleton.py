@@ -24,10 +24,10 @@ from src.blazepose_extractor import BlazePoseExtractor
 # 2D BladeEdgeDetector deprecated - use BladeEdgeDetector3D for H3.6M format
 # from src.blade_edge_detector import BladeEdgeDetector
 from src.blade_edge_detector_3d import BladeEdgeDetector3D, DetectionConfig
+from src.pose_estimation import BKey, H36M_SKELETON_EDGES
 from src.smoothing import PoseSmoother, get_skating_optimized_config
 from src.spatial_reference import SpatialReferenceDetector
 from src.subtitles import SubtitleParser
-from src.pose_3d.blazepose_to_h36m import BKey
 from src.video import get_video_meta
 from src.visualization import (
     draw_3d_trajectory,
@@ -255,7 +255,7 @@ def main() -> int:
         if args.model_3d and args.model_3d.exists():
             print(f"Loading 3D model: {args.model_3d}")
             from src.pose_3d import AthletePose3DExtractor
-            from src.pose_3d import blazepose_to_h36m
+            from src.pose_estimation import blazepose_to_h36m
 
             # Convert BlazePose to H3.6M format
             poses_h36m = blazepose_to_h36m(poses_viz)
@@ -269,7 +269,7 @@ def main() -> int:
             print(f"3D poses extracted: {poses_3d.shape}")
         else:
             print("Using biomechanics-based 3D estimation...")
-            from src.pose_3d.blazepose_to_h36m import blazepose_to_h36m
+            from src.pose_estimation import blazepose_to_h36m
             from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
 
             # Convert BlazePose to H3.6M format
@@ -426,8 +426,6 @@ def main() -> int:
         if args.layer >= 0 and current_pose_idx is not None:
             # Draw 3D skeleton in PIP window if enabled
             if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
-                from src.pose_3d.blazepose_to_h36m import H36M_SKELETON_EDGES
-
                 frame = draw_skeleton_3d_pip(
                     frame,
                     poses_3d[current_pose_idx],

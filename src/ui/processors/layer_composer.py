@@ -7,7 +7,7 @@ from collections import deque
 
 import numpy as np
 
-from src.pose_3d.blazepose_to_h36m import H36M_SKELETON_EDGES, H36Key
+from src.pose_estimation import H36M_SKELETON_EDGES, H36Key
 from src.ui.types import LayerSettings, ProcessedPoses
 from src.visualization import (
     draw_blade_state_3d_hud,

@@ -100,7 +100,7 @@ class PhysicsEngine:
         Returns:
             com_trajectory: (N, 3) array of CoM positions
         """
-        from src.pose_3d.blazepose_to_h36m import H36Key
+        from src.pose_estimation import H36Key
 
         n_frames = poses_3d.shape[0]
         com_trajectory = np.zeros((n_frames, 3))
@@ -180,7 +180,7 @@ class PhysicsEngine:
         Returns:
             inertia: (N,) array of moment of inertia values (kg·m²)
         """
-        from src.pose_3d.blazepose_to_h36m import H36Key
+        from src.pose_estimation import H36Key
 
         n_frames = poses_3d.shape[0]
         inertia = np.zeros(n_frames)

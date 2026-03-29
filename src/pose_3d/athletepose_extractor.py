@@ -299,7 +299,7 @@ def extract_3d_poses(
     """
     # Convert BlazePose to H3.6M if needed
     if poses_2d.shape[1] == 33:
-        from .blazepose_to_h36m import blazepose_to_h36m
+        from src.pose_estimation import blazepose_to_h36m
 
         poses_2d = blazepose_to_h36m(poses_2d)
 
