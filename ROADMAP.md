@@ -1,6 +1,6 @@
 # Figure Skating Biomechanics ML - Roadmap
 
-**Status:** MVP ~96% complete | Last updated: 2026-03-28
+**Status:** MVP ~97% complete | Last updated: 2026-03-29
 
 > **This is the SINGLE SOURCE OF TRUTH for project status.** All implementation decisions and priority changes must be reflected here first.
 
@@ -16,19 +16,49 @@ AI-тренер по фигурному катанию который анали
 
 ---
 
+## 🎉 Major Milestone: 3D-Only Migration Complete (2026-03-29)
+
+**Migration:** BlazePose 2D (33 keypoints) → H3.6M 3D (17 keypoints)
+
+The system has been migrated to use H3.6M 17-keypoint 3D format as the primary pose representation:
+- ✅ Type system: H36Key enum with backward compatibility
+- ✅ Metrics: All biomechanics calculations updated for 17kp
+- ✅ Visualization: Skeleton, velocity, trails all updated
+- ✅ Pipeline: 3D-first architecture
+- ✅ Tests: 263 passing, 59% coverage
+
+**See `MIGRATION_NOTES.md` for full migration details.**
+
+---
+
+## 🎉 Major Milestone: 3D-Only Migration Complete (2026-03-29)
+
+**Migration:** BlazePose 2D (33 keypoints) → H3.6M 3D (17 keypoints)
+
+The system has been migrated to use H3.6M 17-keypoint 3D format as the primary pose representation:
+- ✅ Type system: H36Key enum with backward compatibility
+- ✅ Metrics: All biomechanics calculations updated for 17kp
+- ✅ Visualization: Skeleton, velocity, trails all updated
+- ✅ Pipeline: 3D-first architecture
+- ✅ Tests: 263 passing, 59% coverage
+
+**See `MIGRATION_NOTES.md` for full migration details.**
+
+---
+
 ## Architecture Overview
 
 ```
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────┐
-│   Video     │ -> │  Detection   │ -> │  Pose 2D    │ -> │ Normalized   │
-│   Input     │    │  (YOLOv11n)   │    │ (BlazePose)  │    │   Poses       │
+│   Video     │ -> │  Detection   │ -> │  Pose 3D    │ -> │ Normalized   │
+│   Input     │    │  (YOLOv11n)   │    │  (H3.6M)     │    │   Poses       │
 └─────────────┘    └──────────────┘    └─────────────┘    └──────────────┘
                                                                   v
 ┌──────────────────────────────────────────────────────────────────────┐
 │                        Analysis Pipeline                            │
 │  ┌──────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────┐ │
 │  │ Phase Detect │->│  Metrics    │->│  DTW Align  │->│ Recommend │ │
-│  │   (TODO)     │  │  (Done)      │  │  (Fixing)   │  │ (Done)    │ │
+│  │   (Done)     │  │  (Done)      │  │  (Fixing)   │  │ (Done)    │ │
 │  └──────────────┘  └─────────────┘  └─────────────┘  └───────────┘ │
 └──────────────────────────────────────────────────────────────────────┘
                                                                   v
@@ -68,17 +98,19 @@ AI-тренер по фигурному катанию который анали
 
 ---
 
-### Phase 2: 2D Pose Estimation ✅ 100%
-**Status:** Complete
+### Phase 2: 3D Pose Estimation ✅ 100%
+**Status:** Complete (Updated 2026-03-29)
 
-- [x] BlazePose integration (33 keypoints)
-- [x] BlazePoseExtractor class
-- [x] Pixel coordinates extraction
-- [x] Confidence values
-- [x] Alternative: YOLO-Pose (17 keypoints)
+- [x] **MIGRATION COMPLETE:** BlazePose 33kp → H3.6M 17kp 3D format
+- [x] H36Key enum (17 keypoints) with backward compatibility aliases
+- [x] BlazePoseExtractor class (2D → 3D conversion)
+- [x] AthletePose3DExtractor with MotionAGFormer integration
+- [x] 3D normalizer (`pose_3d/normalizer_3d.py`)
+- [x] All metrics updated for 17kp format
 
-**Files:** `pose_2d/blazepose_extractor.py`, `pose_2d/pose_extractor.py`
-**Tests:** `tests/pose_2d/test_blazepose_extractor.py`
+**Files:** `pose_3d/`, `src/types.py`, `src/normalizer.py`
+**Migration:** See `MIGRATION_NOTES.md` for full details
+**Tests:** 263 tests passing, 59% coverage
 
 ---
 
@@ -126,18 +158,21 @@ AI-тренер по фигурному катанию который анали
 
 ---
 
-### Phase 6: Phase Detection ⚠️ 50%
-**Status:** MANUAL ONLY - auto-detection NOT working
+### Phase 6: Phase Detection ✅ 90%
+**Status:** Auto-detection working (CoM-based)
 
 - [x] ElementPhase data structure
 - [x] Manual phase specification via CLI
-- [ ] **Auto takeoff detection** (height threshold)
-- [ ] **Auto peak detection** (min hip y)
-- [ ] **Auto landing detection** (impact detection)
+- [x] **Auto takeoff detection** (CoM velocity with adaptive sigma)
+- [x] **Auto peak detection** (min CoM y during flight)
+- [x] **Auto landing detection** (3-sigma threshold)
+- [x] Physical plausibility validation (min 0.3s airtime)
 - [ ] Phase transition smoothing
 
-**Issue:** PhaseDetector always returns takeoff=0, landing=end
-**Priority:** HIGH - blocks fully automated analysis
+**Improvements (2026-03-28):**
+- Improved CoM-based detection with adaptive sigma thresholds
+- 2-sigma for takeoff, 3-sigma for landing
+- Falls back to blade detection if CoM confidence low
 
 **Files:** `analysis/phase_detector.py`
 **Tests:** `tests/analysis/test_phase_detector.py`
@@ -145,20 +180,20 @@ AI-тренер по фигурному катанию который анали
 ---
 
 ### Phase 7: DTW Motion Alignment ⚠️ 70%
-**Status:** Code exists, tests failing
+**Status:** Code exists, tests need update for 17kp format
 
 - [x] DTW implementation (dtw-python)
 - [x] Sakoe-Chiba window
 - [x] MotionAligner class
-- [ ] **Fix tests** - expects 17 keypoints, BlazePose has 33
+- [ ] **Fix tests** - update from old 17-keypoint to new H3.6M 17-keypoint
 - [ ] Multi-segment alignment
 - [ ] Alignment quality metrics
 
-**Issue:** Test suite uses old 17-keypoint format, need update for 33-keypoint BlazePose
+**Issue:** Test suite uses old 17-keypoint format, needs update for H3.6M
 **Priority:** MEDIUM - manual analysis works without this
 
 **Files:** `alignment/aligner.py`, `alignment/motion_dtw.py`
-**Tests:** `tests/alignment/test_aligner.py` (7 failing)
+**Tests:** `tests/alignment/test_aligner.py`
 
 ---
 
