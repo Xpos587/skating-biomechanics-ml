@@ -15,8 +15,6 @@ dependencies = [
     "timm>=1.0.26",
     "filterpy>=1.4.5",
     "anytree>=2.13.0",
-    "streamlit>=1.55.0",
-    "streamlit-overlay>=0.0.1",
 ]
 
 [build-system]
@@ -75,6 +73,7 @@ known-first-party = ["src"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG", "PLR2004"]
 "__init__.py" = ["F401"]  # unused imports
+"scripts/visualize_with_skeleton.py" = ["PLR0912", "PLR0915", "PLC0415"]
 
 [tool.mypy]
 python_version = "3.11"

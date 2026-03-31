@@ -144,10 +144,15 @@ class AthletePose3DExtractor:
             state_dict = checkpoint
 
         # Strip 'module.' prefix (from DataParallel wrapper)
+        # AND move tensors to target device to avoid device mismatch
         new_state_dict = {}
         for k, v in state_dict.items():
             new_key = k[7:] if k.startswith("module.") else k
-            new_state_dict[new_key] = v
+            # Move tensor to target device
+            if isinstance(v, torch.Tensor):
+                new_state_dict[new_key] = v.to(self.device)
+            else:
+                new_state_dict[new_key] = v
 
         # Load weights (handle different architectures)
         if self.model_type == "tcpformer":

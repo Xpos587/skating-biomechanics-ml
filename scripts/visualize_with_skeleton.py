@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Enhanced visualization with skeleton, kinematics, and subtitles.
 
-Implements the layered HUD architecture from Gemini Deep Research:
+Implements the layered HUD architecture:
 - Layer 0 (Raw): Video + skeleton only
 - Layer 1 (Kinematics): + velocity vectors + trails
 - Layer 2 (Technical): + edge indicators + joint angles
@@ -14,29 +14,32 @@ Usage:
 
 import argparse
 import json
-from collections import deque
+from collections import Counter
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-# 2D BladeEdgeDetector deprecated - use BladeEdgeDetector3D for H3.6M format
-# from src.blade_edge_detector import BladeEdgeDetector
 from src.blade_edge_detector_3d import BladeEdgeDetector3D
+from src.geometry import angle_3pt
 from src.pose_estimation import H36Key, H36MExtractor
 from src.smoothing import PoseSmoother, get_skating_optimized_config
 from src.spatial_reference import SpatialReferenceDetector
 from src.subtitles import SubtitleParser
+from src.types import BladeState3D
 from src.video import get_video_meta
 from src.visualization import (
-    draw_axis_indicator,
-    draw_debug_hud,
+    LayerContext,
+    TrailLayer,
+    VelocityLayer,
+    draw_blade_indicator_hud,
     draw_skeleton,
     draw_skeleton_3d_pip,
-    draw_subtitle_cyrillic,
-    draw_trails,
-    draw_velocity_vectors,
+    project_3d_to_2d,
+    render_cyrillic_text,
+    render_layers,
 )
+from src.visualization.core.text import draw_text_box
 
 
 def main() -> int:
@@ -141,9 +144,7 @@ def main() -> int:
         print(f"Loading poses from: {args.poses}")
         poses_data = np.load(args.poses)
         poses = poses_data["poses"]
-        # Assume sequential frame mapping when loading from file
         pose_frame_indices = np.arange(len(poses))
-        # For loading: assume poses are already in correct format
         poses_viz = poses[:, :, :2] if poses.shape[2] == 3 else poses
     else:
         print("Extracting poses frame-by-frame for perfect sync...")
@@ -152,8 +153,6 @@ def main() -> int:
             output_format="normalized",
         )
 
-        # Extract poses for ALL frames to maintain sync
-        # Use extract_frames to iterate with frame indices
         from src.video import extract_frames
 
         poses_list = []
@@ -169,78 +168,39 @@ def main() -> int:
         print(f"Extracted {len(poses_raw)} poses from {meta.num_frames} frames")
         print(f"Frame indices: {frame_indices[0]} to {frame_indices[-1]}")
 
-        # Store frame indices for sync during visualization
         pose_frame_indices = np.array(frame_indices)
 
-        # Convert to normalized for smoothing (more stable)
         poses_xy = poses_raw[:, :, :2]
         poses_norm_raw = poses_xy.copy()
         poses_norm_raw[:, :, 0] /= meta.width
         poses_norm_raw[:, :, 1] /= meta.height
 
-        # Smooth in normalized space
         print("Smoothing poses (in normalized space)...")
         config = get_skating_optimized_config(fps=meta.fps)
         smoother = PoseSmoother(config=config, freq=meta.fps)
         poses_smoothed_norm = smoother.smooth(poses_norm_raw)
-
-        # Clamp to [0,1] to prevent out-of-bounds
         poses_smoothed_norm = np.clip(poses_smoothed_norm, 0.0, 1.0)
 
-        # Convert smoothed poses back to pixels for skeleton drawing
         poses_smoothed_px = poses_smoothed_norm.copy()
         poses_smoothed_px[:, :, 0] *= meta.width
         poses_smoothed_px[:, :, 1] *= meta.height
 
-        # Add back confidence (keep original)
-        # H36MExtractor returns 17 keypoints in H3.6M format
         poses = np.zeros((len(poses_smoothed_px), 17, 3), dtype=np.float32)
         poses[:, :, :2] = poses_smoothed_px
         poses[:, :, 2] = poses_raw[:, :, 2]
 
-        # For visualization: use normalized smoothed poses
         poses_viz = poses_smoothed_norm
 
         raw_jitter = np.abs(np.diff(poses_norm_raw[:, :, 0], axis=0)).mean()
         smooth_jitter = np.abs(np.diff(poses_smoothed_norm[:, :, 0], axis=0)).mean()
         print(f"Jitter reduction: {(1 - smooth_jitter/raw_jitter)*100:.1f}%")
 
-        # Blade edge detection now requires 3D poses (--blade-3d flag)
-        # Skip for floor mode or when 3D not enabled
-        if args.floor_mode or not args.blade_3d:
-            if not args.floor_mode and not args.blade_3d:
-                print("Note: Blade edge detection requires --blade-3d flag for H3.6M format")
-            blade_states_left = [None] * len(poses_viz)
-            blade_states_right = [None] * len(poses_viz)
-        else:
-            # Will be handled after 3D pose extraction below
-            blade_states_left = None
-            blade_states_right = None
-
-        # Show breakdown (only if blade states were computed)
-        if not args.floor_mode and blade_states_left and blade_states_left[0] is not None:
-            from collections import Counter
-            left_breakdown = Counter(s.blade_type.name for s in blade_states_left)
-            right_breakdown = Counter(s.blade_type.name for s in blade_states_right)
-            print(f"Blade states detected: {len(blade_states_left)} left, {len(blade_states_right)} right")
-            print(f"  Left breakdown: {dict(left_breakdown)}")
-            print(f"  Right breakdown: {dict(right_breakdown)}")
-
-    # Initialize blade states for loaded poses
-    if args.poses and args.poses.exists():
-        if args.floor_mode or not args.blade_3d:
-            if not args.floor_mode and not args.blade_3d:
-                print("Note: Blade edge detection requires --blade-3d flag for H3.6M format")
-            blade_states_left = [None] * len(poses_viz)
-            blade_states_right = [None] * len(poses_viz)
-        else:
-            # Will be handled after 3D pose extraction below
-            blade_states_left = None
-            blade_states_right = None
+    # Initialize blade states
+    blade_states_left = [None] * len(poses_viz)
+    blade_states_right = [None] * len(poses_viz)
 
     # Initialize 3D pose extraction if requested
     poses_3d = None
-    # --blade-3d requires 3D poses, so auto-enable --3d if not set
     if args.blade_3d and not args.use_3d:
         print("Note: --blade-3d requires 3D poses, auto-enabling --3d")
         args.use_3d = True
@@ -250,8 +210,6 @@ def main() -> int:
             print(f"Loading 3D model: {args.model_3d}")
             from src.pose_3d import AthletePose3DExtractor
 
-            # poses_viz is already in H3.6M 17-keypoint format from H36MExtractor
-            # No conversion needed - extract 3D poses directly
             extractor = AthletePose3DExtractor(
                 model_path=args.model_3d,
                 model_type="motionagformer-s"
@@ -262,28 +220,19 @@ def main() -> int:
             print("Using biomechanics-based 3D estimation...")
             from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
 
-            # poses_viz is already in H3.6M 17-keypoint format from H36MExtractor
-            # No conversion needed - estimate 3D poses directly
             estimator = Biomechanics3DEstimator()
             poses_3d = estimator.estimate_3d(poses_viz)
             print(f"3D poses estimated: {poses_3d.shape}")
 
     # Calculate fixed auto-scale parameters from reference frame (median frame)
-    # This prevents jitter from per-frame scaling
     pip_scale = None
-    pip_offset = None
     if poses_3d is not None and not args.no_3d_autoscale:
-        from src.visualization import project_3d_to_2d
-
-        # Use median frame as reference (middle of video)
         ref_frame_idx = len(poses_3d) // 2
         ref_pose_3d = poses_3d[ref_frame_idx]
 
-        # Center reference pose at origin (same as draw_skeleton_3d_pip)
         center_3d = ref_pose_3d.mean(axis=0)
         ref_pose_3d_centered = ref_pose_3d - center_3d
 
-        # Project reference pose
         ref_pose_2d = project_3d_to_2d(
             ref_pose_3d_centered[np.newaxis, ...],
             width=meta.width // 2,
@@ -291,7 +240,6 @@ def main() -> int:
             camera_distance=args.d_3d_scale,
         )[0]
 
-        # Calculate scale from reference pose
         x_coords = ref_pose_2d[:, 0]
         y_coords = ref_pose_2d[:, 1]
 
@@ -304,46 +252,39 @@ def main() -> int:
         if x_range > 1e-6 and y_range > 1e-6:
             scale_x = 1.0 / x_range
             scale_y = 1.0 / y_range
-            pip_scale = min(scale_x, scale_y) * 0.9  # 10% padding
+            pip_scale = min(scale_x, scale_y) * 0.9
 
             x_center = (x_min + x_max) / 2
             y_center = (y_min + y_max) / 2
-            pip_offset = (x_center, y_center)
 
             print(f"3D PIP auto-scale: scale={pip_scale:.2f}, offset=({x_center:.2f}, {y_center:.2f})")
 
     # Initialize 3D blade detector if requested
     blade_detector_3d = None
-    blade_states_3d_left = []
-    blade_states_3d_right = []
+    blade_states_3d_left: list = []
+    blade_states_3d_right: list = []
     if args.blade_3d and poses_3d is not None:
         print("Initializing 3D blade detector...")
         blade_detector_3d = BladeEdgeDetector3D(fps=meta.fps)
 
-        # Process 3D poses to detect blade states
         for i, pose_3d in enumerate(poses_3d):
-            # Detect left foot blade state
             state_left = blade_detector_3d.detect_frame(pose_3d, i, foot="left")
             blade_states_3d_left.append(state_left)
 
-            # Detect right foot blade state
             state_right = blade_detector_3d.detect_frame(pose_3d, i, foot="right")
             blade_states_3d_right.append(state_right)
 
         print(f"3D blade states: {len(blade_states_3d_left)} left, {len(blade_states_3d_right)} right")
 
-        # Update blade_states_left/right for use in visualization
         blade_states_left = blade_states_3d_left
         blade_states_right = blade_states_3d_right
 
-        # Show breakdown
-        from collections import Counter
         left_breakdown = Counter(s.blade_type.name for s in blade_states_3d_left)
         right_breakdown = Counter(s.blade_type.name for s in blade_states_3d_right)
         print(f"  Left breakdown: {dict(left_breakdown)}")
         print(f"  Right breakdown: {dict(right_breakdown)}")
 
-    # Initialize spatial reference detector (always)
+    # Initialize spatial reference detector
     print("Initializing spatial reference detector...")
     spatial_detector = SpatialReferenceDetector(
         hough_threshold=80,
@@ -370,10 +311,9 @@ def main() -> int:
     # Setup output
     output_path = args.output or args.video.parent / f"{args.video.stem}_layer{args.layer}.mp4"
 
-    # If compression requested, write to temp file first
     if args.compress:
         import tempfile
-        temp_output = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        temp_output = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)  # noqa: SIM115
         temp_path = Path(temp_output.name)
         temp_output.close()
         write_path = temp_path
@@ -384,8 +324,17 @@ def main() -> int:
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(write_path), fourcc, meta.fps, (meta.width, meta.height))
 
-    # Trail history (for layer 1+)
-    trail_history = deque(maxlen=args.trail_length)
+    # Build layers based on requested level
+    layers: list = []
+    if args.layer >= 1:
+        layers.append(VelocityLayer(scale=5.0, max_length=50))
+        layers.append(TrailLayer(length=args.trail_length, joint=H36Key.LFOOT))
+
+    # Pre-create PhysicsEngine for CoM trajectory (avoid per-frame allocation)
+    physics_engine = None
+    if args.use_3d and args.com_trajectory:
+        from src.analysis import PhysicsEngine
+        physics_engine = PhysicsEngine(body_mass=60.0)
 
     # Process frames
     frame_idx = 0
@@ -396,7 +345,6 @@ def main() -> int:
             break
 
         # Find the pose that corresponds to this frame
-        # pose_frame_indices stores which video frame each pose came from
         current_pose_idx = None
         while pose_idx < len(pose_frame_indices):
             if pose_frame_indices[pose_idx] == frame_idx:
@@ -404,15 +352,22 @@ def main() -> int:
                 pose_idx += 1
                 break
             elif pose_frame_indices[pose_idx] < frame_idx:
-                # This pose is from an earlier frame, skip it
                 pose_idx += 1
             else:
-                # This pose is from a future frame, no pose for current frame
                 break
 
-        # Layer 0: Skeleton (use pixel coords for direct overlay)
+        # Build layer context
+        context = LayerContext(
+            frame_width=meta.width,
+            frame_height=meta.height,
+            fps=meta.fps,
+            frame_idx=frame_idx,
+            total_frames=meta.num_frames,
+            normalized=True,
+        )
+
+        # Layer 0: Skeleton
         if args.layer >= 0 and current_pose_idx is not None:
-            # Draw 3D skeleton in PIP window if enabled
             if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
                 frame = draw_skeleton_3d_pip(
                     frame,
@@ -421,67 +376,32 @@ def main() -> int:
                     meta.height,
                 )
             else:
-                # Draw 2D skeleton (H3.6M 17 keypoints) when 3D is disabled
                 frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
 
-        # Layer 1: Kinematics (use normalized coords)
+            context.pose_2d = poses_viz[current_pose_idx]
+            if poses_3d is not None and current_pose_idx < len(poses_3d):
+                context.pose_3d = poses_3d[current_pose_idx]
+
+        # Layers 1+: velocity, trails (rendered via layer system)
         if args.layer >= 1 and current_pose_idx is not None:
-            # Note: Velocity vectors and trails require H3.6M 17kp format
-            if poses_viz.shape[1] == 17:  # H3.6M format
-                frame = draw_velocity_vectors(
-                    frame, poses_viz, current_pose_idx, meta.fps, meta.height, meta.width
-                )
-            trail_history.append(poses_viz[current_pose_idx].copy())
-            # Draw trail for left ankle (free leg in jumps)
-            from src.types import H36Key
-            trail_key = H36Key.LFOOT
-            frame = draw_trails(
-                frame, trail_history, trail_key, meta.height, meta.width
-            )
+            frame = render_layers(frame, layers, context)
 
             # Draw 3D CoM trajectory if enabled
-            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d) and args.com_trajectory:
-                from src.analysis import PhysicsEngine
-                from src.visualization import draw_3d_trajectory
+            if physics_engine is not None and poses_3d is not None and current_pose_idx < len(poses_3d):
+                com_trajectory = physics_engine.calculate_center_of_mass(poses_3d[:current_pose_idx + 1])
 
-                # Calculate CoM for the trajectory up to current frame
-                engine = PhysicsEngine(body_mass=60.0)
-                com_trajectory = engine.calculate_center_of_mass(poses_3d[:current_pose_idx + 1])
-
-                # Draw CoM trajectory
                 if len(com_trajectory) > 1:
-                    frame = draw_3d_trajectory(
-                        frame, com_trajectory, meta.height, meta.width, camera_z=args.d_3d_scale
-                    )
+                    frame = _draw_3d_trajectory(frame, com_trajectory, meta.height, meta.width, camera_z=args.d_3d_scale)
 
-        # Layer 2: Technical (blade states shown in HUD via draw_debug_hud)
+        # Layer 2: trunk tilt indicator
         if args.layer >= 2 and current_pose_idx is not None:
-            # Draw axis alignment indicator (trunk tilt)
-            frame = draw_axis_indicator(
-                frame, poses_viz[current_pose_idx], meta.height, meta.width
-            )
+            frame = _draw_axis_indicator(frame, poses_viz[current_pose_idx], meta.height, meta.width)
 
-            # 3D blade HUD disabled - too many UNKNOWN states without proper 3D model
-            # TODO: Re-enable after MotionAGFormer model is integrated
-
-            # Ice trace disabled - projection doesn't work with meter-scale 3D positions
-            # TODO: Re-enable after fixing 3D-to-2D projection with proper scaling
-            # if args.blade_3d and blade_detector_3d and current_pose_idx > 10:
-            #     left_trace = blade_detector_3d.get_ice_trace("left")
-            #     if len(left_trace.points) > 2:
-            #         frame = draw_ice_trace(frame, left_trace, meta.height, meta.width)
-
-        # Draw spatial axes (all layers >= 1)
+        # Spatial reference detection (all layers >= 1)
         if args.layer >= 1:
-            # Estimate camera pose from current frame
             camera_pose = spatial_detector.estimate_pose(frame)
-
-            # Log roll values periodically (every 100 frames)
             if frame_idx % 100 == 0 and camera_pose.confidence > 0:
                 print(f"  Frame {frame_idx}: Roll={camera_pose.roll:.2f}°, Conf={camera_pose.confidence:.2f}, Source={camera_pose.source}")
-
-            # XYZ axes disabled - not useful for skating analysis
-            # frame = draw_spatial_axes(frame, camera_pose)
 
         # Layer 3: Coaching (subtitles)
         if args.layer >= 3 and subtitle_events:
@@ -490,7 +410,6 @@ def main() -> int:
                 if event.start_time <= current_time <= (
                     event.end_time or event.start_time + 5
                 ):
-                    # Build subtitle text
                     text_parts = []
                     if event.name != "unknown":
                         text_parts.append(event.name.upper())
@@ -498,7 +417,7 @@ def main() -> int:
                         text_parts.extend(event.instructions)
                     if text_parts:
                         subtitle_text = " | ".join(text_parts)
-                        frame = draw_subtitle_cyrillic(
+                        frame = render_cyrillic_text(
                             frame,
                             subtitle_text,
                             (50, meta.height - 50),
@@ -506,19 +425,14 @@ def main() -> int:
                         )
                     break
 
-        # Draw HUD (all layers)
+        # Draw HUD (all layers) — element info + frame counter + kinematics + blade state
         active_segment = _get_active_segment(segments, frame_idx)
         kinematics = _compute_kinematics(poses_viz, current_pose_idx if current_pose_idx is not None else 0, meta.fps)
 
-        # Get blade states for current frame (prefer 3D if available)
-        if blade_states_3d_left and current_pose_idx is not None and current_pose_idx < len(blade_states_3d_left):
-            blade_left = blade_states_3d_left[current_pose_idx]
-            blade_right = blade_states_3d_right[current_pose_idx] if current_pose_idx < len(blade_states_3d_right) else None
-        else:
-            blade_left = blade_states_left[current_pose_idx] if current_pose_idx is not None and current_pose_idx < len(blade_states_left) else None
-            blade_right = blade_states_right[current_pose_idx] if current_pose_idx is not None and current_pose_idx < len(blade_states_right) else None
+        blade_left = _get_blade_state(blade_states_left, current_pose_idx)
+        blade_right = _get_blade_state(blade_states_right, current_pose_idx)
 
-        frame = draw_debug_hud(
+        frame = _draw_hud(
             frame,
             active_segment,
             kinematics,
@@ -534,7 +448,6 @@ def main() -> int:
         writer.write(frame)
         frame_idx += 1
 
-        # Progress indicator
         if frame_idx % 100 == 0:
             print(f"  Processed {frame_idx}/{meta.num_frames} frames")
 
@@ -558,9 +471,8 @@ def main() -> int:
             str(output_path),
         ]
 
-        result = subprocess.run(compress_cmd, capture_output=True, text=True)
+        result = subprocess.run(compress_cmd, capture_output=True, text=True, check=False)
         if result.returncode == 0:
-            # Remove temp file
             write_path.unlink()
             original_size = write_path.stat().st_size if write_path.exists() else 0
             compressed_size = output_path.stat().st_size
@@ -586,6 +498,13 @@ def _get_layer_name(layer: int) -> str:
     return names.get(layer, "Unknown")
 
 
+def _get_blade_state(states: list, idx: int | None) -> BladeState3D | None:
+    """Safely get blade state for a frame index."""
+    if idx is not None and idx < len(states):
+        return states[idx]
+    return None
+
+
 def _get_active_segment(segments: list, frame_idx: int) -> dict:
     """Find segment containing this frame."""
     for seg in segments:
@@ -604,27 +523,12 @@ def _get_active_segment(segments: list, frame_idx: int) -> dict:
 def _compute_kinematics(
     poses: np.ndarray, frame_idx: int, fps: float
 ) -> dict[str, float]:
-    """Compute kinematics for this frame.
-
-    Args:
-        poses: Full pose sequence (num_frames, 17, 2) in H3.6M format.
-        frame_idx: Current frame index.
-        fps: Frame rate.
-
-    Returns:
-        Dict with kinematic metrics.
-    """
+    """Compute kinematics for this frame."""
     if frame_idx == 0 or frame_idx >= len(poses) - 1:
         return {}
 
-    # Compute velocity using central difference
     velocity = (poses[frame_idx + 1] - poses[frame_idx - 1]) * fps / 2
-
-    # Hip velocity (center of mass) - using left hip as reference
     hip_v = np.linalg.norm(velocity[H36Key.LHIP])
-
-    # Knee angles
-    from src.geometry import angle_3pt  # noqa: PLC0415
 
     left_knee = angle_3pt(
         poses[frame_idx, H36Key.LHIP],
@@ -643,6 +547,111 @@ def _compute_kinematics(
         "left_knee": left_knee,
         "right_knee": right_knee,
     }
+
+
+def _draw_hud(
+    frame: np.ndarray,
+    element_info: dict,
+    kinematics: dict,
+    frame_idx: int,
+    total_frames: int,
+    fps: float,
+    height: int,
+    width: int,
+    blade_state_left: BladeState3D | None = None,
+    blade_state_right: BladeState3D | None = None,
+) -> np.ndarray:
+    """Draw comprehensive debug HUD.
+
+    Layout:
+    - Top-left: Element info (name, boundaries, confidence)
+    - Top-left (below element): Blade edge indicators
+    - Top-right: Frame counter, timestamp
+    - Bottom-left: Kinematics (velocities, angles)
+    """
+    # Top-left: Element info
+    if element_info:
+        elem_type = element_info.get("type", "unknown")
+        start = element_info.get("start", 0)
+        end = element_info.get("end", 0)
+        conf = element_info.get("confidence", 0.0)
+        elem_text = f"{elem_type} [{start}:{end}] conf={conf:.2f}"
+        draw_text_box(frame, elem_text, (10, 30))
+
+    # Top-right: Frame counter
+    time_sec = frame_idx / fps
+    frame_text = f"Frame: {frame_idx}/{total_frames} | {time_sec:.2f}s"
+    (fw, _fh), _ = cv2.getTextSize(frame_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+    draw_text_box(frame, frame_text, (width - fw - 20, 30))
+
+    # Bottom-left: Kinematics
+    y_offset = height - 30
+    for key, value in kinematics.items():
+        text = f"{key}: {value:.2f}" if isinstance(value, float) else f"{key}: {value}"
+        draw_text_box(frame, text, (10, y_offset))
+        y_offset -= 25
+
+    # Blade edge indicators (below element info)
+    if blade_state_left is not None:
+        draw_blade_indicator_hud(frame, blade_state_left, position=(10, 55))
+    if blade_state_right is not None:
+        draw_blade_indicator_hud(frame, blade_state_right, position=(80, 55))
+
+    return frame
+
+
+def _draw_axis_indicator(
+    frame: np.ndarray, pose: np.ndarray, height: int, width: int
+) -> np.ndarray:
+    """Draw trunk alignment indicator (hip-to-shoulder angle)."""
+    mid_hip = (pose[H36Key.LHIP] + pose[H36Key.RHIP]) / 2
+    mid_shoulder = (pose[H36Key.LSHOULDER] + pose[H36Key.RSHOULDER]) / 2
+
+    # Convert to pixel coords
+    hip_px = (int(mid_hip[0] * width), int(mid_hip[1] * height))
+    shoulder_px = (int(mid_shoulder[0] * width), int(mid_shoulder[1] * height))
+
+    # Calculate angle from vertical
+    dx = shoulder_px[0] - hip_px[0]
+    dy = shoulder_px[1] - hip_px[1]
+    angle = np.degrees(np.arctan2(dx, -dy))
+
+    # Draw line from hip to shoulder
+    cv2.line(frame, hip_px, shoulder_px, (0, 255, 0), 2, cv2.LINE_AA)
+
+    # Draw angle text
+    angle_text = f"Trunk: {angle:+.1f}°"
+    cv2.putText(frame, angle_text, (shoulder_px[0] + 10, shoulder_px[1]),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+
+    return frame
+
+
+def _draw_3d_trajectory(
+    frame: np.ndarray,
+    trajectory: np.ndarray,
+    height: int,
+    width: int,
+    camera_z: float = 3.0,
+) -> np.ndarray:
+    """Draw 3D CoM trajectory projected onto frame."""
+    # Project 3D trajectory to 2D
+    traj_2d = project_3d_to_2d(
+        trajectory,
+        width=width,
+        height=height,
+        camera_distance=camera_z,
+    )
+
+    # Draw trajectory line (yellow)
+    if len(traj_2d) > 1:
+        pts = [(int(p[0]), int(p[1])) for p in traj_2d]
+        for i in range(len(pts) - 1):
+            alpha = (i + 1) / len(pts)
+            color = (0, int(255 * alpha), int(255 * alpha))  # Fade from dark to yellow
+            cv2.line(frame, pts[i], pts[i + 1], color, 2, cv2.LINE_AA)
+
+    return frame
 
 
 if __name__ == "__main__":

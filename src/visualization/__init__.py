@@ -13,7 +13,6 @@ Architecture:
     skeleton/        - Skeleton drawing
     hud/             - HUD components
     layers/          - Visualization layers
-    renderers/       - 2D/3D renderers (TODO)
 
 Example:
     >>> from src.visualization import VisualizationConfig, LayerConfigs, SkeletonLayer
@@ -22,20 +21,7 @@ Example:
     >>> skeleton_layer = SkeletonLayer()
 """
 
-# =============================================================================
-# NEW MODULAR API
-# =============================================================================
-
 # Config
-# =============================================================================
-# LEGACY API (for backward compatibility)
-# =============================================================================
-# Import legacy functions from old visualization.py module
-# These are maintained for backward compatibility with existing tests
-# Import using importlib to avoid circular import
-import importlib.util
-import sys
-
 from src.visualization.config import (
     LayerConfig,
     LayerConfigs,
@@ -100,49 +86,6 @@ from src.visualization.skeleton import (
     get_skeleton_color,
 )
 
-try:
-    # Load the old visualization.py as a separate module
-    spec = importlib.util.spec_from_file_location(
-        "src.visualization_legacy", "src/visualization.py"
-    )
-    if spec and spec.loader:
-        _legacy_viz = importlib.util.module_from_spec(spec)
-        sys.modules["src.visualization_legacy"] = _legacy_viz
-        spec.loader.exec_module(_legacy_viz)
-
-        # Re-export legacy functions
-        draw_debug_hud = _legacy_viz.draw_debug_hud
-        draw_edge_indicators = _legacy_viz.draw_edge_indicators
-        draw_subtitle_cyrillic = _legacy_viz.draw_subtitle_cyrillic
-        draw_trails = _legacy_viz.draw_trails
-        draw_velocity_vectors = _legacy_viz.draw_velocity_vectors
-        draw_spatial_axes = _legacy_viz.draw_spatial_axes
-        draw_3d_trajectory = _legacy_viz.draw_3d_trajectory
-        draw_ice_trace = _legacy_viz.draw_ice_trace
-        draw_blade_state_3d_hud = _legacy_viz.draw_blade_state_3d_hud
-        draw_motion_direction_arrow = _legacy_viz.draw_motion_direction_arrow
-        draw_axis_indicator = _legacy_viz.draw_axis_indicator
-        calculate_trunk_angle = _legacy_viz.calculate_trunk_angle
-    else:
-        raise ImportError("Could not load visualization.py")
-except Exception:
-    # If old visualization.py is not available, provide stubs
-    def _not_implemented(*args, **kwargs):
-        raise NotImplementedError("Legacy function not available in modular visualization")
-
-    draw_debug_hud = _not_implemented  # type: ignore
-    draw_edge_indicators = _not_implemented  # type: ignore
-    draw_subtitle_cyrillic = _not_implemented  # type: ignore
-    draw_trails = _not_implemented  # type: ignore
-    draw_velocity_vectors = _not_implemented  # type: ignore
-    draw_spatial_axes = _not_implemented  # type: ignore
-    draw_3d_trajectory = _not_implemented  # type: ignore
-    draw_ice_trace = _not_implemented  # type: ignore
-    draw_blade_state_3d_hud = _not_implemented  # type: ignore
-    draw_motion_direction_arrow = _not_implemented  # type: ignore
-    draw_axis_indicator = _not_implemented  # type: ignore
-    calculate_trunk_angle = _not_implemented  # type: ignore
-
 __all__ = [
     # Config
     "VisualizationConfig",
@@ -192,17 +135,4 @@ __all__ = [
     "BladeLayer",
     "HUDLayer",
     "render_layers",
-    # Legacy (for backward compatibility)
-    "draw_debug_hud",
-    "draw_edge_indicators",
-    "draw_subtitle_cyrillic",
-    "draw_trails",
-    "draw_velocity_vectors",
-    "draw_spatial_axes",
-    "draw_3d_trajectory",
-    "draw_ice_trace",
-    "draw_blade_state_3d_hud",
-    "draw_motion_direction_arrow",
-    "draw_axis_indicator",
-    "calculate_trunk_angle",
 ]
