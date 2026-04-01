@@ -370,20 +370,28 @@ class ComparisonRenderer:
                 else None
             )
 
-            # Render overlays on athlete frame
+            # Render skeleton + overlays on athlete frame
             ctx.frame_idx = frame_idx
             ctx.pose_2d = pose_a
+            ctx.pose_3d = None
+            if pose_a is not None:
+                draw_skeleton(frame_a, pose_a, a_h, target_w)
             if pose_a is not None and self._sorted_layers:
                 for layer in self._sorted_layers:
                     if layer.is_visible():
                         frame_a = layer.render(frame_a, ctx)
 
+            # Render skeleton + overlays on reference frame
+            ctx.pose_2d = pose_r
+            if pose_r is not None:
+                draw_skeleton(frame_r, pose_r, r_h, target_w)
+            if pose_r is not None and self._sorted_layers:
+                for layer in self._sorted_layers:
+                    if layer.is_visible():
+                        frame_r = layer.render(frame_r, ctx)
+
             # Compose output
             if self.config.mode == ComparisonMode.SIDE_BY_SIDE:
-                # Draw reference skeleton on reference frame
-                if pose_r is not None:
-                    draw_skeleton(frame_r, pose_r, r_h, target_w)
-
                 # Assemble side-by-side buffer
                 if pad_a is not None:
                     out_buf[:a_h, :target_w] = frame_a
