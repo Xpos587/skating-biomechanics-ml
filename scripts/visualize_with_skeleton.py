@@ -109,6 +109,18 @@ def main() -> int:
         help="Font size for subtitles (default: 30)",
     )
     parser.add_argument(
+        "--select-person",
+        action="store_true",
+        help="Interactive person selection: preview first seconds, choose target",
+    )
+    parser.add_argument(
+        "--person-click",
+        type=int,
+        nargs=2,
+        metavar=("X", "Y"),
+        help="Click point to select target person (pixel coordinates)",
+    )
+    parser.add_argument(
         "--compress",
         action="store_true",
         help="Compress output with libx265 (smaller file, slower)",
@@ -141,33 +153,87 @@ def main() -> int:
         pose_frame_indices = np.arange(len(poses))
         poses_viz = poses[:, :, :2] if poses.shape[2] == 3 else poses
     else:
-        print("Extracting poses frame-by-frame for perfect sync...")
+        print("Extracting poses with tracking (YOLO26-Pose + OC-SORT)...")
         extractor = H36MExtractor(
-            conf_threshold=0.5,
+            model_size="s",  # small model — better accuracy for distant/small skaters
+            conf_threshold=0.1,  # low threshold — detect distant skaters
             output_format="normalized",
+            crop_enhance=True,  # ROI crop pass for small/distant skaters
         )
 
-        from src.utils.video import extract_frames
+        # Person selection
+        from src.types import PersonClick as _PersonClick
 
-        poses_list = []
-        frame_indices = []
-        for frame_idx, frame in enumerate(extract_frames(args.video)):
-            timestamp_ms = int(frame_idx * 1000 / meta.fps)
-            kp = extractor.extract_frame(frame, timestamp_ms)
-            if kp is not None:
-                poses_list.append(kp)
-                frame_indices.append(frame_idx)
+        person_click = None
+        if args.person_click:
+            person_click = _PersonClick(x=args.person_click[0], y=args.person_click[1])
+            print(f"Using click point: ({person_click.x}, {person_click.y})")
+        elif args.select_person:
+            persons = extractor.preview_persons(args.video)
+            if not persons:
+                print("No persons detected in the first seconds.")
+                return 1
+            if len(persons) == 1:
+                print(f"Only 1 person detected (track #{persons[0]['track_id']}). Auto-selecting.")
+                mid_hip = persons[0]["mid_hip"]
+                person_click = _PersonClick(
+                    x=int(mid_hip[0] * meta.width),
+                    y=int(mid_hip[1] * meta.height),
+                )
+            else:
+                print(f"\nDetected {len(persons)} persons:\n")
+                for i, p in enumerate(persons, 1):
+                    x1, y1, x2, y2 = p["bbox"]
+                    print(
+                        f"  #{i}: track_id={p['track_id']}, "
+                        f"bbox=({x1:.2f},{y1:.2f})-({x2:.2f},{y2:.2f}), "
+                        f"hits={p['hits']}, first_frame={p['first_frame']}"
+                    )
+                print()
+                try:
+                    choice = int(input(f"Select person [1-{len(persons)}]: "))
+                except (ValueError, EOFError):
+                    print("Cancelled.")
+                    return 1
+                if choice < 1 or choice > len(persons):
+                    print(f"Invalid choice: {choice}")
+                    return 1
+                mid_hip = persons[choice - 1]["mid_hip"]
+                person_click = _PersonClick(
+                    x=int(mid_hip[0] * meta.width),
+                    y=int(mid_hip[1] * meta.height),
+                )
+                print(f"Selected person #{choice} (track_id={persons[choice - 1]['track_id']})")
 
-        poses_raw = np.stack(poses_list)
-        print(f"Extracted {len(poses_raw)} poses from {meta.num_frames} frames")
-        print(f"Frame indices: {frame_indices[0]} to {frame_indices[-1]}")
+        extraction = extractor.extract_video_tracked(args.video, person_click=person_click)
 
-        pose_frame_indices = np.array(frame_indices)
+        # Gap filling: linear interpolation for ALL gaps (no split!)
+        # Visualization requires 1:1 frame correspondence — splitting
+        # the array at long gaps breaks frame sync.
+        raw_poses = extraction.poses.copy()
+        valid_mask = extraction.valid_mask()
+        valid_indices = np.where(valid_mask)[0]
+        print(
+            f"Raw: {len(valid_indices)}/{len(raw_poses)} valid frames, "
+            f"first detection at frame {extraction.first_detection_frame}"
+        )
 
-        poses_xy = poses_raw[:, :, :2]
-        poses_norm_raw = poses_xy.copy()
-        poses_norm_raw[:, :, 0] /= meta.width
-        poses_norm_raw[:, :, 1] /= meta.height
+        for kp in range(17):
+            for ch in range(2):  # x, y only (not confidence)
+                vals = raw_poses[:, kp, ch]
+                if len(valid_indices) >= 2:
+                    raw_poses[:, kp, ch] = np.interp(
+                        np.arange(len(vals)), valid_indices, vals[valid_indices]
+                    )
+                elif len(valid_indices) == 1:
+                    raw_poses[:, kp, ch] = vals[valid_indices[0]]
+
+        # Zero confidence for interpolated frames
+        interp_mask = ~valid_mask
+        raw_poses[interp_mask, :, 2] = 0.0
+
+        poses_norm_raw = raw_poses[:, :, :2]
+        confs = raw_poses[:, :, 2]
 
         print("Smoothing poses (in normalized space)...")
         config = get_skating_optimized_config(fps=meta.fps)
@@ -181,13 +247,20 @@ def main() -> int:
 
         poses = np.zeros((len(poses_smoothed_px), 17, 3), dtype=np.float32)
         poses[:, :, :2] = poses_smoothed_px
-        poses[:, :, 2] = poses_raw[:, :, 2]
+        poses[:, :, 2] = confs
 
+        pose_frame_indices = np.arange(len(poses))
         poses_viz = poses_smoothed_norm
 
-        raw_jitter = np.abs(np.diff(poses_norm_raw[:, :, 0], axis=0)).mean()
-        smooth_jitter = np.abs(np.diff(poses_smoothed_norm[:, :, 0], axis=0)).mean()
-        print(f"Jitter reduction: {(1 - smooth_jitter / raw_jitter) * 100:.1f}%")
+        n_valid = int(np.sum(~np.isnan(extraction.poses[:, 0, 0])))
+        print(f"Extracted {n_valid}/{len(poses)} valid poses (tracked, gap-filled)")
+
+        valid_raw = ~np.isnan(poses_norm_raw[:, 0, 0])
+        if np.sum(valid_raw) > 2:
+            raw_jitter = np.abs(np.diff(poses_norm_raw[valid_raw][:, :, 0], axis=0)).mean()
+            smooth_jitter = np.abs(np.diff(poses_smoothed_norm[:, :, 0], axis=0)).mean()
+            if raw_jitter > 0:
+                print(f"Jitter reduction: {(1 - smooth_jitter / raw_jitter) * 100:.1f}%")
 
     # Initialize blade states
     blade_states_left = [None] * len(poses_viz)

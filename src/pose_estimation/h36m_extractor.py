@@ -9,6 +9,7 @@ Architecture:
 The conversion is geometric (not learned) and happens on-the-fly during extraction.
 """
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,8 @@ except ImportError:
 from ..detection.pose_tracker import PoseTracker
 from ..types import PersonClick, TrackedExtraction, VideoMeta
 from ..utils.video import get_video_meta
+
+logger = logging.getLogger(__name__)
 
 
 # H3.6M keypoint indices
@@ -157,6 +160,65 @@ def _coco_to_h36m_single(coco_pose: np.ndarray) -> np.ndarray:
     return h36m_pose
 
 
+def _biometric_distance(pose_a: np.ndarray, pose_b: np.ndarray) -> float:
+    """Compute biometric distance between two H3.6M poses.
+
+    Uses anatomical ratios (scale-invariant) to match the same person
+    even when track IDs change. Returns 0.0 for identical proportions.
+
+    Args:
+        pose_a: H3.6M pose (17, 3) — normalized coordinates.
+        pose_b: H3.6M pose (17, 3) — normalized coordinates.
+
+    Returns:
+        Distance metric (lower = more similar).
+    """
+    # Joint pairs for anatomical ratios
+    pairs = [
+        (H36Key.LSHOULDER, H36Key.RSHOULDER),  # shoulder width
+        (H36Key.LHIP, H36Key.RHIP),  # hip width
+        (H36Key.LSHOULDER, H36Key.LELBOW),  # left upper arm
+        (H36Key.LELBOW, H36Key.LWRIST),  # left forearm
+        (H36Key.RSHOULDER, H36Key.RELBOW),  # right upper arm
+        (H36Key.RELBOW, H36Key.RWRIST),  # right forearm
+        (H36Key.LHIP, H36Key.LKNEE),  # left femur
+        (H36Key.LKNEE, H36Key.LFOOT),  # left tibia
+        (H36Key.RHIP, H36Key.RKNEE),  # right femur
+        (H36Key.RKNEE, H36Key.RFOOT),  # right tibia
+    ]
+
+    ratios_a = []
+    ratios_b = []
+    for _i, (j1, j2) in enumerate(pairs):
+        len_a = np.linalg.norm(pose_a[j1, :2] - pose_a[j2, :2])
+        len_b = np.linalg.norm(pose_b[j1, :2] - pose_b[j2, :2])
+        # Skip if either joint has low confidence
+        if pose_a[j1, 2] < 0.3 or pose_a[j2, 2] < 0.3:
+            continue
+        if pose_b[j1, 2] < 0.3 or pose_b[j2, 2] < 0.3:
+            continue
+        ratios_a.append(len_a)
+        ratios_b.append(len_b)
+
+    if len(ratios_a) < 3:
+        # Not enough confident joints — use position distance as fallback
+        center_a = pose_a[H36Key.HIP_CENTER, :2]
+        center_b = pose_b[H36Key.HIP_CENTER, :2]
+        return float(np.linalg.norm(center_a - center_b))
+
+    ratios_a = np.array(ratios_a)
+    ratios_b = np.array(ratios_b)
+
+    # Normalize by total body size (scale-invariant)
+    total_a = ratios_a.sum()
+    total_b = ratios_b.sum()
+    if total_a > 1e-6 and total_b > 1e-6:
+        ratios_a /= total_a
+        ratios_b /= total_b
+
+    return float(np.linalg.norm(ratios_a - ratios_b))
+
+
 class H36MExtractor:
     """H3.6M 17-keypoint pose extractor.
 
@@ -171,6 +233,13 @@ class H36MExtractor:
     - Easy API with ultralytics
     """
 
+    #: Only re-run pose on the crop when the person occupies less than this
+    #: fraction of the frame width.
+    _CROP_WIDTH_RATIO = 0.20
+
+    #: Padding multiplier applied to the bounding box before cropping.
+    _CROP_PAD_RATIO = 0.3
+
     def __init__(
         self,
         model_size: str = "n",
@@ -179,6 +248,8 @@ class H36MExtractor:
         conf_threshold: float = 0.5,
         output_format: str = "normalized",  # "normalized" or "pixels"
         skip_model_check: bool = False,
+        imgsz: int = 640,
+        crop_enhance: bool = False,
     ):
         """Initialize H3.6M extractor with YOLO26-Pose backend.
 
@@ -188,6 +259,14 @@ class H36MExtractor:
             conf_threshold: Minimum confidence for pose detection [0, 1]
             output_format: "normalized" for [0,1] coords, "pixels" for absolute pixel coords
             skip_model_check: If True, don't validate model exists (for testing)
+            imgsz: YOLO input image size (default 640, the model's training
+                resolution).  Do **not** increase this for distant subjects —
+                use *crop_enhance* instead.
+            crop_enhance: If True, run a second pass on a cropped region
+                around each detected person to improve keypoint accuracy for
+                small / distant subjects.  The full-frame pass always runs at
+                *imgsz*; the crop pass also runs at *imgsz* so the person
+                fills the frame, matching the YOLO-Pose training distribution.
         """
         if YOLO is None:
             raise ImportError("Ultralytics not installed. Install with: uv add ultralytics")
@@ -197,6 +276,8 @@ class H36MExtractor:
         self._conf_threshold = conf_threshold
         self._output_format = output_format
         self._skip_model_check = skip_model_check
+        self._imgsz = imgsz
+        self._crop_enhance = crop_enhance
 
         self._device = device
 
@@ -214,6 +295,108 @@ class H36MExtractor:
                 model_name = f"yolo26{self.model_size}-pose.pt"
                 self._model = YOLO(model_name)
         return self._model
+
+    # ------------------------------------------------------------------
+    # ROI crop-enhancement
+    # ------------------------------------------------------------------
+
+    def _enhance_with_crop(
+        self,
+        result: object,
+        kps_all: np.ndarray,
+        confs_all: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Re-run YOLO-Pose on tight crops to improve keypoint accuracy.
+
+        For every detected person whose bounding-box width is less than
+        ``_CROP_WIDTH_RATIO`` of the frame, the method:
+
+        1. Crops the original frame around the person with 30 % padding.
+        2. Runs ``model.predict()`` on the crop at the same ``imgsz``.
+        3. Maps the crop keypoints back to full-frame pixel coordinates.
+
+        Falls back gracefully when ``result.orig_img`` or bounding boxes
+        are unavailable (e.g. in unit tests with mock objects).
+
+        Args:
+            result: Ultralytics ``Results`` object for the current frame.
+                Must have ``orig_img``, ``orig_shape``, and ``boxes``
+                attributes when available.
+            kps_all: ``(P, 17, 2)`` full-frame pixel keypoints.
+            confs_all: ``(P, 17)`` keypoint confidences.
+
+        Returns:
+            Tuple ``(enhanced_kps, enhanced_confs)`` with the same shapes.
+            Unchanged for persons that were not small enough or where the
+            crop pass failed.
+        """
+        if not self._crop_enhance:
+            return kps_all, confs_all
+
+        # Gracefully handle mock / incomplete result objects (unit tests)
+        orig_img = getattr(result, "orig_img", None)
+        if orig_img is None:
+            return kps_all, confs_all
+
+        boxes_attr = getattr(result, "boxes", None)
+        if boxes_attr is None:
+            return kps_all, confs_all
+
+        try:
+            boxes_xyxy = boxes_attr.xyxy.cpu().numpy()  # (P, 4)
+        except (AttributeError, RuntimeError):
+            return kps_all, confs_all
+
+        h, w = result.orig_shape
+        enhanced_kps = kps_all.copy()
+        enhanced_confs = confs_all.copy()
+
+        for p in range(len(boxes_xyxy)):
+            x1, y1, x2, y2 = boxes_xyxy[p].astype(int)
+            bw = x2 - x1
+            bh = y2 - y1
+
+            # Skip large detections — they already get good keypoint quality
+            if bw / w >= self._CROP_WIDTH_RATIO:
+                continue
+
+            # Add padding
+            pad = int(max(bw, bh) * self._CROP_PAD_RATIO)
+            cx1 = max(0, x1 - pad)
+            cy1 = max(0, y1 - pad)
+            cx2 = min(w, x2 + pad)
+            cy2 = min(h, y2 + pad)
+
+            crop = orig_img[cy1:cy2, cx1:cx2]
+            if crop.size == 0:
+                continue
+
+            # Re-run YOLO-Pose on the crop
+            crop_results = self.model.predict(
+                crop,
+                imgsz=self._imgsz,
+                conf=self._conf_threshold * 0.5,
+                verbose=False,
+            )
+
+            crop_res = crop_results[0]
+            if crop_res.keypoints is None or len(crop_res.keypoints.xy) == 0:
+                continue
+
+            # Use the best detection (highest mean confidence)
+            crop_confs = crop_res.keypoints.conf.cpu().numpy()  # (C, 17)
+            best_p = int(np.argmax(crop_confs.mean(axis=1)))
+            crop_kp = crop_res.keypoints.xy[best_p].cpu().numpy()  # (17, 2)
+            crop_conf = crop_confs[best_p]  # (17,)
+
+            # Map crop keypoints back to full-frame pixel coordinates
+            crop_kp[:, 0] += cx1
+            crop_kp[:, 1] += cy1
+
+            enhanced_kps[p] = crop_kp
+            enhanced_confs[p] = crop_conf
+
+        return enhanced_kps, enhanced_confs
 
     def extract_video_tracked(
         self,
@@ -245,9 +428,7 @@ class H36MExtractor:
         num_frames = video_meta.num_frames
 
         # Pre-allocate with NaN
-        all_poses = np.full(
-            (num_frames, 17, 3), np.nan, dtype=np.float32
-        )
+        all_poses = np.full((num_frames, 17, 3), np.nan, dtype=np.float32)
 
         tracker = PoseTracker(
             max_disappeared=30,
@@ -260,9 +441,7 @@ class H36MExtractor:
         click_lock_window = tracker.min_hits * 2
         click_norm: tuple[float, float] | None = None
         if person_click is not None:
-            click_norm = person_click.to_normalized(
-                video_meta.width, video_meta.height
-            )
+            click_norm = person_click.to_normalized(video_meta.width, video_meta.height)
 
         # Track hit counts for auto-select (track_id → hits)
         track_hit_counts: dict[int, int] = {}
@@ -270,9 +449,17 @@ class H36MExtractor:
         # Per-frame track_id→pose mapping for retroactive fill
         frame_track_poses: dict[int, dict[int, np.ndarray]] = {}
 
+        # Last known target pose for track migration (biometric matching)
+        last_target_pose: np.ndarray | None = None
+        target_lost_frame: int | None = None  # frame when target was last seen
+
         # Run YOLO stream
         results = self.model(
-            str(video_path), verbose=False, conf=self._conf_threshold, stream=True
+            str(video_path),
+            verbose=False,
+            conf=self._conf_threshold,
+            stream=True,
+            imgsz=self._imgsz,
         )
 
         for frame_idx, result in enumerate(results):
@@ -285,15 +472,18 @@ class H36MExtractor:
                 continue
 
             h, w = result.orig_shape
-            kps_all = result.keypoints.xy.cpu().numpy()   # (P, 17, 2)
-            confs_all = result.keypoints.conf.cpu().numpy()   # (P, 17)
+            kps_all = result.keypoints.xy.cpu().numpy()  # (P, 17, 2)
+            confs_all = result.keypoints.conf.cpu().numpy()  # (P, 17)
+
+            # ROI crop enhancement: re-run pose on tight crops for small/distant persons
+            kps_all, confs_all = self._enhance_with_crop(result, kps_all, confs_all)
 
             n_persons = kps_all.shape[0]
             h36m_poses = np.zeros((n_persons, 17, 3), dtype=np.float32)
 
             for p in range(n_persons):
-                kp = kps_all[p]        # (17, 2) pixel
-                conf = confs_all[p]    # (17,)
+                kp = kps_all[p]  # (17, 2) pixel
+                conf = confs_all[p]  # (17,)
 
                 # Normalize to [0, 1]
                 kp_norm = kp.copy()
@@ -320,8 +510,7 @@ class H36MExtractor:
 
             # Store per-track poses for retroactive fill
             frame_track_poses[frame_idx] = {
-                tid: h36m_poses[p].copy()
-                for p, tid in enumerate(track_ids)
+                tid: h36m_poses[p].copy() for p, tid in enumerate(track_ids)
             }
 
             # Update hit counts
@@ -330,21 +519,14 @@ class H36MExtractor:
 
             # --- Target selection ---
             # Phase 1: Click-based selection (within lock window)
-            if (
-                target_track_id is None
-                and click_norm is not None
-                and frame_idx < click_lock_window
-            ):
+            if target_track_id is None and click_norm is not None and frame_idx < click_lock_window:
                 best_dist = float("inf")
                 best_tid: int | None = None
                 for p, tid in enumerate(track_ids):
                     # Mid-hip in normalized coords
                     mid_hip_x = (h36m_poses[p, H36Key.LHIP, 0] + h36m_poses[p, H36Key.RHIP, 0]) / 2
                     mid_hip_y = (h36m_poses[p, H36Key.LHIP, 1] + h36m_poses[p, H36Key.RHIP, 1]) / 2
-                    dist = (
-                        (mid_hip_x - click_norm[0]) ** 2
-                        + (mid_hip_y - click_norm[1]) ** 2
-                    )
+                    dist = (mid_hip_x - click_norm[0]) ** 2 + (mid_hip_y - click_norm[1]) ** 2
                     if dist < best_dist:
                         best_dist = dist
                         best_tid = tid
@@ -353,17 +535,43 @@ class H36MExtractor:
 
             # Fill target pose for current frame (click path only — auto deferred)
             if target_track_id is not None:
+                found = False
                 for p, tid in enumerate(track_ids):
                     if tid == target_track_id:
                         all_poses[frame_idx] = h36m_poses[p]
+                        last_target_pose = h36m_poses[p].copy()
+                        found = True
                         break
+
+                # Track migration: target lost, find matching new track
+                if not found and last_target_pose is not None:
+                    best_dist = float("inf")
+                    best_new_tid: int | None = None
+                    best_new_pose: np.ndarray | None = None
+                    for p, tid in enumerate(track_ids):
+                        dist = _biometric_distance(h36m_poses[p], last_target_pose)
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_new_tid = tid
+                            best_new_pose = h36m_poses[p]
+
+                    # Accept migration if biometric distance is small enough
+                    if best_new_tid is not None and best_dist < 0.15:
+                        target_track_id = best_new_tid
+                        all_poses[frame_idx] = best_new_pose
+                        last_target_pose = best_new_pose.copy()
+                        # Retroactively fill from stored frames for new track
+                        for fidx, tmap in frame_track_poses.items():
+                            if target_track_id in tmap:
+                                all_poses[fidx] = tmap[target_track_id]
 
         # Phase 2 (deferred): Auto-select by most hits — after full loop
         # This ensures we pick the track with the most total detections across
         # the entire video, not just an early snapshot.
         if target_track_id is None and track_hit_counts:
             target_track_id = max(
-                track_hit_counts, key=lambda k: track_hit_counts[k]  # type: ignore[arg-type]
+                track_hit_counts,
+                key=lambda k: track_hit_counts[k],  # type: ignore[arg-type]
             )
             # Retroactive fill: all frames where this track appeared
             for fidx, tmap in frame_track_poses.items():
@@ -416,15 +624,17 @@ class H36MExtractor:
         video_path = Path(video_path)
         video_meta = get_video_meta(video_path)
 
-        tracker = PoseTracker(
-            max_disappeared=30, min_hits=2, fps=video_meta.fps
-        )
+        tracker = PoseTracker(max_disappeared=30, min_hits=2, fps=video_meta.fps)
 
         # track_id → {hits, best_frame_idx, best_kps, first_frame}
         person_data: dict[int, dict] = {}
 
         results = self.model(
-            str(video_path), verbose=False, conf=self._conf_threshold, stream=True
+            str(video_path),
+            verbose=False,
+            conf=self._conf_threshold,
+            stream=True,
+            imgsz=self._imgsz,
         )
 
         for frame_idx, result in enumerate(results):
@@ -438,6 +648,10 @@ class H36MExtractor:
             h, w = result.orig_shape
             kps_all = result.keypoints.xy.cpu().numpy()
             confs_all = result.keypoints.conf.cpu().numpy()
+
+            # ROI crop enhancement for small/distant persons
+            kps_all, confs_all = self._enhance_with_crop(result, kps_all, confs_all)
+
             n_persons = kps_all.shape[0]
 
             h36m_poses = np.zeros((n_persons, 17, 3), dtype=np.float32)
@@ -470,9 +684,7 @@ class H36MExtractor:
 
         # Build output
         output: list[dict] = []
-        for tid, data in sorted(
-            person_data.items(), key=lambda kv: kv[1]["hits"], reverse=True
-        ):
+        for tid, data in sorted(person_data.items(), key=lambda kv: kv[1]["hits"], reverse=True):
             kps = data["best_kps"]
             if kps is None:
                 continue
@@ -485,13 +697,15 @@ class H36MExtractor:
             # Mid-hip
             mid_hip_x = float((kps[H36Key.LHIP, 0] + kps[H36Key.RHIP, 0]) / 2)
             mid_hip_y = float((kps[H36Key.LHIP, 1] + kps[H36Key.RHIP, 1]) / 2)
-            output.append({
-                "track_id": tid,
-                "hits": data["hits"],
-                "bbox": (x1, y1, x2, y2),
-                "first_frame": data["first_frame"],
-                "mid_hip": (mid_hip_x, mid_hip_y),
-            })
+            output.append(
+                {
+                    "track_id": tid,
+                    "hits": data["hits"],
+                    "bbox": (x1, y1, x2, y2),
+                    "first_frame": data["first_frame"],
+                    "mid_hip": (mid_hip_x, mid_hip_y),
+                }
+            )
 
         return output
 
