@@ -68,11 +68,14 @@ from src.visualization.hud import (
 from src.visualization.layers import (
     BladeLayer,
     HUDLayer,
+    JointAngleLayer,
     Layer,
     LayerContext,
     SkeletonLayer,
+    TimerLayer,
     TrailLayer,
     VelocityLayer,
+    VerticalAxisLayer,
     render_layers,
 )
 
@@ -89,6 +92,7 @@ from src.visualization.skeleton import (
 __all__ = [
     "BladeLayer",
     "HUDLayer",
+    "JointAngleLayer",
     # HUD
     "HUDLayout",
     "HUDPanel",
@@ -101,8 +105,10 @@ __all__ = [
     "Position",
     "SkeletonLayer",
     "ThemeConfig",
+    "TimerLayer",
     "TrailLayer",
     "VelocityLayer",
+    "VerticalAxisLayer",
     # Config
     "VisualizationConfig",
     "blend_colors",

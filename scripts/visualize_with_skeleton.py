@@ -25,14 +25,16 @@ from src.detection.blade_edge_detector_3d import BladeEdgeDetector3D
 from src.detection.spatial_reference import SpatialReferenceDetector
 from src.pose_estimation import H36Key, H36MExtractor
 from src.types import BladeState3D
-from src.utils.geometry import angle_3pt
 
 from src.utils.subtitles import SubtitleParser
 from src.utils.video import get_video_meta
 from src.visualization import (
+    JointAngleLayer,
     LayerContext,
+    TimerLayer,
     TrailLayer,
     VelocityLayer,
+    VerticalAxisLayer,
     draw_blade_indicator_hud,
     draw_skeleton,
     project_3d_to_2d,
@@ -377,6 +379,11 @@ def main() -> int:
     if args.layer >= 1:
         layers.append(VelocityLayer(scale=5.0, max_length=50))
         layers.append(TrailLayer(length=args.trail_length, joint=H36Key.LFOOT))
+    if args.layer >= 2:
+        layers.append(JointAngleLayer())
+        layers.append(VerticalAxisLayer())
+    if args.layer >= 3:
+        layers.append(TimerLayer())
 
     # Pre-create PhysicsEngine for CoM trajectory (avoid per-frame allocation)
     physics_engine = None
@@ -449,12 +456,6 @@ def main() -> int:
                         frame, com_trajectory, draw_h, draw_w, camera_z=3.0
                     )
 
-        # Layer 2: trunk tilt indicator
-        if args.layer >= 2 and current_pose_idx is not None:
-            frame = _draw_axis_indicator(
-                frame, poses_viz[current_pose_idx], draw_h, draw_w
-            )
-
         # Spatial reference detection (every 30 frames — camera doesn't change fast)
         if args.layer >= 1 and frame_idx % 30 == 0:
             camera_pose = spatial_detector.estimate_pose(frame)
@@ -483,11 +484,8 @@ def main() -> int:
                         )
                     break
 
-        # Draw HUD (all layers) — element info + frame counter + kinematics + blade state
+        # Draw HUD (all layers) — element info + frame counter + blade state
         active_segment = _get_active_segment(segments, frame_idx)
-        kinematics = _compute_kinematics(
-            poses_viz, current_pose_idx if current_pose_idx is not None else 0, meta.fps
-        )
 
         blade_left = _get_blade_state(blade_states_left, current_pose_idx)
         blade_right = _get_blade_state(blade_states_right, current_pose_idx)
@@ -495,7 +493,6 @@ def main() -> int:
         frame = _draw_hud(
             frame,
             active_segment,
-            kinematics,
             frame_idx,
             meta.num_frames,
             meta.fps,
@@ -587,37 +584,9 @@ def _get_active_segment(segments: list, frame_idx: int) -> dict:
     return {}
 
 
-def _compute_kinematics(poses: np.ndarray, frame_idx: int, fps: float) -> dict[str, float]:
-    """Compute kinematics for this frame."""
-    if frame_idx == 0 or frame_idx >= len(poses) - 1:
-        return {}
-
-    velocity = (poses[frame_idx + 1] - poses[frame_idx - 1]) * fps / 2
-    hip_v = np.linalg.norm(velocity[H36Key.LHIP])
-
-    left_knee = angle_3pt(
-        poses[frame_idx, H36Key.LHIP],
-        poses[frame_idx, H36Key.LKNEE],
-        poses[frame_idx, H36Key.LFOOT],
-    )
-
-    right_knee = angle_3pt(
-        poses[frame_idx, H36Key.RHIP],
-        poses[frame_idx, H36Key.RKNEE],
-        poses[frame_idx, H36Key.RFOOT],
-    )
-
-    return {
-        "hip_velocity": hip_v,
-        "left_knee": left_knee,
-        "right_knee": right_knee,
-    }
-
-
 def _draw_hud(
     frame: np.ndarray,
     element_info: dict,
-    kinematics: dict,
     frame_idx: int,
     total_frames: int,
     fps: float,
@@ -626,13 +595,12 @@ def _draw_hud(
     blade_state_left: BladeState3D | None = None,
     blade_state_right: BladeState3D | None = None,
 ) -> np.ndarray:
-    """Draw comprehensive debug HUD.
+    """Draw minimal HUD.
 
     Layout:
     - Top-left: Element info (name, boundaries, confidence)
     - Top-left (below element): Blade edge indicators
     - Top-right: Frame counter, timestamp
-    - Bottom-left: Kinematics (velocities, angles)
     """
     # Top-left: Element info
     if element_info:
@@ -648,13 +616,6 @@ def _draw_hud(
     frame_text = f"Frame: {frame_idx}/{total_frames} | {time_sec:.2f}s"
     (fw, _fh), _ = cv2.getTextSize(frame_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
     draw_text_box(frame, frame_text, (width - fw - 20, 30))
-
-    # Bottom-left: Kinematics
-    y_offset = height - 30
-    for key, value in kinematics.items():
-        text = f"{key}: {value:.2f}" if isinstance(value, float) else f"{key}: {value}"
-        draw_text_box(frame, text, (10, y_offset))
-        y_offset -= 25
 
     # Blade edge indicators (below element info)
     if blade_state_left is not None:

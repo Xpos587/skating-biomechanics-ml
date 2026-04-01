@@ -166,53 +166,45 @@ class JointAngleLayer(Layer):
         w, h = context.frame_width, context.frame_height
 
         for spec in self.joints:
-            # Get pixel coordinates
-            if context.normalized:
-                pa = normalized_to_pixel(pose[spec.point_a], w, h)
-                pv = normalized_to_pixel(pose[spec.vertex], w, h)
-                pc = normalized_to_pixel(pose[spec.point_c], w, h)
+            # Prefer 3D angles (more accurate via kinematic constraints)
+            angle = None
+            if context.pose_3d is not None:
+                a3 = context.pose_3d[spec.point_a]
+                v3 = context.pose_3d[spec.vertex]
+                c3 = context.pose_3d[spec.point_c]
+                if not (np.isnan(a3).any() or np.isnan(v3).any() or np.isnan(c3).any()):
+                    angle = angle_3pt(a3, v3, c3)
+
+            # Fallback to 2D
+            if angle is None:
+                if context.normalized:
+                    pa = normalized_to_pixel(pose[spec.point_a], w, h)
+                    pv = normalized_to_pixel(pose[spec.vertex], w, h)
+                    pc = normalized_to_pixel(pose[spec.point_c], w, h)
+                else:
+                    pa = pose[spec.point_a].astype(int)
+                    pv = pose[spec.vertex].astype(int)
+                    pc = pose[spec.point_c].astype(int)
+                a = np.array(pa, dtype=np.float64)
+                v = np.array(pv, dtype=np.float64)
+                c = np.array(pc, dtype=np.float64)
+                angle = angle_3pt(a, v, c)
             else:
-                pa = pose[spec.point_a].astype(int)
-                pv = pose[spec.vertex].astype(int)
-                pc = pose[spec.point_c].astype(int)
+                # 3D angle computed — still need 2D positions for arc placement
+                if context.normalized:
+                    pv = normalized_to_pixel(pose[spec.vertex], w, h)
+                    pa = normalized_to_pixel(pose[spec.point_a], w, h)
+                    pc = normalized_to_pixel(pose[spec.point_c], w, h)
+                else:
+                    pa = pose[spec.point_a].astype(int)
+                    pv = pose[spec.vertex].astype(int)
+                    pc = pose[spec.point_c].astype(int)
 
-            # Skip if any point has low confidence
-            if context.confidences is not None:
-                min_conf = min(
-                    context.confidences[spec.point_a],
-                    context.confidences[spec.vertex],
-                    context.confidences[spec.point_c],
-                )
-                if min_conf < 0.3:
-                    continue
-
-            # Calculate angle
-            a = np.array(pa, dtype=np.float64)
-            v = np.array(pv, dtype=np.float64)
-            c = np.array(pc, dtype=np.float64)
-
-            angle = angle_3pt(a, v, c)
             color = spec.get_color_for_angle(angle)
-
             vx, vy = int(pv[0]), int(pv[1])
 
-            # Draw angle arc
-            self._draw_arc(frame, v, a, c, spec.arc_radius, color)
-
-            # Draw degree label near vertex
-            label = f"{angle:.0f}\u00b0"
-            offset_x = 10
-            offset_y = -10
-            cv2.putText(
-                frame,
-                label,
-                (vx + offset_x, vy + offset_y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
-                color,
-                1,
-                cv2.LINE_AA,
-            )
+            # Draw subtle angle arc (thin line, no label)
+            self._draw_arc(frame, pv, pa, pc, spec.arc_radius, color)
 
         return frame
 
@@ -250,5 +242,5 @@ class JointAngleLayer(Layer):
             start,
             end,
             color,
-            2,
+            1,
         )
