@@ -55,9 +55,12 @@ class RTMPoseExtractor:
             ``"custom"`` feeds detections into our PoseTracker
             (OC-SORT + biometric Re-ID).
         conf_threshold: Minimum keypoint confidence to accept [0, 1].
-        output_format: ``"normalized"`` for [0, 1] coords, ``"pixels"``
+        output_format: ``"normalized"`` for [0, 1] coords. ``"pixels"``
             for absolute pixel coords.
         det_frequency: Run person detection every N frames (1 = every frame).
+        frame_skip: Process every Nth frame for pose estimation (1 = every
+            frame). Higher values = faster but less accurate. Skipped
+            frames are filled with NaN for downstream interpolation.
         device: ``"cpu"`` or ``"cuda"``.
         backend: Inference backend — ``"onnxruntime"`` or ``"opencv"``.
     """
@@ -69,6 +72,7 @@ class RTMPoseExtractor:
         conf_threshold: float = 0.3,
         output_format: str = "normalized",
         det_frequency: int = 1,
+        frame_skip: int = 1,
         device: str = "cpu",
         backend: str = "onnxruntime",
     ) -> None:
@@ -82,6 +86,7 @@ class RTMPoseExtractor:
         self._conf_threshold = conf_threshold
         self._output_format = output_format
         self._det_frequency = det_frequency
+        self._frame_skip = max(1, frame_skip)
         self._device = device
         self._backend = backend
 
@@ -178,7 +183,18 @@ class RTMPoseExtractor:
             raise RuntimeError(f"Failed to open video: {video_path}")
 
         try:
-            for frame_idx in tqdm(range(num_frames), desc="Extracting poses", unit="frame", ncols=100):
+            frame_idx = 0
+            pbar = tqdm(total=num_frames, desc="Extracting poses", unit="frame", ncols=100)
+            while cap.isOpened() and frame_idx < num_frames:
+                if self._frame_skip > 1 and frame_idx % self._frame_skip != 0:
+                    # Skip this frame — just advance the video
+                    ret = cap.grab()
+                    if not ret:
+                        break
+                    frame_idx += 1
+                    pbar.update(1)
+                    continue
+
                 ret, frame = cap.read()
                 if not ret:
                     break
@@ -328,8 +344,12 @@ class RTMPoseExtractor:
                                     ):
                                         all_poses[fidx] = tmap[target_track_id][0]
                                         all_feet[fidx] = tmap[target_track_id][1]
+
+                frame_idx += 1
+                pbar.update(1)
         finally:
             cap.release()
+            pbar.close()
 
         # Phase 2 (deferred): Auto-select by most hits
         if target_track_id is None and track_hit_counts:

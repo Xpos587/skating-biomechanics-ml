@@ -132,6 +132,17 @@ def main() -> int:
         default="rtmlib",
         help="2D pose estimation backend (default: rtmlib)",
     )
+    parser.add_argument(
+        "--render-scale",
+        type=float,
+        default=1.0,
+        help="Downscale factor for rendering (0.5 = half resolution, 4x faster). Default: 1.0",
+    )
+    parser.add_argument(
+        "--no-render",
+        action="store_true",
+        help="Skip video rendering entirely (pose extraction only)",
+    )
     args = parser.parse_args()
 
     # Validate input
@@ -163,7 +174,8 @@ def main() -> int:
             extractor = RTMPoseExtractor(
                 output_format="normalized",
                 conf_threshold=0.1,
-                det_frequency=8,  # detect every 8 frames, track in between (faster)
+                det_frequency=8,  # detect every 8 frames, track in between
+                frame_skip=8,  # only run pose estimation every 8th frame (8x faster)
             )
         else:
             extractor = H36MExtractor(
@@ -374,6 +386,17 @@ def main() -> int:
     # Setup output
     output_path = args.output or args.video.parent / f"{args.video.stem}_layer{args.layer}.mp4"
 
+    if args.no_render:
+        print(f"Pose extraction complete. Skipping rendering (--no-render).")
+        return 0
+
+    # Apply render scale for faster processing
+    render_scale = args.render_scale
+    out_w = int(meta.width * render_scale)
+    out_h = int(meta.height * render_scale)
+    if render_scale != 1.0:
+        print(f"Render scale: {render_scale} ({out_w}x{out_h})")
+
     if args.compress:
         import tempfile
 
@@ -386,7 +409,7 @@ def main() -> int:
         write_path = output_path
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(write_path), fourcc, meta.fps, (meta.width, meta.height))
+    writer = cv2.VideoWriter(str(write_path), fourcc, meta.fps, (out_w, out_h))
 
     # Build layers based on requested level
     layers: list = []
@@ -410,6 +433,13 @@ def main() -> int:
         if not ret:
             break
 
+        # Downscale for rendering if requested
+        if render_scale != 1.0:
+            frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
+            draw_h, draw_w = out_h, out_w
+        else:
+            draw_h, draw_w = meta.height, meta.width
+
         # Find the pose that corresponds to this frame
         current_pose_idx = None
         while pose_idx < len(pose_frame_indices):
@@ -422,10 +452,10 @@ def main() -> int:
             else:
                 break
 
-        # Build layer context
+        # Build layer context (use original dimensions for normalized coords)
         context = LayerContext(
-            frame_width=meta.width,
-            frame_height=meta.height,
+            frame_width=draw_w,
+            frame_height=draw_h,
             fps=meta.fps,
             frame_idx=frame_idx,
             total_frames=meta.num_frames,
@@ -439,9 +469,9 @@ def main() -> int:
                 corrected_pose = np.zeros((17, 3), dtype=np.float32)
                 corrected_pose[:, :2] = poses_viz_corrected[current_pose_idx]
                 corrected_pose[:, 2] = 1.0  # full confidence for corrected poses
-                frame = draw_skeleton(frame, corrected_pose, meta.height, meta.width)
+                frame = draw_skeleton(frame, corrected_pose, draw_h, draw_w)
             else:
-                frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
+                frame = draw_skeleton(frame, poses[current_pose_idx], draw_h, draw_w)
 
             context.pose_2d = poses_viz_corrected[current_pose_idx] if poses_viz_corrected is not None and current_pose_idx < len(poses_viz_corrected) else poses_viz[current_pose_idx]
             if poses_3d is not None and current_pose_idx < len(poses_3d):
@@ -463,13 +493,13 @@ def main() -> int:
 
                 if len(com_trajectory) > 1:
                     frame = _draw_3d_trajectory(
-                        frame, com_trajectory, meta.height, meta.width, camera_z=3.0
+                        frame, com_trajectory, draw_h, draw_w, camera_z=3.0
                     )
 
         # Layer 2: trunk tilt indicator
         if args.layer >= 2 and current_pose_idx is not None:
             frame = _draw_axis_indicator(
-                frame, poses_viz[current_pose_idx], meta.height, meta.width
+                frame, poses_viz[current_pose_idx], draw_h, draw_w
             )
 
         # Spatial reference detection (every 30 frames — camera doesn't change fast)
@@ -516,8 +546,8 @@ def main() -> int:
             frame_idx,
             meta.num_frames,
             meta.fps,
-            meta.height,
-            meta.width,
+            draw_h,
+            draw_w,
             blade_state_left=blade_left,
             blade_state_right=blade_right,
         )
