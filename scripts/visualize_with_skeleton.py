@@ -423,20 +423,12 @@ def main() -> int:
             normalized=True,
         )
 
-        # Layer 0: Skeleton
+        # Layer 0: Skeleton — always use raw rtmlib (no 3D jitter)
         if args.layer >= 0 and current_pose_idx is not None:
-            if poses_viz_corrected is not None and current_pose_idx < len(poses_viz_corrected):
-                # Use 3D-corrected poses for skeleton overlay
-                corrected_pose = np.zeros((17, 3), dtype=np.float32)
-                corrected_pose[:, :2] = poses_viz_corrected[current_pose_idx]
-                corrected_pose[:, 2] = 1.0  # full confidence for corrected poses
-                frame = draw_skeleton(frame, corrected_pose, draw_h, draw_w)
-            else:
                 frame = draw_skeleton(frame, poses[current_pose_idx], draw_h, draw_w)
-
-            context.pose_2d = poses_viz_corrected[current_pose_idx] if poses_viz_corrected is not None and current_pose_idx < len(poses_viz_corrected) else poses_viz[current_pose_idx]
-            if poses_3d is not None and current_pose_idx < len(poses_3d):
-                context.pose_3d = poses_3d[current_pose_idx]
+                context.pose_2d = poses_viz[current_pose_idx]
+                if poses_3d is not None and current_pose_idx < len(poses_3d):
+                    context.pose_3d = poses_3d[current_pose_idx]
 
         # Layers 1+: velocity, trails (rendered via layer system)
         if args.layer >= 1 and current_pose_idx is not None:
