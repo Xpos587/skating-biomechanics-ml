@@ -158,7 +158,7 @@ def main() -> int:
             model_size="s",  # small model — better accuracy for distant/small skaters
             conf_threshold=0.1,  # low threshold — detect distant skaters
             output_format="normalized",
-            crop_enhance=True,  # ROI crop pass for small/distant skaters
+            crop_enhance=False,  # ROI crop — enable when CUDA available (slow on CPU)
         )
 
         # Person selection

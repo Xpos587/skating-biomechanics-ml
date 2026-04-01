@@ -19,6 +19,7 @@ from src.pose_estimation.h36m_extractor import (
     extract_h36m_poses,
 )
 from src.pose_estimation.normalizer import PoseNormalizer
+from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor, extract_rtmpose_poses
 from src.pose_estimation.yolo_extractor import YOLOPoseExtractor
 
 __all__ = [
@@ -27,6 +28,8 @@ __all__ = [
     "H36Key",
     "H36MExtractor",
     "PoseNormalizer",
+    "RTMPoseExtractor",
     "YOLOPoseExtractor",
     "extract_h36m_poses",
+    "extract_rtmpose_poses",
 ]

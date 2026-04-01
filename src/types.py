@@ -824,6 +824,7 @@ class TrackedExtraction:
     target_track_id: int | None
     fps: float
     video_meta: VideoMeta
+    foot_keypoints: np.ndarray | None = None  # (N, 6, 3) [L_Heel, L_BigToe, L_SmallToe, R_Heel, R_BigToe, R_SmallToe]
 
     def valid_mask(self) -> np.ndarray:
         """Return boolean mask of frames with valid (non-NaN) poses.
