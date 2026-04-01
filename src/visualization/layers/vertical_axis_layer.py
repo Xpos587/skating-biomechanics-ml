@@ -68,7 +68,7 @@ class VerticalAxisLayer(Layer):
         self._draw_dashed_line(frame, vert_top, vert_bottom, COLOR_YELLOW, 1, dash=10)
 
         # Draw spine axis
-        cv2.line(frame, (hip_x, hip_y), (sh_x, sh_y), COLOR_YELLOW, 2)
+        cv2.line(frame, (hip_x, hip_y), (sh_x, sh_y), COLOR_YELLOW, 1)
 
         # Calculate tilt angle using angle_3pt
         # Point above hip on vertical, hip (vertex), shoulder
@@ -78,22 +78,9 @@ class VerticalAxisLayer(Layer):
 
         tilt_angle = angle_3pt(vert_point, hip_point, shoulder_point)
 
-        # Draw angle arc
+        # Draw angle arc (subtle, no label)
         if tilt_angle > 1.0:
             self._draw_angle_arc(frame, hip_x, hip_y, sh_x, sh_y, tilt_angle)
-
-        # Draw degree label
-        label_x = hip_x + 15
-        label_y = hip_y - 20
-        cv2.putText(
-            frame,
-            f"{tilt_angle:.1f}\u00b0",
-            (label_x, label_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            COLOR_YELLOW,
-            2,
-        )
 
         return frame
 
@@ -131,7 +118,7 @@ class VerticalAxisLayer(Layer):
         target_x: int,
         target_y: int,
         angle_deg: float,  # noqa: ARG002
-        radius: int = 40,
+        radius: int = 20,
     ) -> None:
         """Draw angle arc from vertical to spine axis direction."""
         # Angle of spine axis in OpenCV coords (y-axis inverted)
@@ -159,5 +146,5 @@ class VerticalAxisLayer(Layer):
             min(start_angle, end_angle),
             max(start_angle, end_angle),
             COLOR_YELLOW,
-            2,
+            1,
         )

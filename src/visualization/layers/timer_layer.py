@@ -18,10 +18,8 @@ class TimerLayer(Layer):
     def __init__(
         self,
         config: LayerConfig | None = None,
-        show_frame_count: bool = True,
     ):
         super().__init__(config=config or LayerConfig(enabled=True, z_index=10))
-        self.show_frame_count = show_frame_count
 
     def render(self, frame: Frame, context: LayerContext) -> Frame:
         fps = context.fps
@@ -37,9 +35,6 @@ class TimerLayer(Layer):
 
         # Position in top-right corner
         text = time_str
-        if self.show_frame_count:
-            total = context.total_frames or 0
-            text += f"  [{context.frame_idx}/{total}]"
 
         # Measure text size for background box
         font = cv2.FONT_HERSHEY_SIMPLEX

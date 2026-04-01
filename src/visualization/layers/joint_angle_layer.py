@@ -89,7 +89,7 @@ DEFAULT_JOINT_SPECS: list[JointAngleSpec] = [
         H36Key.LKNEE,
         H36Key.LFOOT,
         COLOR_CYAN,
-        25,
+        12,
         good_range=(90, 170),
     ),
     JointAngleSpec(
@@ -98,7 +98,7 @@ DEFAULT_JOINT_SPECS: list[JointAngleSpec] = [
         H36Key.RKNEE,
         H36Key.RFOOT,
         COLOR_CYAN,
-        25,
+        12,
         good_range=(90, 170),
     ),
     JointAngleSpec(
@@ -107,7 +107,7 @@ DEFAULT_JOINT_SPECS: list[JointAngleSpec] = [
         H36Key.LELBOW,
         H36Key.LWRIST,
         COLOR_YELLOW,
-        20,
+        10,
         good_range=(30, 160),
     ),
     JointAngleSpec(
@@ -116,7 +116,7 @@ DEFAULT_JOINT_SPECS: list[JointAngleSpec] = [
         H36Key.RELBOW,
         H36Key.RWRIST,
         COLOR_YELLOW,
-        20,
+        10,
         good_range=(30, 160),
     ),
     JointAngleSpec(
@@ -125,7 +125,7 @@ DEFAULT_JOINT_SPECS: list[JointAngleSpec] = [
         H36Key.LHIP,
         H36Key.LKNEE,
         (255, 165, 0),  # Orange
-        20,
+        10,
         good_range=(80, 140),
     ),
     JointAngleSpec(
@@ -134,7 +134,7 @@ DEFAULT_JOINT_SPECS: list[JointAngleSpec] = [
         H36Key.RHIP,
         H36Key.RKNEE,
         (255, 165, 0),  # Orange
-        20,
+        10,
         good_range=(80, 140),
     ),
 ]
@@ -199,6 +199,10 @@ class JointAngleLayer(Layer):
                     pa = pose[spec.point_a].astype(int)
                     pv = pose[spec.vertex].astype(int)
                     pc = pose[spec.point_c].astype(int)
+
+            # Skip NaN/invalid angles
+            if np.isnan(angle) or angle < 0 or angle > 360:
+                continue
 
             color = spec.get_color_for_angle(angle)
             vx, vy = int(pv[0]), int(pv[1])
