@@ -34,7 +34,6 @@ from src.visualization import (
     VelocityLayer,
     draw_blade_indicator_hud,
     draw_skeleton,
-    draw_skeleton_3d_pip,
     project_3d_to_2d,
     render_cyrillic_text,
     render_layers,
@@ -69,16 +68,11 @@ def main() -> int:
         help="Enable 3D blade detection (edge zones, motion direction, ice trace)",
     )
     parser.add_argument(
-        "--3d-scale",
-        dest="d_3d_scale",
+        "--3d-blend-threshold",
+        dest="blend_threshold",
         type=float,
-        default=0.6,
-        help="3D skeleton scale in PIP window (smaller = larger, default: 0.6)",
-    )
-    parser.add_argument(
-        "--no-3d-autoscale",
-        action="store_true",
-        help="Disable auto-scaling of 3D skeleton to fill PIP window",
+        default=0.5,
+        help="Confidence threshold for blending raw vs 3D-corrected 2D poses (default: 0.5)",
     )
     parser.add_argument(
         "--floor-mode",
@@ -152,6 +146,7 @@ def main() -> int:
     cap = cv2.VideoCapture(str(args.video))
 
     # Load or extract poses
+    confs: np.ndarray | None = None
     if args.poses and args.poses.exists():
         print(f"Loading poses from: {args.poses}")
         poses_data = np.load(args.poses)
@@ -305,42 +300,23 @@ def main() -> int:
             poses_3d = estimator.estimate_3d(poses_viz)
             print(f"3D poses estimated: {poses_3d.shape}")
 
-    # Calculate fixed auto-scale parameters from reference frame (median frame)
-    pip_scale = None
-    if poses_3d is not None and not args.no_3d_autoscale:
-        ref_frame_idx = len(poses_3d) // 2
-        ref_pose_3d = poses_3d[ref_frame_idx]
+    # 3D corrective lens: lift → constrain → project → blend
+    poses_viz_corrected = None
+    if args.use_3d and poses_3d is not None:
+        from src.pose_3d import CorrectiveLens
 
-        center_3d = ref_pose_3d.mean(axis=0)
-        ref_pose_3d_centered = ref_pose_3d - center_3d
-
-        ref_pose_2d = project_3d_to_2d(
-            ref_pose_3d_centered[np.newaxis, ...],
-            width=meta.width // 2,
-            height=meta.height // 2,
-            camera_distance=args.d_3d_scale,
-        )[0]
-
-        x_coords = ref_pose_2d[:, 0]
-        y_coords = ref_pose_2d[:, 1]
-
-        x_min, x_max = x_coords.min(), x_coords.max()
-        y_min, y_max = y_coords.min(), y_coords.max()
-
-        x_range = x_max - x_min
-        y_range = y_max - y_min
-
-        if x_range > 1e-6 and y_range > 1e-6:
-            scale_x = 1.0 / x_range
-            scale_y = 1.0 / y_range
-            pip_scale = min(scale_x, scale_y) * 0.9
-
-            x_center = (x_min + x_max) / 2
-            y_center = (y_min + y_max) / 2
-
-            print(
-                f"3D PIP auto-scale: scale={pip_scale:.2f}, offset=({x_center:.2f}, {y_center:.2f})"
-            )
+        lens = CorrectiveLens(model_path=args.model_3d if args.model_3d else None)
+        poses_viz_corrected, _ = lens.correct_sequence(
+            poses_2d_norm=poses_viz,
+            fps=meta.fps,
+            width=meta.width,
+            height=meta.height,
+            confidences=confs,
+            blend_threshold=args.blend_threshold,
+        )
+        # Clip to valid range
+        poses_viz_corrected = np.clip(poses_viz_corrected, 0.0, 1.0)
+        print(f"3D-corrected poses: {poses_viz_corrected.shape}")
 
     # Initialize 3D blade detector if requested
     blade_detector_3d = None
@@ -455,17 +431,16 @@ def main() -> int:
 
         # Layer 0: Skeleton
         if args.layer >= 0 and current_pose_idx is not None:
-            if args.use_3d and poses_3d is not None and current_pose_idx < len(poses_3d):
-                frame = draw_skeleton_3d_pip(
-                    frame,
-                    poses_3d[current_pose_idx],
-                    meta.width,
-                    meta.height,
-                )
+            if poses_viz_corrected is not None and current_pose_idx < len(poses_viz_corrected):
+                # Use 3D-corrected poses for skeleton overlay
+                corrected_pose = np.zeros((17, 3), dtype=np.float32)
+                corrected_pose[:, :2] = poses_viz_corrected[current_pose_idx]
+                corrected_pose[:, 2] = 1.0  # full confidence for corrected poses
+                frame = draw_skeleton(frame, corrected_pose, meta.height, meta.width)
             else:
                 frame = draw_skeleton(frame, poses[current_pose_idx], meta.height, meta.width)
 
-            context.pose_2d = poses_viz[current_pose_idx]
+            context.pose_2d = poses_viz_corrected[current_pose_idx] if poses_viz_corrected is not None and current_pose_idx < len(poses_viz_corrected) else poses_viz[current_pose_idx]
             if poses_3d is not None and current_pose_idx < len(poses_3d):
                 context.pose_3d = poses_3d[current_pose_idx]
 
@@ -485,7 +460,7 @@ def main() -> int:
 
                 if len(com_trajectory) > 1:
                     frame = _draw_3d_trajectory(
-                        frame, com_trajectory, meta.height, meta.width, camera_z=args.d_3d_scale
+                        frame, com_trajectory, meta.height, meta.width, camera_z=3.0
                     )
 
         # Layer 2: trunk tilt indicator
