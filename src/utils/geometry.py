@@ -227,3 +227,105 @@ def calculate_com_trajectory(poses: NormalizedPose) -> NDArray[np.float32]:
         com_trajectory[i] = calculate_center_of_mass(poses, i)
 
     return com_trajectory
+
+
+# ---------------------------------------------------------------------------
+# Foot angle functions for blade edge detection (HALPE26 foot keypoints)
+# ---------------------------------------------------------------------------
+
+
+def segment_angle(a: NDArray, b: NDArray) -> float:
+    """Angle of segment AB relative to horizontal, anticlockwise, degrees.
+
+    Convention matches Sports2D: positive = upward from horizontal.
+
+    Args:
+        a: Start point (x, y) — can be any shape broadcastable to (2,).
+        b: End point (x, y).
+
+    Returns:
+        Angle in degrees [-180, 180].
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    dx = b[0] - a[0]
+    dy = b[1] - a[1]
+    return float(np.degrees(np.arctan2(-dy, dx)))  # negate dy: image coords y-down
+
+
+def foot_angle(heel: NDArray, big_toe: NDArray) -> float:
+    """Foot angle for blade edge detection.
+
+    Measures big_toe -> heel relative to horizontal.  In image coordinates
+    (y-axis pointing down), a foot pointing right returns ~0 degrees.
+
+    Args:
+        heel: Heel keypoint (x, y).
+        big_toe: Big toe keypoint (x, y).
+
+    Returns:
+        Angle in degrees [-180, 180].
+    """
+    return segment_angle(big_toe, heel)
+
+
+def ankle_dorsiflexion(
+    knee: NDArray,
+    ankle: NDArray,
+    big_toe: NDArray,
+    heel: NDArray,
+) -> float:
+    """Ankle dorsiflexion: knee -> ankle -> foot_midpoint angle (3-point).
+
+    The foot midpoint is the average of big_toe and heel positions.
+
+    Args:
+        knee: Knee keypoint (x, y).
+        ankle: Ankle keypoint (x, y).
+        big_toe: Big toe keypoint (x, y).
+        heel: Heel keypoint (x, y).
+
+    Returns:
+        Angle in degrees [0, 180].
+    """
+    foot_mid = (np.asarray(big_toe, dtype=np.float64) + np.asarray(heel, dtype=np.float64)) / 2
+    return angle_3pt(knee, ankle, foot_mid)
+
+
+def compute_foot_angles_series(
+    foot_keypoints: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute foot angles from a time series of HALPE26 foot keypoints.
+
+    Args:
+        foot_keypoints: (N, 6, 3) array with columns
+            [L_Heel, L_BigToe, L_SmallToe, R_Heel, R_BigToe, R_SmallToe]
+            and channels (x, y, confidence).
+
+    Returns:
+        Tuple of (left_angles, right_angles), each shape (N,) in degrees.
+        Frames where confidence < 0.3 for heel or big_toe are set to NaN.
+    """
+    n = foot_keypoints.shape[0]
+    left_angles = np.full(n, np.nan, dtype=np.float32)
+    right_angles = np.full(n, np.nan, dtype=np.float32)
+
+    # Left foot: L_Heel=0, L_BigToe=1
+    l_heel = foot_keypoints[:, 0, :]  # (N, 3)
+    l_big_toe = foot_keypoints[:, 1, :]
+
+    # Right foot: R_Heel=3, R_BigToe=4
+    r_heel = foot_keypoints[:, 3, :]
+    r_big_toe = foot_keypoints[:, 4, :]
+
+    # Confidence mask: both heel and big_toe must be > 0.3
+    l_valid = (l_heel[:, 2] >= 0.3) & (l_big_toe[:, 2] >= 0.3)
+    r_valid = (r_heel[:, 2] >= 0.3) & (r_big_toe[:, 2] >= 0.3)
+
+    for i in range(n):
+        if l_valid[i]:
+            left_angles[i] = foot_angle(l_heel[i, :2], l_big_toe[i, :2])
+        if r_valid[i]:
+            right_angles[i] = foot_angle(r_heel[i, :2], r_big_toe[i, :2])
+
+    return left_angles, right_angles
