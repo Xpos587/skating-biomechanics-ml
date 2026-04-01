@@ -70,12 +70,14 @@ class TestVelocityLayer:
         result = layer.render(frame, ctx1)
         assert result.shape == (480, 640, 3)
 
-        # Second frame — should draw velocity
+        # Second frame — small displacement (not a person switch)
+        pose2 = ctx1.pose_2d.copy()
+        pose2 += np.random.uniform(-0.01, 0.01, size=(17, 2)).astype(np.float32)
         ctx2 = LayerContext(
             frame_width=640,
             frame_height=480,
             fps=25.0,
-            pose_2d=np.random.rand(17, 2).astype(np.float32),
+            pose_2d=pose2,
             normalized=True,
         )
         result = layer.render(frame, ctx2)

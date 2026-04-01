@@ -62,8 +62,11 @@ class VelocityLayer(Layer):
         config: LayerConfig | None = None,
         scale: float = 5.0,
         max_length: int = 50,
+        min_length: int = 3,
         color_mode: str = "heatmap",
         joints: frozenset[int] | None = None,
+        smooth_window: int = 5,
+        max_jump: float = 0.15,
     ):
         """Initialize velocity layer.
 
@@ -71,18 +74,26 @@ class VelocityLayer(Layer):
             config: LayerConfig for this layer.
             scale: Scaling factor for vector length.
             max_length: Maximum vector length in pixels.
+            min_length: Minimum vector length in pixels (skip jitter).
             color_mode: "solid", "heatmap", or "depth".
             joints: Joint indices to show velocity for (default: wrists and feet).
+            smooth_window: Number of frames to average velocity over.
+            max_jump: Max normalized mid-hip displacement before resetting (person switch).
         """
         super().__init__(config or LayerConfig(z_index=1), name="Velocity")
         self.scale = scale
         self.max_length = max_length
+        self.min_length = min_length
         self.color_mode = color_mode
         self.joints = joints or self.KEY_JOINTS
+        self.smooth_window = smooth_window
+        self.max_jump = max_jump
 
         # Previous poses for velocity calculation
         self._prev_pose_2d: Pose2D | None = None
         self._prev_pose_3d: Pose3D | None = None
+        # Circular buffer for velocity smoothing
+        self._vel_history: list[Pose2D] = []
 
     def render(
         self,
@@ -98,10 +109,8 @@ class VelocityLayer(Layer):
         Returns:
             Frame with velocity vectors.
         """
-        # Calculate velocities
-        if context.pose_3d is not None and self._prev_pose_3d is not None:
-            self._draw_velocity_3d(frame, context)
-        elif context.pose_2d is not None and self._prev_pose_2d is not None:
+        # Always use 2D velocity — 3D projection introduces jitter in arrows
+        if context.pose_2d is not None and self._prev_pose_2d is not None:
             self._draw_velocity_2d(frame, context)
 
         # Store current poses for next frame
@@ -115,12 +124,25 @@ class VelocityLayer(Layer):
         frame: Frame,
         context: LayerContext,
     ) -> None:
-        """Draw 2D velocity vectors."""
+        """Draw 2D velocity vectors with smoothing."""
         if context.pose_2d is None or self._prev_pose_2d is None:
             return
 
-        # Calculate velocities
-        velocities = (context.pose_2d - self._prev_pose_2d) * self.scale
+        # Detect person switch: if mid-hip jumped too far, reset history
+        hip_now = context.pose_2d[H36Key.RHIP, :2]
+        hip_prev = self._prev_pose_2d[H36Key.RHIP, :2]
+        if np.linalg.norm(hip_now - hip_prev) > self.max_jump:
+            self._vel_history.clear()
+            return
+
+        # Raw velocity for this frame
+        raw_vel = (context.pose_2d - self._prev_pose_2d) * self.scale
+
+        # Smooth over a sliding window to eliminate jitter
+        self._vel_history.append(raw_vel)
+        if len(self._vel_history) > self.smooth_window:
+            self._vel_history.pop(0)
+        velocities = np.mean(self._vel_history, axis=0)
 
         # Get pixel coordinates
         if context.normalized:
@@ -134,25 +156,27 @@ class VelocityLayer(Layer):
 
         # Draw vectors
         for joint_idx in self.joints:
-            start = tuple(pose_px[joint_idx])
-            end_raw = pose_px[joint_idx] + vel_px[joint_idx]
+            vector = vel_px[joint_idx]
+            length = np.linalg.norm(vector)
+
+            # Skip tiny vectors (jitter noise)
+            if length < self.min_length:
+                continue
 
             # Clamp vector length
-            vector = end_raw - pose_px[joint_idx]
-            length = np.linalg.norm(vector)
             if length > self.max_length:
                 vector = vector / length * self.max_length
 
+            start = tuple(pose_px[joint_idx])
             end = tuple((pose_px[joint_idx] + vector).astype(int))
 
             # Get color
             if self.color_mode == "heatmap":
-                speed = length / self.max_length
+                speed = min(length / self.max_length, 1.0)
                 color = get_heatmap_color(speed, 0.0, 1.0, "jet")
             else:
                 color = (0, 255, 255)  # Cyan
 
-            # Draw arrow
             cv2.arrowedLine(
                 frame,
                 start,
