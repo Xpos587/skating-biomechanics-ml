@@ -166,7 +166,7 @@ class AnalysisPipeline:
     def analyze(  # noqa: PLR0912, PLR0915
         self,
         video_path: Path,
-        element_type: str,
+        element_type: str | None = None,
         manual_phases: ElementPhase | None = None,
         reference_path: Path | None = None,  # noqa: ARG002
     ) -> AnalysisReport:
@@ -175,6 +175,8 @@ class AnalysisPipeline:
         Args:
             video_path: Path to user's video file.
             element_type: Type of skating element (e.g., 'three_turn', 'waltz_jump').
+                If None, only pose extraction + visualization is performed
+                (no metrics, DTW, or recommendations).
             manual_phases: Optional manual phase boundaries (auto-detect if None).
             reference_path: Optional path to reference video (use store if None).
 
@@ -184,12 +186,14 @@ class AnalysisPipeline:
         Raises:
             ValueError: If video cannot be processed or element type not supported.
         """
-        # Validate element type
+        # Validate element type (only when specified)
         from .analysis import element_defs
 
-        element_def = element_defs.get_element_def(element_type)
-        if element_def is None:
-            raise ValueError(f"Unknown element type: {element_type}")
+        element_def = None
+        if element_type is not None:
+            element_def = element_defs.get_element_def(element_type)
+            if element_def is None:
+                raise ValueError(f"Unknown element type: {element_type}")
 
         # Get video metadata
         meta = get_video_meta(video_path)
@@ -246,64 +250,74 @@ class AnalysisPipeline:
             # 3D lifting is optional, don't fail if it errors
             pass
 
-        # Stage 4: Detect phases (or use manual)
-        if manual_phases is not None:
-            phases = manual_phases
-        else:
-            phase_result = self._get_phase_detector().detect_phases(
-                smoothed, meta.fps, element_type
-            )
-            phases = phase_result.phases
+        # Stage 4-7: Element-specific analysis (only when element_type provided)
+        if element_type is not None and element_def is not None:
+            # Stage 4: Detect phases (or use manual)
+            if manual_phases is not None:
+                phases = manual_phases
+            else:
+                phase_result = self._get_phase_detector().detect_phases(
+                    smoothed, meta.fps, element_type
+                )
+                phases = phase_result.phases
 
         # Stage 5: Compute biomechanics metrics
-        analyzer = self._get_analyzer_factory()(element_def)
-        metrics = analyzer.analyze(smoothed, phases, meta.fps)
+            analyzer = self._get_analyzer_factory()(element_def)
+            metrics = analyzer.analyze(smoothed, phases, meta.fps)
 
-        # Stage 6: Load reference and align (if available)
-        dtw_distance: float | None = None
-        if self._reference_store is not None:
-            reference = self._reference_store.get_best_match(element_type)
-            if reference is not None:
-                aligner = self._get_aligner()
-                dtw_distance = aligner.compute_distance(
-                    normalized[phases.start : phases.end],
-                    reference.poses[reference.phases.start : reference.phases.end],
-                )
-
-        # Stage 6.5: Physics calculations (3D pose + biomechanics)
-        physics_dict: dict = {}
-        if poses_3d is not None:
-            try:
-                from .analysis import PhysicsEngine  # noqa: PLC0415
-
-                physics_engine = PhysicsEngine(body_mass=60.0)
-
-                if phases.takeoff > 0 and phases.landing > 0:
-                    trajectory = physics_engine.fit_jump_trajectory(
-                        poses_3d, phases.takeoff, phases.landing
+            # Stage 6: Load reference and align (if available)
+            dtw_distance: float | None = None
+            if self._reference_store is not None:
+                reference = self._reference_store.get_best_match(element_type)
+                if reference is not None:
+                    aligner = self._get_aligner()
+                    dtw_distance = aligner.compute_distance(
+                        normalized[phases.start : phases.end],
+                        reference.poses[reference.phases.start : reference.phases.end],
                     )
-                    physics_dict["jump_height"] = trajectory["height"]
-                    physics_dict["flight_time"] = trajectory["flight_time"]
-                    physics_dict["takeoff_velocity"] = trajectory["takeoff_velocity"]
-                    physics_dict["fit_quality"] = trajectory["fit_quality"]
 
-                inertia = physics_engine.calculate_moment_of_inertia(
-                    poses_3d[phases.start : phases.end]
-                )
-                physics_dict["avg_inertia"] = float(np.mean(inertia))
-            except Exception:
-                pass
+            # Stage 6.5: Physics calculations (3D pose + biomechanics)
+            physics_dict: dict = {}
+            if poses_3d is not None:
+                try:
+                    from .analysis import PhysicsEngine  # noqa: PLC0415
 
-        # Stage 7: Generate recommendations
-        recommender = self._get_recommender()
-        recommendations = recommender.recommend(metrics, element_type)
+                    physics_engine = PhysicsEngine(body_mass=60.0)
 
-        # Stage 8: Compute overall score
-        overall_score = self._compute_overall_score(metrics)
+                    if phases.takeoff > 0 and phases.landing > 0:
+                        trajectory = physics_engine.fit_jump_trajectory(
+                            poses_3d, phases.takeoff, phases.landing
+                        )
+                        physics_dict["jump_height"] = trajectory["height"]
+                        physics_dict["flight_time"] = trajectory["flight_time"]
+                        physics_dict["takeoff_velocity"] = trajectory["takeoff_velocity"]
+                        physics_dict["fit_quality"] = trajectory["fit_quality"]
+
+                    inertia = physics_engine.calculate_moment_of_inertia(
+                        poses_3d[phases.start : phases.end]
+                    )
+                    physics_dict["avg_inertia"] = float(np.mean(inertia))
+                except Exception:
+                    pass
+
+            # Stage 7: Generate recommendations
+            recommender = self._get_recommender()
+            recommendations = recommender.recommend(metrics, element_type)
+
+            # Stage 8: Compute overall score
+            overall_score = self._compute_overall_score(metrics)
+        else:
+            # No element type specified — poses + visualization only
+            phases = None
+            metrics = []
+            recommendations = []
+            overall_score = None
+            dtw_distance = None
+            physics_dict = {}
 
         return AnalysisReport(
-            element_type=element_type,
-            phases=[phases],
+            element_type=element_type or "unknown",
+            phases=[phases] if phases else [],
             metrics=metrics,
             recommendations=recommendations,
             overall_score=overall_score,

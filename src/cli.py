@@ -99,12 +99,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         reestimate_camera=args.moving_camera,
     )
 
+    element_type = args.element
+
     print(f"Analyzing: {args.video}")
-    print(f"Element: {args.element}")
+    if element_type:
+        print(f"Element: {element_type}")
+    else:
+        print("Element: not specified (poses + visualization only)")
 
     try:
         # Run analysis
-        report = pipeline.analyze(args.video, args.element, reference_path=args.reference)
+        report = pipeline.analyze(args.video, element_type, reference_path=args.reference)
 
         # Format output
         if args.json:
@@ -307,6 +312,64 @@ def cmd_segment(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Execute compare command — dual-video comparison with overlays."""
+    if not args.athlete.exists():
+        print(f"Error: Athlete video not found: {args.athlete}")
+        return 1
+    if not args.reference.exists():
+        print(f"Error: Reference video not found: {args.reference}")
+        return 1
+
+    output_path = args.output or args.athlete.with_name(
+        f"{args.athlete.stem}_compare{args.athlete.suffix}"
+    )
+
+    from .visualization.comparison import ComparisonConfig, ComparisonMode, ComparisonRenderer
+
+    overlays = [o.strip() for o in args.overlays.split(",")]
+    valid = {"skeleton", "axis", "angles", "timer"}
+    overlays = [o for o in overlays if o in valid]
+    if not overlays:
+        overlays = ["skeleton"]
+
+    color_map = {
+        "magenta": (255, 0, 255),
+        "green": (0, 255, 0),
+        "cyan": (255, 255, 0),
+        "red": (0, 0, 255),
+        "yellow": (0, 255, 255),
+        "white": (255, 255, 255),
+    }
+
+    config = ComparisonConfig(
+        mode=ComparisonMode(args.mode),
+        overlays=overlays,
+        resize_width=args.resize,
+        fps=args.fps,
+        max_frames=args.max_frames,
+        device=args.device,
+        no_cache=args.no_cache,
+    )
+
+    renderer = ComparisonRenderer(config)
+    print(f"Athlete:    {args.athlete}")
+    print(f"Reference:  {args.reference}")
+    print(f"Overlays:   {overlays}")
+    print(f"Mode:       {args.mode}")
+    print()
+
+    try:
+        renderer.process(args.athlete, args.reference, output_path)
+        print(f"\nDone! Output: {output_path}")
+        return 0
+    except Exception as e:
+        print(f"Error: {e}")
+        if args.verbose if hasattr(args, "verbose") else False:
+            traceback.print_exc()
+        return 1
+
+
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -347,9 +410,9 @@ def main() -> None:
     analyze_parser.add_argument(
         "--element",
         type=str,
-        required=True,
+        default=None,
         choices=["three_turn", "waltz_jump", "toe_loop", "flip"],
-        help="Тип элемента",
+        help="Тип элемента (опционально — без него только позы + визуализация)",
     )
     analyze_parser.add_argument(
         "--reference",
@@ -496,6 +559,70 @@ def main() -> None:
         help="Подробный вывод ошибок",
     )
 
+    # compare command - dual-video comparison for training
+    compare_parser = subparsers.add_parser(
+        "compare",
+        help="Сравнить видео спортсмена с эталоном (Kinovea-style)",
+    )
+    compare_parser.add_argument(
+        "athlete",
+        type=Path,
+        help="Видео спортсмена",
+    )
+    compare_parser.add_argument(
+        "reference",
+        type=Path,
+        help="Эталонное видео (профессионал)",
+    )
+    compare_parser.add_argument(
+        "--overlays",
+        type=str,
+        default="skeleton,axis,angles,timer",
+        help="Оверлеи: skeleton,axis,angles,timer (default: all)",
+    )
+    compare_parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["side-by-side", "overlay"],
+        default="side-by-side",
+        help="Режим сравнения (default: side-by-side)",
+    )
+    compare_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Выходной файл (default: <athlete>_compare.mp4)",
+    )
+    compare_parser.add_argument(
+        "--resize",
+        type=int,
+        default=1280,
+        help="Ширина кадра (default: 1280)",
+    )
+    compare_parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Пересчитать позы (игнорировать кеш)",
+    )
+    compare_parser.add_argument(
+        "--fps",
+        type=float,
+        default=0.0,
+        help="FPS выхода (0 = авто)",
+    )
+    compare_parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=0,
+        help="Макс кадров (0 = все)",
+    )
+    compare_parser.add_argument(
+        "--device",
+        type=str,
+        default="0",
+        help="Устройство: '0' GPU, 'cpu' CPU (default: 0)",
+    )
+
     args = parser.parse_args()
 
     # Dispatch command
@@ -505,6 +632,8 @@ def main() -> None:
         sys.exit(cmd_build_ref(args))
     elif args.command == "segment":
         sys.exit(cmd_segment(args))
+    elif args.command == "compare":
+        sys.exit(cmd_compare(args))
     else:
         parser.print_help()
         sys.exit(1)

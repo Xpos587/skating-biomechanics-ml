@@ -98,6 +98,11 @@ def main() -> int:
         help="Device for YOLO inference: '0' for GPU, 'cpu' for CPU (default: 0)",
     )
     parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Force re-extraction of poses (ignore cached .npz)",
+    )
+    parser.add_argument(
         "--normalize",
         action="store_true",
         help="No-op: auto-normalization is now always enabled (kept for backward compat)",
@@ -161,6 +166,7 @@ def main() -> int:
         max_frames=args.max_frames,
         start_frame=args.start_frame,
         device=args.device,
+        no_cache=args.no_cache,
     )
 
     renderer = ComparisonRenderer(config)

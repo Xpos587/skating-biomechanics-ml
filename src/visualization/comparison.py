@@ -14,6 +14,7 @@ Optimizations:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import subprocess
 from dataclasses import dataclass, field
@@ -63,6 +64,7 @@ class ComparisonConfig:
     max_frames: int = 0
     start_frame: int = 0
     device: str = "0"
+    no_cache: bool = False
 
 
 def _build_layers(overlays: list[str]) -> list:
@@ -118,6 +120,55 @@ class ComparisonRenderer:
             )
             return H36MExtractor(conf_threshold=0.3, output_format="normalized", device="cpu")
 
+    # -- Pose caching --------------------------------------------------------
+
+    @staticmethod
+    def _pose_cache_path(video_path: Path) -> Path:
+        """Return cache path for extracted poses (next to video)."""
+        return video_path.with_name(f"{video_path.stem}_poses.npz")
+
+    def _save_pose_cache(
+        self, video_path: Path, poses: list[np.ndarray]
+    ) -> None:
+        """Save extracted poses to .npz cache."""
+        if not poses:
+            return
+        cache_path = self._pose_cache_path(video_path)
+        arr = np.stack(poses)
+        np.savez_compressed(cache_path, poses=arr)
+        print(f"  Cached {len(poses)} poses -> {cache_path}", flush=True)
+
+    def _load_pose_cache(
+        self, video_path: Path, expected_frames: int
+    ) -> list[np.ndarray] | None:
+        """Load poses from cache if valid.
+
+        Returns None if cache missing, stale, or no_cache=True.
+        """
+        if self.config.no_cache:
+            return None
+        cache_path = self._pose_cache_path(video_path)
+        if not cache_path.exists():
+            return None
+        try:
+            data = np.load(cache_path)
+            poses_arr = data["poses"]
+            # Allow ±10% frame tolerance (resize/normalization may differ)
+            if abs(len(poses_arr) - expected_frames) > max(expected_frames * 0.1, 5):
+                print(
+                    f"  Cache stale ({len(poses_arr)} vs {expected_frames} frames), re-extracting",
+                    flush=True,
+                )
+                return None
+            poses = [poses_arr[i] for i in range(len(poses_arr))]
+            print(
+                f"  Loaded {len(poses)} poses from cache: {cache_path}",
+                flush=True,
+            )
+            return poses
+        except Exception:
+            return None
+
     def process(  # noqa: PLR0912, PLR0915
         self,
         athlete_video: Path,
@@ -165,30 +216,38 @@ class ComparisonRenderer:
         )
         print(f"Processing up to {max_frames} frames...", flush=True)
 
-        # Stage 1: Extract poses (streaming, no frame storage)
+        # Stage 1: Extract poses (with caching)
         device = self.config.device
         extractor = self._create_extractor(device)
 
+        # Try cache first for athlete
         print("Extracting athlete poses...", flush=True)
-        athlete_poses = self._extract_poses_streaming(
-            athlete_video,
-            extractor,
-            target_w,
-            a_h,
-            max_frames=max_frames,
-            start_frame=self.config.start_frame,
-        )
+        athlete_poses = self._load_pose_cache(athlete_video, max_frames)
+        if athlete_poses is None:
+            athlete_poses = self._extract_poses_streaming(
+                athlete_video,
+                extractor,
+                target_w,
+                a_h,
+                max_frames=max_frames,
+                start_frame=self.config.start_frame,
+            )
+            self._save_pose_cache(athlete_video, athlete_poses)
         print(f"  Got {len(athlete_poses)} athlete poses", flush=True)
 
+        # Try cache first for reference
         print("Extracting reference poses...", flush=True)
-        ref_poses = self._extract_poses_streaming(
-            reference_video,
-            extractor,
-            target_w,
-            r_h,
-            max_frames=max_frames,
-            start_frame=self.config.start_frame,
-        )
+        ref_poses = self._load_pose_cache(reference_video, max_frames)
+        if ref_poses is None:
+            ref_poses = self._extract_poses_streaming(
+                reference_video,
+                extractor,
+                target_w,
+                r_h,
+                max_frames=max_frames,
+                start_frame=self.config.start_frame,
+            )
+            self._save_pose_cache(reference_video, ref_poses)
         print(f"  Got {len(ref_poses)} reference poses", flush=True)
 
         # Handle empty poses
