@@ -114,7 +114,7 @@ class PersonDetector:
             will handle tracking internally. Use this instead of detect_video()
             for single-person videos.
         """
-        from .video import extract_frames  # noqa: PLC0415
+        from .video import extract_frames
 
         for frame in extract_frames(video_path, max_frames=1):
             return self.detect_frame(frame)

@@ -22,7 +22,7 @@ def test_yolo_pose():
     # Test 1: Import
     print("\n[Test 1] Importing ultralytics...")
     try:
-        from ultralytics import YOLO  # noqa: PLC0415
+        from ultralytics import YOLO
 
         print("✓ ultralytics imported successfully")
     except ImportError as e:
@@ -41,7 +41,7 @@ def test_yolo_pose():
     # Test 3: Create dummy image
     print("\n[Test 3] Testing inference on dummy image...")
     try:
-        import numpy as np  # noqa: PLC0415
+        import numpy as np
 
         test_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
@@ -59,7 +59,7 @@ def test_yolo_pose():
             print(f"  Persons detected: {num_persons}")
     except Exception as e:
         print(f"✗ Inference failed: {e}")
-        import traceback  # noqa: PLC0415
+        import traceback
 
         traceback.print_exc()
         return False
@@ -96,8 +96,8 @@ def test_with_video(video_path: str):
         print(f"✗ Video file not found: {video_path}")
         return False
 
-    import cv2  # noqa: PLC0415
-    from ultralytics import YOLO  # noqa: PLC0415
+    import cv2
+    from ultralytics import YOLO
 
     # Load model
     model = YOLO("yolo26n-pose.pt")

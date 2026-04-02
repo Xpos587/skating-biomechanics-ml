@@ -137,7 +137,7 @@ def get_depth_colors_vectorized(
 # =============================================================================
 
 
-def get_heatmap_color(  # noqa: PLR0912
+def get_heatmap_color(
     value: float,
     vmin: float = 0.0,
     vmax: float = 1.0,

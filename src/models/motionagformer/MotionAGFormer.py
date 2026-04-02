@@ -420,9 +420,9 @@ class MotionAGFormer(nn.Module):
 
 
 def _test():
-    import warnings  # noqa: PLC0415
+    import warnings
 
-    from torchprofile import profile_macs  # noqa: PLC0415
+    from torchprofile import profile_macs
 
     warnings.filterwarnings("ignore")
     b, c, t, j = 1, 3, 27, 17
@@ -450,7 +450,7 @@ def _test():
     for _ in range(10):
         _ = model(random_x)
 
-    import time  # noqa: PLC0415
+    import time
 
     num_iterations = 100
     # Measure the inference time for 'num_iterations' iterations

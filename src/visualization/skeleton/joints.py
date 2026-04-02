@@ -93,9 +93,9 @@ def get_skeleton_color(
 
 
 def get_joint_color(
-    joint_idx: int,  # noqa: ARG001
+    joint_idx: int,
     joint_color: tuple[int, int, int] = color_joint,
-    **kwargs,  # noqa: ARG001
+    **kwargs,
 ) -> tuple[int, int, int]:
     """Get color for joint circle.
 

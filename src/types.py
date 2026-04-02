@@ -518,7 +518,7 @@ class AnalysisReport:
     blade_summary_right: dict[str, Any] = field(default_factory=dict)
     physics: dict[str, Any] = field(default_factory=dict)
 
-    def format(self) -> str:  # noqa: PLR0912
+    def format(self) -> str:
         """Format report as readable Russian text."""
         lines = [
             "=" * 60,

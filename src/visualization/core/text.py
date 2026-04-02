@@ -242,7 +242,7 @@ def draw_text_box(
     bg_color: tuple[int, int, int] = hud_bg_color,
     bg_alpha: float = hud_bg_alpha,
     padding: int = hud_padding,
-    corner_radius: int = 5,  # noqa: ARG001
+    corner_radius: int = 5,
 ) -> tuple[Frame, Position]:
     """Draw text with background box.
 

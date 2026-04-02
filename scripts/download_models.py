@@ -18,7 +18,7 @@ def main() -> int:
     # Download YOLO26n-Pose
     print("\n1. Downloading YOLO26n-Pose for 2D pose estimation...")
     try:
-        from ultralytics import YOLO  # noqa: PLC0415
+        from ultralytics import YOLO
 
         model = YOLO("yolo26n-pose.pt")
         print("   ✓ YOLO26n-Pose downloaded successfully")

@@ -528,8 +528,7 @@ class RTMPoseExtractor:
         track_ids: list[int] = []
 
         # For each detection, find closest existing track by biometric distance
-        known_poses: dict[int, np.ndarray] = {}
-        for tid in id_map:
+        for _tid in id_map:
             # Store the last known pose — but we don't have it here.
             # This is a simplified approach: for the first frame, assign new IDs.
             pass

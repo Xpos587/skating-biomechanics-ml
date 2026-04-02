@@ -198,7 +198,7 @@ class BladeEdgeDetector3D:
 
         return velocity * self.fps  # Convert to units/s
 
-    def _detect_motion_direction(self, velocity: NDArray, _foot: str) -> MotionDirection:  # noqa: PLR0911
+    def _detect_motion_direction(self, velocity: NDArray, _foot: str) -> MotionDirection:
         """Detect motion direction from velocity vector.
 
         Uses smoothed velocity from history.

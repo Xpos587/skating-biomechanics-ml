@@ -291,7 +291,7 @@ def cmd_segment(args: argparse.Namespace) -> int:
 
                 # Create phases if not available
                 if segment.phases is None:
-                    from .types import ElementPhase  # noqa: PLC0415
+                    from .types import ElementPhase
 
                     segment_phases = ElementPhase(
                         name=segment.element_type,
@@ -353,15 +353,6 @@ def cmd_compare(args: argparse.Namespace) -> int:
     overlays = [o for o in overlays if o in valid]
     if not overlays:
         overlays = ["skeleton"]
-
-    color_map = {
-        "magenta": (255, 0, 255),
-        "green": (0, 255, 0),
-        "cyan": (255, 255, 0),
-        "red": (0, 0, 255),
-        "yellow": (0, 255, 255),
-        "white": (255, 255, 255),
-    }
 
     config = ComparisonConfig(
         mode=ComparisonMode(args.mode),
@@ -445,12 +436,12 @@ def main() -> None:
         "--reference-dir",
         type=Path,
         default=None,
-        help="Директория с референсами (data/references)",  # noqa: RUF001
+        help="Директория с референсами (data/references)",
     )
     analyze_parser.add_argument(
         "--no-detect",
         action="store_true",
-        help="Пропустить детекцию (для видео с одним человеком)",  # noqa: RUF001
+        help="Пропустить детекцию (для видео с одним человеком)",
     )
     analyze_parser.add_argument(
         "--output",

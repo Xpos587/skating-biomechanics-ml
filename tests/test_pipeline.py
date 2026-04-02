@@ -49,7 +49,7 @@ class TestAnalysisPipeline:
         """Should format report correctly."""
         pipeline = AnalysisPipeline()
 
-        from src.types import AnalysisReport, MetricResult  # noqa: PLC0415
+        from src.types import AnalysisReport, MetricResult
 
         # Create mock report
         phases = ElementPhase(
@@ -91,7 +91,7 @@ class TestAnalysisPipeline:
         """Should compute overall score correctly."""
         pipeline = AnalysisPipeline()
 
-        from src.types import MetricResult  # noqa: PLC0415
+        from src.types import MetricResult
 
         # All good metrics
         metrics_good = [
@@ -182,7 +182,7 @@ class TestPipelineLazyLoading:
 
     def test_pose_2d_extractor_lazy_load(self):
         """Should lazy-load 2D pose extractor (H3.6M format)."""
-        from pathlib import Path  # noqa: PLC0415
+        from pathlib import Path
 
         # Skip if YOLO model not available
         model_file = Path("yolo26n-pose.pt")

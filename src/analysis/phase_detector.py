@@ -69,7 +69,7 @@ class PhaseDetector:
         """
         return self._detect_jump_phases_com_improved(poses, fps)
 
-    def _detect_jump_phases_com_improved(  # noqa: PLR0912, PLR0915
+    def _detect_jump_phases_com_improved(
         self, poses: NormalizedPose, fps: float
     ) -> PhaseDetectionResult:
         """Improved jump phase detection using CoM velocity with adaptive thresholds.

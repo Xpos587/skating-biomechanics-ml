@@ -669,7 +669,7 @@ class MemoryInducedTransformer(nn.Module):
 
 
 def _test():
-    import warnings  # noqa: PLC0415
+    import warnings
 
     warnings.filterwarnings("ignore")
     b, c, t, j = 1, 3, 243, 17

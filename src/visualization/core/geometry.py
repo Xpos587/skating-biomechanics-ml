@@ -250,7 +250,7 @@ def project_3d_to_normalized(
 def get_axis_endpoints(
     center: Position2D,
     length: int = 50,
-    origin_3d: Position3D | None = None,  # noqa: ARG001
+    origin_3d: Position3D | None = None,
 ) -> dict[str, tuple[Position2D, Position2D]]:
     """Get start and end points for spatial axes.
 
@@ -281,7 +281,7 @@ def get_axis_endpoints(
 def get_axis_endpoints_3d(
     origin: Position3D,
     length: float = 0.5,
-    camera_distance: float = default_camera_distance,  # noqa: ARG001
+    camera_distance: float = default_camera_distance,
 ) -> dict[str, tuple[Position3D, Position3D]]:
     """Get 3D endpoints for spatial axes.
 

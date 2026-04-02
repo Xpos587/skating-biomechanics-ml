@@ -152,7 +152,7 @@ class TestMediumGapExtrapolation:
         mask = ~np.isnan(poses[:, 0, 0])
 
         filler = GapFiller()
-        filled, report = filler.fill_gaps(poses, mask)
+        filled, _report = filler.fill_gaps(poses, mask)
 
         # Extrapolated frames should continue the velocity trend
         # Last known pose was at x=1.9 with velocity ~0.1/frame
@@ -240,7 +240,7 @@ class TestLongGapSplits:
 
         filler = GapFiller()
         with caplog.at_level(logging.WARNING, logger="src.utils.gap_filling"):
-            filled, report = filler.fill_gaps(poses, mask)
+            _filled, _report = filler.fill_gaps(poses, mask)
 
         assert "Long gap" in caplog.text
 
@@ -352,7 +352,6 @@ class TestConsecutiveGaps:
 
     def test_multiple_short_gaps(self):
         """Three separate short gaps should all be filled with linear."""
-        n = 50
         poses, mask = _make_poses(50, [(5, 8), (20, 23), (40, 43)])
 
         filler = GapFiller()
@@ -365,7 +364,6 @@ class TestConsecutiveGaps:
 
     def test_mixed_gap_sizes(self):
         """Mix of short and medium gaps."""
-        n = 80
         poses, mask = _make_poses(80, [(5, 9), (25, 40), (60, 64)])
 
         filler = GapFiller()
@@ -422,7 +420,7 @@ class TestEdgeCases:
         mask = np.zeros(n, dtype=np.bool_)
 
         filler = GapFiller()
-        filled, report = filler.fill_gaps(poses, mask)
+        _filled, report = filler.fill_gaps(poses, mask)
 
         # Entire gap is long (>30 threshold check: 20 < 30, so it's "medium")
         # Actually 20 frames is medium, so extrapolation is attempted but

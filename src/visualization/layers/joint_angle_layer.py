@@ -204,7 +204,7 @@ class JointAngleLayer(Layer):
                 continue
 
             color = spec.get_color_for_angle(angle)
-            vx, vy = int(pv[0]), int(pv[1])
+            _vx, _vy = int(pv[0]), int(pv[1])
 
             # Draw subtle angle arc (thin line, no label)
             self._draw_arc(frame, pv, pa, pc, spec.arc_radius, color)

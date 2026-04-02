@@ -376,7 +376,7 @@ def draw_blade_indicator_hud(
 
 def _get_blade_color(blade_type) -> tuple[int, int, int]:
     """Get color for blade type."""
-    from src.types import BladeType  # noqa: PLC0415
+    from src.types import BladeType
 
     color_map = {
         BladeType.INSIDE: blade_inside_color,
@@ -407,7 +407,7 @@ def _draw_direction_arrow(
         thickness: Line thickness.
         color: BGR color.
     """
-    import math  # noqa: PLC0415
+    import math
 
     # Convert angle to radians
     angle_rad = math.radians(angle)

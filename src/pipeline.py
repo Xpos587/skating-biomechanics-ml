@@ -157,7 +157,7 @@ class AnalysisPipeline:
 
         return compensated, frame_offset
 
-    def analyze(  # noqa: PLR0912, PLR0915
+    def analyze(
         self,
         video_path: Path,
         element_type: str | None = None,
@@ -218,7 +218,7 @@ class AnalysisPipeline:
             # Use MotionAGFormer for 3D lifting (H3.6M format)
             poses_3d = self._get_pose_3d_extractor().extract_sequence(smoothed)
 
-            from .detection.blade_edge_detector_3d import BladeEdgeDetector3D  # noqa: PLC0415
+            from .detection.blade_edge_detector_3d import BladeEdgeDetector3D
 
             # Detect blade edge states using 3D poses
             blade_detector_3d = BladeEdgeDetector3D(fps=meta.fps)
@@ -274,7 +274,7 @@ class AnalysisPipeline:
             physics_dict: dict = {}
             if poses_3d is not None:
                 try:
-                    from .analysis import PhysicsEngine  # noqa: PLC0415
+                    from .analysis import PhysicsEngine
 
                     physics_engine = PhysicsEngine(body_mass=60.0)
 
@@ -333,7 +333,7 @@ class AnalysisPipeline:
         Returns:
             SegmentationResult with detected elements.
         """
-        from .analysis import element_segmenter  # noqa: PLC0415
+        from .analysis import element_segmenter
 
         ElementSegmenter = element_segmenter.ElementSegmenter
 
@@ -362,7 +362,7 @@ class AnalysisPipeline:
     def _get_detector(self) -> "PersonDetector":  # type: ignore[valid-type]
         """Lazy-load person detector."""
         if self._detector is None:
-            from .detection import person_detector  # noqa: PLC0415
+            from .detection import person_detector
 
             PersonDetector = person_detector.PersonDetector
 
@@ -373,13 +373,13 @@ class AnalysisPipeline:
         """Lazy-load 2D pose extractor based on configured backend."""
         if self._pose_2d_extractor is None:
             if self._pose_backend == "rtmlib":
-                from .pose_estimation.rtmlib_extractor import RTMPoseExtractor  # noqa: PLC0415
+                from .pose_estimation.rtmlib_extractor import RTMPoseExtractor
 
                 self._pose_2d_extractor = RTMPoseExtractor(
                     output_format="normalized",
                 )
             else:
-                from .pose_estimation import H36MExtractor  # noqa: PLC0415
+                from .pose_estimation import H36MExtractor
 
                 self._pose_2d_extractor = H36MExtractor(
                     output_format="normalized",
@@ -389,7 +389,7 @@ class AnalysisPipeline:
     def _get_pose_3d_extractor(self) -> "AthletePose3DExtractor":  # type: ignore[valid-type]
         """Lazy-load 3D pose lifter (MotionAGFormer)."""
         if self._pose_3d_extractor is None:
-            from .pose_3d import AthletePose3DExtractor  # noqa: PLC0415
+            from .pose_3d import AthletePose3DExtractor
 
             model_path = "data/models/motionagformer-s-ap3d.pth.tr"
             self._pose_3d_extractor = AthletePose3DExtractor(
@@ -401,7 +401,7 @@ class AnalysisPipeline:
     def _get_normalizer(self) -> "PoseNormalizer":  # type: ignore[valid-type]
         """Lazy-load pose normalizer."""
         if self._normalizer is None:
-            from .pose_estimation import normalizer  # noqa: PLC0415
+            from .pose_estimation import normalizer
 
             PoseNormalizer = normalizer.PoseNormalizer
 
@@ -411,13 +411,13 @@ class AnalysisPipeline:
     def _get_smoother(self, fps: float = 30.0) -> "PoseSmoother":  # type: ignore[valid-type]
         """Lazy-load pose smoother with One-Euro Filter."""
         if not self._enable_smoothing:
-            from .utils.smoothing import OneEuroFilterConfig, PoseSmoother  # noqa: PLC0415
+            from .utils.smoothing import OneEuroFilterConfig, PoseSmoother
 
             config = OneEuroFilterConfig(min_cutoff=100.0, beta=0.0, freq=fps)
             return PoseSmoother(config=config, freq=fps)
 
         if self._smoother is None:
-            from .utils.smoothing import (  # noqa: PLC0415
+            from .utils.smoothing import (
                 PoseSmoother,
                 get_skating_optimized_config,
             )
@@ -429,7 +429,7 @@ class AnalysisPipeline:
     def _get_phase_detector(self) -> "PhaseDetector":  # type: ignore[valid-type]
         """Lazy-load phase detector."""
         if self._phase_detector is None:
-            from .analysis import phase_detector  # noqa: PLC0415
+            from .analysis import phase_detector
 
             PhaseDetector = phase_detector.PhaseDetector
 
@@ -439,7 +439,7 @@ class AnalysisPipeline:
     def _get_analyzer_factory(self) -> type:
         """Get analyzer factory (returns BiomechanicsAnalyzer class)."""
         if self._analyzer_factory is None:
-            from .analysis import metrics  # noqa: PLC0415
+            from .analysis import metrics
 
             BiomechanicsAnalyzer = metrics.BiomechanicsAnalyzer
 
@@ -449,7 +449,7 @@ class AnalysisPipeline:
     def _get_aligner(self) -> "MotionAligner | MotionDTWAligner":  # type: ignore[valid-type]
         """Lazy-load motion aligner (using phase-aware MotionDTW)."""
         if self._aligner is None:
-            from .alignment import motion_dtw  # noqa: PLC0415
+            from .alignment import motion_dtw
 
             MotionDTWAligner = motion_dtw.MotionDTWAligner
 
@@ -459,7 +459,7 @@ class AnalysisPipeline:
     def _get_recommender(self) -> "Recommender":  # type: ignore[valid-type]
         """Lazy-load recommender."""
         if self._recommender is None:
-            from .analysis import recommender  # noqa: PLC0415
+            from .analysis import recommender
 
             Recommender = recommender.Recommender
 

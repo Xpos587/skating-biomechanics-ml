@@ -95,7 +95,7 @@ class PhysicsEngine:
         Returns:
             com_trajectory: (N, 3) array of CoM positions
         """
-        from ..pose_estimation import H36Key  # noqa: PLC0415
+        from ..pose_estimation import H36Key
 
         n_frames = poses_3d.shape[0]
         com_trajectory = np.zeros((n_frames, 3))
@@ -175,7 +175,7 @@ class PhysicsEngine:
         Returns:
             inertia: (N,) array of moment of inertia values (kg·m²)
         """
-        from ..pose_estimation import H36Key  # noqa: PLC0415
+        from ..pose_estimation import H36Key
 
         n_frames = poses_3d.shape[0]
         inertia = np.zeros(n_frames)

@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 
 
-def main():  # noqa: PLR0915
+def main():
     parser = argparse.ArgumentParser(description="Visualize element segmentation on video")
     parser.add_argument("video", type=Path, help="Path to video file")
     parser.add_argument("--segments", type=Path, help="Path to segmentation JSON")
@@ -22,7 +22,7 @@ def main():  # noqa: PLR0915
 
     # Default segments for video1 if no JSON provided
     if args.segments and args.segments.exists():
-        import json  # noqa: PLC0415
+        import json
 
         with args.segments.open() as f:
             data = json.load(f)

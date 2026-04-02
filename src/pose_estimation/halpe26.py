@@ -107,10 +107,7 @@ def halpe26_to_h36m(halpe26_pose: np.ndarray) -> np.ndarray:
     # HEAD: midpoint of eyes
     left_eye = halpe26_pose[HALPE26Key.LEFT_EYE]
     right_eye = halpe26_pose[HALPE26Key.RIGHT_EYE]
-    if has_confidence:
-        eye_conf_ok = left_eye[2] >= 0.3 and right_eye[2] >= 0.3
-    else:
-        eye_conf_ok = True
+    eye_conf_ok = left_eye[2] >= 0.3 and right_eye[2] >= 0.3 if has_confidence else True
 
     if eye_conf_ok:
         head_pos = (left_eye[:2] + right_eye[:2]) / 2

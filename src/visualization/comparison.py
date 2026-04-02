@@ -147,7 +147,7 @@ class ComparisonRenderer:
         except Exception:
             return None
 
-    def process(  # noqa: PLR0912, PLR0915
+    def process(
         self,
         athlete_video: Path,
         reference_video: Path,

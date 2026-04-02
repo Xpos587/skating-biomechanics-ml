@@ -73,7 +73,7 @@ class HUDLayout:
     columns: int = 2
     rows: int = 3
 
-    def get_position(  # noqa: PLR0911
+    def get_position(
         self,
         pos: Position | str,
         frame_width: int,
@@ -299,7 +299,7 @@ def calculate_text_position(
         (1850, 32)  # Text position
     """
     # Measure text size
-    import cv2  # noqa: PLC0415
+    import cv2
 
     (text_width, text_height), _baseline = cv2.getTextSize(
         text,

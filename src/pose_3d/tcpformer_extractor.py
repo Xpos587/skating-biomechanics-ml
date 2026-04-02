@@ -62,15 +62,15 @@ class TCPFormerExtractor:
             raise FileNotFoundError(f"Model not found: {self.model_path}")
 
         # Import TCPFormer from our models directory
-        import sys  # noqa: PLC0415
-        from pathlib import Path  # noqa: PLC0415
+        import sys
+        from pathlib import Path
 
         # Add models directory to path
         models_dir = Path(__file__).parent.parent / "models"
         if str(models_dir) not in sys.path:
             sys.path.insert(0, str(models_dir))
 
-        from tcpformer import MemoryInducedTransformer  # noqa: PLC0415
+        from tcpformer import MemoryInducedTransformer
 
         # Load checkpoint
         checkpoint = torch.load(

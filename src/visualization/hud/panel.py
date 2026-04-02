@@ -96,7 +96,7 @@ class HUDPanel:
     max_width: int = 400
     render_fn: PanelRenderer | None = None
 
-    def get_position(  # noqa: PLR0911
+    def get_position(
         self,
         frame_width: int,
         frame_height: int,

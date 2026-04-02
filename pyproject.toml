@@ -63,7 +63,12 @@ select = [
 ignore = [
     "E501",   # line too long (handled by formatter)
     "PLR0913", # too many arguments
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLR0911", # too many return statements
     "PLR2004", # magic value comparison
+    "PLC0415", # import not at top-level (lazy imports for heavy deps)
+    "SIM108", # ternary instead of if-else
 ]
 unfixable = [
     "ERA",    # don't auto-remove commented out code
@@ -73,10 +78,13 @@ unfixable = [
 known-first-party = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG", "PLR2004"]
+"tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117"]
 "__init__.py" = ["F401"]  # unused imports
-"scripts/visualize_with_skeleton.py" = ["PLR0912", "PLR0915", "PLC0415"]
+"scripts/visualize_with_skeleton.py" = ["ARG001"]
 "src/analysis/rules/*.py" = ["RUF001"]  # Russian text strings with Cyrillic chars
+"src/visualization/**/*.py" = ["RUF001"]  # Russian text in visualization
+"src/cli.py" = ["RUF001"]  # Russian help text
+"src/**/*.py" = ["ARG001", "F841"]  # unused args in callback-heavy code
 
 [tool.mypy]
 python_version = "3.11"

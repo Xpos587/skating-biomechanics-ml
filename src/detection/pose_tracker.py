@@ -293,7 +293,7 @@ class PoseTracker:
         Returns:
             (N, 2) mid-hip positions.
         """
-        from ..types import H36Key  # noqa: PLC0415
+        from ..types import H36Key
 
         # H3.6M: LHIP=4, RHIP=1
         left_hip = poses[:, H36Key.LHIP, :]
@@ -372,7 +372,7 @@ class PoseTracker:
         Returns:
             Dictionary of anatomical ratios.
         """
-        from ..types import H36Key  # noqa: PLC0415
+        from ..types import H36Key
 
         # H3.6M 17kp indices
         # Shoulder: 11 (left), 14 (right)

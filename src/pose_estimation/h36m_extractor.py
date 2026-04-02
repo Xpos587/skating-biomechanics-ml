@@ -815,7 +815,7 @@ def blazepose_to_h36m(_blazepose_pose: np.ndarray) -> np.ndarray:
     Raises:
         ValueError: If input shape is invalid
     """
-    import warnings  # noqa: PLC0415
+    import warnings
 
     warnings.warn(
         "blazepose_to_h36m is deprecated and will be removed in a future version. "

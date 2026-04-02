@@ -24,8 +24,8 @@ class CorrectiveLens:
 
         Falls back to Biomechanics3DEstimator if no model provided.
         """
-        from .athletepose_extractor import AthletePose3DExtractor  # noqa: PLC0415
-        from .biomechanics_estimator import Biomechanics3DEstimator  # noqa: PLC0415
+        from .athletepose_extractor import AthletePose3DExtractor
+        from .biomechanics_estimator import Biomechanics3DEstimator
 
         if model_path is not None and Path(model_path).exists():
             self.extractor: AthletePose3DExtractor | Biomechanics3DEstimator = (
@@ -58,12 +58,12 @@ class CorrectiveLens:
             poses_3d = self.extractor.estimate_3d(poses_2d_norm)  # type: ignore[union-attr]
 
         # Step 2: Apply kinematic constraints
-        from .kinematic_constraints import apply_kinematic_constraints  # noqa: PLC0415
+        from .kinematic_constraints import apply_kinematic_constraints
 
         poses_3d = apply_kinematic_constraints(poses_3d, fps, confidences)
 
         # Step 3: Anchor-based projection back to 2D
-        from .anchor_projection import anchor_project, blend_by_confidence  # noqa: PLC0415
+        from .anchor_projection import anchor_project, blend_by_confidence
 
         poses_2d_corrected = anchor_project(poses_3d, poses_2d_norm, width, height)
 

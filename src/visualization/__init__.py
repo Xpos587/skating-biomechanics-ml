@@ -92,10 +92,10 @@ from src.visualization.skeleton import (
 __all__ = [
     "BladeLayer",
     "HUDLayer",
-    "JointAngleLayer",
     # HUD
     "HUDLayout",
     "HUDPanel",
+    "JointAngleLayer",
     # Layers
     "Layer",
     "LayerConfig",
