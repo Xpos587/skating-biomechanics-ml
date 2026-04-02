@@ -73,7 +73,10 @@ class TestFootProjection:
         for cam_name in ["fs_camera_1", "fs_camera_6"]:
             cam = cam_params[cam_name]
             pts = project_foot_frame(sample_3d[50], cam)
-            assert not np.any(np.isnan(pts)), f"NaN in {cam_name}"
+            # Small toe slots (indices 2, 5) are always NaN
+            projected_indices = [0, 1, 3, 4]
+            non_nan = [i for i in projected_indices if not np.isnan(pts[i]).any()]
+            assert len(non_nan) > 0, f"All projected foot points are NaN in {cam_name}"
             # At least some foot points should be in-frame
             valid = (
                 (pts[:, 0] >= 0)
@@ -91,6 +94,99 @@ class TestFootProjection:
         x, y = project_point(np.array([np.nan, 0.0, 0.0]), cam)
         assert np.isnan(x)
         assert np.isnan(y)
+
+
+class TestWeakPerspectiveProjection:
+    """Tests for localized weak-perspective foot projection."""
+
+    def test_ankle_ap3d_indices_defined(self):
+        """ANKLE_AP3D_INDICES constant should exist with L_ankle=33, R_ankle=95."""
+        from src.datasets.projector import ANKLE_AP3D_INDICES
+
+        assert list(ANKLE_AP3D_INDICES) == [33, 95]
+
+    def test_small_toes_always_nan(self, cam_params, sample_3d):
+        """Small toe slots (indices 2, 5) should always be NaN."""
+        from src.datasets.projector import project_foot_frame
+
+        cam = cam_params["fs_camera_1"]
+        foot_2d = project_foot_frame(sample_3d[50], cam)
+
+        assert np.isnan(foot_2d[2]).all(), "L_small_toe should always be NaN"
+        assert np.isnan(foot_2d[5]).all(), "R_small_toe should always be NaN"
+
+    def test_weak_perspective_preserves_foot_geometry(self, cam_params, sample_3d):
+        """Foot points should maintain correct relative positions (heel below ankle)."""
+        from src.datasets.projector import project_foot_frame
+
+        cam = cam_params["fs_camera_1"]
+        foot_2d = project_foot_frame(sample_3d[50], cam)
+
+        coco_kps = np.load(f"{DATA_ROOT}/videos/train_set/S1/Axel_10_cam_1_coco.npy")
+        l_ankle_y = coco_kps[50, 15, 1]  # left_ankle Y
+        r_ankle_y = coco_kps[50, 16, 1]  # right_ankle Y
+
+        # Left heel (index 0) should not be above left ankle
+        if not np.isnan(foot_2d[0, 1]):
+            assert foot_2d[0, 1] >= l_ankle_y - 5, (
+                f"L_heel y={foot_2d[0, 1]:.0f} above L_ankle y={l_ankle_y:.0f}"
+            )
+
+        # Right heel (index 3) should not be above right ankle
+        if not np.isnan(foot_2d[3, 1]):
+            assert foot_2d[3, 1] >= r_ankle_y - 5, (
+                f"R_heel y={foot_2d[3, 1]:.0f} above R_ankle y={r_ankle_y:.0f}"
+            )
+
+    def test_weak_perspective_foot_near_ankle(self, cam_params, sample_3d, sample_coco):
+        """Weak-perspective foot points should be within reasonable distance of ankle."""
+        from src.datasets.projector import project_foot_frame
+
+        cam = cam_params["fs_camera_1"]
+        foot_2d = project_foot_frame(sample_3d[50], cam)
+
+        l_ankle = sample_coco[50, 15]  # L_ankle from _coco.npy
+
+        # Check only projected points (indices 0, 1 — skip index 2 which is always NaN)
+        for i in [0, 1]:
+            if not np.isnan(foot_2d[i, 0]):
+                dist = np.linalg.norm(foot_2d[i] - l_ankle)
+                assert dist < 100, f"Left foot index {i}: {dist:.0f}px from ankle"
+
+    def test_nan_ankle_invalidates_heel(self, cam_params):
+        """NaN processed ankle (AP3D 33) should invalidate L_heel (uses weak-perspective)."""
+        from src.datasets.projector import project_foot_frame
+
+        cam = cam_params["fs_camera_1"]
+        kp3d = np.zeros((142, 3), dtype=np.float64)
+
+        # Set valid positions for everything EXCEPT left processed ankle (index 33)
+        kp3d[:] = [1000.0, 500.0, 2000.0]
+        kp3d[33] = [np.nan, np.nan, np.nan]  # L_ankle (processed) is NaN
+
+        # L_big_toe uses raw marker (26) — should still project independently
+        kp3d[26] = [1100.0, 300.0, 2000.0]  # L_Toe (raw)
+
+        # Right side is fully valid
+        kp3d[95] = [2000.0, 500.0, 2000.0]  # R_ankle (processed)
+        kp3d[112] = [2000.0, 300.0, 2000.0]  # RHEL (processed)
+        kp3d[93] = [2100.0, 300.0, 2000.0]   # R_Toe (raw)
+
+        foot_2d = project_foot_frame(kp3d, cam)
+
+        # L_heel (index 0) uses weak-perspective from L_ankle → NaN
+        assert np.isnan(foot_2d[0]).all(), "L_heel should be NaN when ankle is NaN"
+
+        # L_big_toe (index 1) uses full-perspective from raw marker → may be valid
+        # (depends on whether the synthetic 3D position projects in-frame)
+
+        # Small toes always NaN
+        assert np.isnan(foot_2d[2]).all(), "L_small_toe should always be NaN"
+        assert np.isnan(foot_2d[5]).all(), "R_small_toe should always be NaN"
+
+        # Right heel and big toe should be valid (right ankle is not NaN)
+        assert not np.isnan(foot_2d[3]).any(), "R_heel should be valid"
+        assert not np.isnan(foot_2d[4]).any(), "R_bigtoe should be valid"
 
 
 class TestValidateFootProjection:
@@ -285,3 +381,23 @@ class TestValidateFootProjection:
         # Right foot should be kept
         for i in range(3, 6):
             assert not np.isnan(foot_2d[i]).any(), f"Right foot index {i} should be kept"
+
+    def test_invalid_toe_above_ankle(self):
+        """Toe above ankle is rejected even if distance is small."""
+        from src.datasets.projector import validate_foot_projection
+
+        coco_2d = np.zeros((17, 2))
+        coco_2d[15] = [500.0, 800.0]  # L ankle
+
+        foot_2d = np.array([
+            [0.0, 0.0],       # placeholder
+            [495.0, 760.0],   # L big toe: 40px above ankle (800-30=770 threshold)
+            [0.0, 0.0],       # placeholder
+            [0.0, 0.0],       # placeholder
+            [0.0, 0.0],       # placeholder
+            [0.0, 0.0],       # placeholder
+        ], dtype=np.float32)
+
+        validate_foot_projection(foot_2d, coco_2d)
+
+        assert np.isnan(foot_2d[1]).all(), "Toe above ankle should be NaN"

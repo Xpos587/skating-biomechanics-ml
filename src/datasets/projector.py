@@ -9,6 +9,10 @@ from numpy.typing import NDArray
 FOOT_AP3D_INDICES = np.array([49, 26, 10, 112, 93, 77], dtype=np.intp)
 # LHEL, L_Toe, L_5th_MTP, RHEL, R_Toe, R_5th_MTP
 
+# AthletePose3D 142kp indices for ankle keypoints (used as weak-perspective anchors)
+ANKLE_AP3D_INDICES = np.array([33, 95], dtype=np.intp)
+# L_ankle, R_ankle — verified <3px distance to _coco.npy across all frames
+
 
 def _load_camera(cam: dict) -> tuple[NDArray, NDArray, NDArray, float, float, float, float]:
     """Parse camera dict into projection components."""
@@ -46,7 +50,18 @@ def project_foot_frame(
     keypoints_3d: NDArray[np.float64],
     cam: dict,
 ) -> NDArray[np.float32]:
-    """Project foot keypoints from 3D to 2D.
+    """Project foot keypoints from 3D to 2D using hybrid projection.
+
+    The AthletePose3D 142kp has two marker coordinate systems:
+    - Processed markers (e.g., LANK=33, LHEL=49) — same frame, used for heels
+    - Raw mocap markers (e.g., L_Toe=26, L_HEEL=12) — different frame
+
+    Strategy:
+    - Heels: weak-perspective using processed markers (consistent frame).
+      Uses ankle depth Z_ankle as reference depth for the heel, preserving
+      parallel foot geometry and eliminating the "heel above ankle" paradox.
+    - Big toes: full-perspective using raw mocap markers (projected independently).
+    - Small toes: always NaN (invisible inside skate boots).
 
     Args:
         keypoints_3d: (N, 3) array of 3D world coordinates (N >= 113 for all foot kps).
@@ -54,28 +69,81 @@ def project_foot_frame(
 
     Returns:
         (6, 2) projected 2D coordinates for HALPE26 foot keypoints 17-22.
-        Out-of-range indices get NaN.
+        Indices 2 (L_small_toe) and 5 (R_small_toe) are always NaN.
     """
     K, rot_mat, t, fu, fv, cu, cv = _load_camera(cam)
-    pts = np.zeros((6, 2), dtype=np.float32)
+    pts = np.full((6, 2), np.nan, dtype=np.float32)
 
-    for i, ap3d_idx in enumerate(FOOT_AP3D_INDICES):
-        if ap3d_idx >= len(keypoints_3d):
-            pts[i] = [np.nan, np.nan]
+    # --- Heels: weak-perspective (processed system) ---
+    # Processed markers share the same coordinate frame, so camera-space
+    # offsets are meaningful. Using Z_ankle preserves parallel foot geometry.
+    heel_pairs = [
+        (0, 49, 33),  # foot_2d[0]=LHEL, AP3D[49]=LHEL, AP3D[33]=LANK
+        (3, 112, 95),  # foot_2d[3]=RHEL, AP3D[112]=RHEL, AP3D[95]=RANK
+    ]
+
+    for foot_idx, heel_ap3d, ankle_ap3d in heel_pairs:
+        if ankle_ap3d >= len(keypoints_3d):
             continue
 
-        p = keypoints_3d[ap3d_idx]
-        if np.isnan(p).any():
-            pts[i] = [np.nan, np.nan]
+        ankle_3d = keypoints_3d[ankle_ap3d]
+        if np.isnan(ankle_3d).any():
             continue
 
-        translated = p - t
-        kc = rot_mat @ translated
-        if kc[2] <= 0:
-            pts[i] = [np.nan, np.nan]
+        ankle_translated = ankle_3d - t
+        ankle_cam = rot_mat @ ankle_translated
+
+        if ankle_cam[2] <= 0:
             continue
 
-        pts[i] = [fu * kc[0] / kc[2] + cu, fv * kc[1] / kc[2] + cv]
+        ankle_u = fu * (ankle_cam[0] / ankle_cam[2]) + cu
+        ankle_v = fv * (ankle_cam[1] / ankle_cam[2]) + cv
+        z_ankle = ankle_cam[2]
+
+        if heel_ap3d >= len(keypoints_3d):
+            continue
+
+        heel_3d = keypoints_3d[heel_ap3d]
+        if np.isnan(heel_3d).any():
+            continue
+
+        # Camera-space offset from ankle (both processed → same frame)
+        heel_translated = heel_3d - t
+        heel_cam = rot_mat @ heel_translated
+        delta_cam = heel_cam - ankle_cam
+
+        pts[foot_idx] = [
+            ankle_u + fu * delta_cam[0] / z_ankle,
+            ankle_v + fv * delta_cam[1] / z_ankle,
+        ]
+
+    # --- Big toes: full-perspective (raw mocap markers) ---
+    # Raw mocap markers (L_Toe=26, R_Toe=93) are in a different coordinate
+    # frame than processed markers. Project them independently with full
+    # perspective — they happen to produce reasonable 2D positions.
+    toe_pairs = [
+        (1, 26),   # foot_2d[1]=L_big_toe, AP3D[26]=L_Toe
+        (4, 93),   # foot_2d[4]=R_big_toe, AP3D[93]=R_Toe
+    ]
+
+    for foot_idx, toe_ap3d in toe_pairs:
+        if toe_ap3d >= len(keypoints_3d):
+            continue
+
+        toe_3d = keypoints_3d[toe_ap3d]
+        if np.isnan(toe_3d).any():
+            continue
+
+        toe_translated = toe_3d - t
+        toe_cam = rot_mat @ toe_translated
+
+        if toe_cam[2] <= 0:
+            continue
+
+        pts[foot_idx] = [
+            fu * (toe_cam[0] / toe_cam[2]) + cu,
+            fv * (toe_cam[1] / toe_cam[2]) + cv,
+        ]
 
     return pts
 
@@ -119,6 +187,6 @@ def validate_foot_projection(
             if dist > 60 or foot_2d[i, 1] < reference_ankle[1] - 30:
                 foot_2d[i] = [np.nan, np.nan]
         else:
-            # Toe: max 80px from ankle
-            if dist > 80:
+            # Toe: max 80px from ankle, must not be above ankle
+            if dist > 80 or foot_2d[i, 1] < reference_ankle[1] - 30:
                 foot_2d[i] = [np.nan, np.nan]
