@@ -30,6 +30,65 @@ Position = tuple[int, int]  # (x, y) pixel coordinates
 
 
 # =============================================================================
+# OUTLINED TEXT RENDERING (Sports2D-style)
+# =============================================================================
+
+
+def draw_text_outlined(
+    frame: Frame,
+    text: str,
+    position: Position,
+    font_scale: float = font_scale,
+    thickness: int = font_thickness,
+    color: tuple[int, int, int] = font_color,
+) -> Frame:
+    """Draw text with black outline for readability (Sports2D technique).
+
+    Renders text twice: first with black outline (thicker), then colored fill.
+    This ensures text is readable on any background.
+
+    Args:
+        frame: OpenCV image (H, W, 3) BGR format.
+        text: ASCII text string.
+        position: (x, y) bottom-left position (cv2 convention).
+        font_scale: Font scale factor.
+        thickness: Text stroke thickness.
+        color: Text fill color (BGR).
+
+    Returns:
+        Frame with text rendered (modified in place).
+    """
+    x, y = position
+    black = (0, 0, 0)
+
+    # Black outline (thicker)
+    cv2.putText(
+        frame,
+        text,
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        black,
+        thickness + 1,
+        cv2.LINE_AA,
+    )
+
+    # Colored fill
+    cv2.putText(
+        frame,
+        text,
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        color,
+        thickness,
+        cv2.LINE_AA,
+    )
+
+    return frame
+
+
+# =============================================================================
 # FONT CACHE
 # =============================================================================
 
