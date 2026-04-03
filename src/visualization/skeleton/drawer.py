@@ -53,6 +53,7 @@ def draw_skeleton(
     joint_radius: int = 4,
     normalized: bool | None = None,
     confidences: np.ndarray | None = None,
+    foot_keypoints: np.ndarray | None = None,
 ) -> Frame:
     """Draw 2D skeleton overlay on frame.
 
@@ -137,6 +138,10 @@ def draw_skeleton(
 
         if radius > 0:
             cv2.circle(frame, pt, radius, color, -1, cv2.LINE_AA)
+
+    # Draw foot keypoints (HALPE26: heel + big toe + small toe)
+    if foot_keypoints is not None:
+        _draw_foot_keypoints(frame, foot_keypoints, width, height, confidence_threshold)
 
     return frame
 
@@ -398,6 +403,67 @@ def draw_skeleton_3d_pip(
 _SPORTS2D_LEFT_COLOR: tuple[int, int, int] = (0, 255, 0)     # Green
 _SPORTS2D_RIGHT_COLOR: tuple[int, int, int] = (0, 128, 255)   # Orange
 _SPORTS2D_CENTER_COLOR: tuple[int, int, int] = (255, 153, 51)  # Blue
+
+# Indices into the (6, 3) foot keypoint array
+_FOOT_HEEL_L = 0
+_FOOT_BIG_TOE_L = 1
+_FOOT_SMALL_TOE_L = 2
+_FOOT_HEEL_R = 3
+_FOOT_BIG_TOE_R = 4
+_FOOT_SMALL_TOE_R = 5
+
+
+def _draw_foot_keypoints(
+    frame: Frame,
+    foot_keypoints: np.ndarray,
+    width: int,
+    height: int,
+    confidence_threshold: float = 0.5,
+    kp_radius: int = 3,
+    line_thickness: int = 1,
+) -> None:
+    """Draw HALPE26 foot keypoints and segments.
+
+    Draws heels and big toes as circles (RdYlGn confidence color).
+    Draws heel-to-toe connecting lines.
+    Skips small toes (too noisy on ice skates).
+    """
+    from src.visualization.skeleton.joints import get_confidence_color_rdygn
+
+    fk = foot_keypoints.copy()
+    if fk[:, :2].max() <= 1.0:
+        fk[:, 0] *= width
+        fk[:, 1] *= height
+
+    foot_pairs = [
+        (_FOOT_HEEL_L, _FOOT_BIG_TOE_L),
+        (_FOOT_HEEL_R, _FOOT_BIG_TOE_R),
+    ]
+
+    for heel_idx, toe_idx in foot_pairs:
+        heel_conf = fk[heel_idx, 2]
+        toe_conf = fk[toe_idx, 2]
+
+        heel_pt = (int(fk[heel_idx, 0]), int(fk[heel_idx, 1]))
+        toe_pt = (int(fk[toe_idx, 0]), int(fk[toe_idx, 1]))
+
+        if not (_is_valid_point(heel_pt, width, height) and _is_valid_point(toe_pt, width, height)):
+            continue
+
+        # Draw heel-to-toe segment line
+        if heel_conf >= confidence_threshold and toe_conf >= confidence_threshold:
+            line_color = _SPORTS2D_LEFT_COLOR if heel_idx == _FOOT_HEEL_L else _SPORTS2D_RIGHT_COLOR
+            cv2.line(frame, heel_pt, toe_pt, line_color, line_thickness, cv2.LINE_AA)
+
+        # Draw heel circle
+        if heel_conf >= confidence_threshold:
+            color = get_confidence_color_rdygn(heel_conf)
+            cv2.circle(frame, heel_pt, kp_radius, color, -1, cv2.LINE_AA)
+
+        # Draw big toe circle
+        if toe_conf >= confidence_threshold:
+            color = get_confidence_color_rdygn(toe_conf)
+            cv2.circle(frame, toe_pt, kp_radius, color, -1, cv2.LINE_AA)
 
 
 def _get_sports2d_bone_color(joint_a: int, joint_b: int) -> tuple[int, int, int]:
