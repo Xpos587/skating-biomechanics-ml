@@ -123,10 +123,15 @@ def draw_skeleton(
         if not _is_valid_point(pt, width, height):
             continue
 
-        # Get joint color and radius
-        color = get_joint_color(joint_idx)
+        # Get joint color based on confidence
+        conf = 1.0 if confidences is None else confidences[joint_idx]
+        if confidences is not None and conf >= confidence_threshold:
+            from src.visualization.skeleton.joints import get_confidence_color_rdygn
+            color = get_confidence_color_rdygn(conf)
+        else:
+            color = get_joint_color(joint_idx)
         radius = get_joint_radius(
-            1.0 if confidences is None else confidences[joint_idx],
+            conf,
             joint_radius,
             threshold=confidence_threshold,
         )

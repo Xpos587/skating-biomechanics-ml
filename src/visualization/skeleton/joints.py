@@ -6,6 +6,7 @@ Provides functions for:
 - Skeleton line colors
 """
 
+import numpy as np
 from typing import Final
 
 from src.types import H36Key
@@ -211,6 +212,44 @@ def get_confidence_color(
     r = int(low_color[0] * (1 - t) + high_color[0] * t)
     g = int(low_color[1] * (1 - t) + high_color[1] * t)
     b = int(low_color[2] * (1 - t) + high_color[2] * t)
+
+    return (b, g, r)
+
+
+def get_confidence_color_rdygn(
+    confidence: float,
+) -> tuple[int, int, int]:
+    """Get color representing confidence level using RdYlGn colormap.
+
+    Maps confidence [0, 1] to Red (low) -> Yellow (mid) -> Green (high).
+    Uses manual interpolation (Sports2D approach).
+
+    Args:
+        confidence: Confidence value [0, 1].
+
+    Returns:
+        BGR color tuple.
+
+    Example:
+        >>> get_confidence_color_rdygn(0.9)
+        (0, 230, 0)  # Green-ish
+    """
+    t = max(0.0, min(1.0, confidence))
+
+    # RdYlGn: Red (0, 0, 255) -> Yellow (0, 255, 255) -> Green (0, 255, 0)
+    # Interpolate based on t
+    if t < 0.5:
+        # Red to Yellow
+        local_t = t * 2  # [0, 1]
+        b = 0
+        g = int(255 * local_t)
+        r = 255
+    else:
+        # Yellow to Green
+        local_t = (t - 0.5) * 2  # [0, 1]
+        b = 0
+        g = 255
+        r = int(255 * (1 - local_t))
 
     return (b, g, r)
 
