@@ -27,10 +27,11 @@ from src.pose_estimation import H36Key, H36MExtractor
 from src.types import BladeState3D
 from src.utils.subtitles import SubtitleParser
 from src.utils.video import get_video_meta
+from src.analysis.angles import compute_joint_angles
+from src.utils.geometry import detect_visible_side, estimate_floor_angle
 from src.visualization import (
     JointAngleLayer,
     LayerContext,
-    TimerLayer,
     TrailLayer,
     VelocityLayer,
     VerticalAxisLayer,
@@ -41,6 +42,7 @@ from src.visualization import (
     render_layers,
 )
 from src.visualization.core.text import draw_text_box
+from src.visualization.core.text import draw_text_outlined
 
 
 def main() -> int:
@@ -134,6 +136,12 @@ def main() -> int:
         help="2D pose estimation backend (default: rtmlib)",
     )
     parser.add_argument(
+        "--tracking",
+        choices=["auto", "sports2d", "deepsort"],
+        default="auto",
+        help="Tracking mode: auto (rtmlib built-in), sports2d (rtmlib Sports2D), deepsort (external DeepSORT)",
+    )
+    parser.add_argument(
         "--render-scale",
         type=float,
         default=1.0,
@@ -159,6 +167,7 @@ def main() -> int:
     cap = cv2.VideoCapture(str(args.video))
 
     # Load or extract poses
+    raw_foot_kps = None
     confs: np.ndarray | None = None
     if args.poses and args.poses.exists():
         print(f"Loading poses from: {args.poses}")
@@ -179,6 +188,7 @@ def main() -> int:
                 conf_threshold=0.3,
                 det_frequency=1,  # detect every frame — GPU is fast enough
                 device="cuda",
+                tracking_mode=args.tracking,
             )
         else:
             extractor = H36MExtractor(
@@ -235,6 +245,7 @@ def main() -> int:
         extraction = extractor.extract_video_tracked(args.video, person_click=person_click)
 
         raw_poses = extraction.poses  # (N, 17, 3) — 1:1 with video frames
+        raw_foot_kps = extraction.foot_keypoints  # (N, 6, 3) normalized
         n_valid = int(extraction.valid_mask().sum())
         print(f"Raw: {n_valid}/{len(raw_poses)} valid frames")
 
@@ -361,29 +372,52 @@ def main() -> int:
         print(f"Render scale: {render_scale} ({out_w}x{out_h})")
 
     if args.compress:
-        import tempfile
+        import subprocess
 
-        temp_output = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)  # noqa: SIM115
-        temp_path = Path(temp_output.name)
-        temp_output.close()
-        write_path = temp_path
-        print(f"Writing to temp file: {temp_path}")
+        compress_cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "rawvideo",
+            "-vcodec",
+            "rawvideo",
+            "-s",
+            f"{out_w}x{out_h}",
+            "-pix_fmt",
+            "bgr24",
+            "-r",
+            str(meta.fps),
+            "-i",
+            "-",
+            "-c:v",
+            "libx265",
+            "-crf",
+            str(args.crf),
+            "-preset",
+            "medium",
+            "-tune",
+            "animation",
+            "-pix_fmt",
+            "yuv420p",
+            str(output_path),
+        ]
+        writer = subprocess.Popen(
+            compress_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        print(f"Writing directly to H265 (CRF={args.crf})...")
     else:
         write_path = output_path
-
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(write_path), fourcc, meta.fps, (out_w, out_h))
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(str(write_path), fourcc, meta.fps, (out_w, out_h))
 
     # Build layers based on requested level
     layers: list = []
     if args.layer >= 1:
-        layers.append(VelocityLayer(scale=5.0, max_length=50))
-        layers.append(TrailLayer(length=args.trail_length, joint=H36Key.LFOOT))
+        layers.append(VelocityLayer(scale=3.0, max_length=30, color_mode="solid"))
+        layers.append(TrailLayer(length=args.trail_length, joint=H36Key.LFOOT, width=1, color=(200, 80, 80)))
     if args.layer >= 2:
-        layers.append(JointAngleLayer())
+        layers.append(JointAngleLayer(show_degree_labels=False))
         layers.append(VerticalAxisLayer())
-    if args.layer >= 3:
-        layers.append(TimerLayer())
 
     # Pre-create PhysicsEngine for CoM trajectory (avoid per-frame allocation)
     physics_engine = None
@@ -432,10 +466,16 @@ def main() -> int:
 
         # Layer 0: Skeleton — always use raw rtmlib (no 3D jitter)
         if args.layer >= 0 and current_pose_idx is not None:
-            frame = draw_skeleton(frame, poses[current_pose_idx], draw_h, draw_w)
+            foot_kp = raw_foot_kps[current_pose_idx] if raw_foot_kps is not None else None
+            frame = draw_skeleton(frame, poses[current_pose_idx], draw_h, draw_w, line_width=1, joint_radius=3, foot_keypoints=foot_kp)
             context.pose_2d = poses_viz[current_pose_idx]
             if poses_3d is not None and current_pose_idx < len(poses_3d):
                 context.pose_3d = poses_3d[current_pose_idx]
+
+            # Compute angles for angle panel (Task 7: 26 biomechanics angles)
+            if args.layer >= 2:
+                joint_angles = compute_joint_angles(poses_viz[current_pose_idx])
+                context.custom_data["angles"] = joint_angles
 
         # Layers 1+: velocity, trails (rendered via layer system)
         if args.layer >= 1 and current_pose_idx is not None:
@@ -482,6 +522,25 @@ def main() -> int:
                         )
                     break
 
+        # Detect visible side and floor angle (Task 6)
+        visible_side = None
+        floor_angle = 0.0
+        if current_pose_idx is not None:
+            # Collect foot positions for floor angle
+            try:
+                l_foot = poses[current_pose_idx][H36Key.LFOOT, :2]
+                r_foot = poses[current_pose_idx][H36Key.RFOOT, :2]
+                if not (np.isnan(l_foot).any() or np.isnan(r_foot).any()):
+                    floor_angle = estimate_floor_angle(np.array([l_foot, r_foot]))
+            except (ValueError, IndexError):
+                pass
+
+            # Detect visible side from HALPE26 foot keypoints
+            if raw_foot_kps is not None and current_pose_idx < len(raw_foot_kps):
+                fk = raw_foot_kps[current_pose_idx]
+                if fk is not None and len(fk) >= 6:
+                    visible_side = detect_visible_side(fk.reshape(1, 6, 3))
+
         # Draw HUD (all layers) — element info + frame counter + blade state
         active_segment = _get_active_segment(segments, frame_idx)
 
@@ -498,54 +557,36 @@ def main() -> int:
             draw_w,
             blade_state_left=blade_left,
             blade_state_right=blade_right,
+            visible_side=visible_side,
+            floor_angle=floor_angle,
         )
 
-        writer.write(frame)
+        if args.compress:
+            try:
+                writer.stdin.write(frame.tobytes())
+            except (BrokenPipeError, ValueError):
+                break
+        else:
+            writer.write(frame)
         frame_idx += 1
         pbar.update(1)
 
     pbar.close()
     cap.release()
-    writer.release()
 
-    # Compress with ffmpeg if requested
-    if args.compress and write_path != output_path:
-        print(f"\nCompressing with libx265 (CRF={args.crf})...")
-        import subprocess
-
-        compress_cmd = [
-            "ffmpeg",
-            "-i",
-            str(write_path),
-            "-c:v",
-            "libx265",
-            "-crf",
-            str(args.crf),
-            "-preset",
-            "medium",
-            "-tune",
-            "animation",
-            "-c:a",
-            "copy",
-            "-y",
-            str(output_path),
-        ]
-
-        result = subprocess.run(compress_cmd, capture_output=True, text=True, check=False)
-        if result.returncode == 0:
-            write_path.unlink()
-            original_size = write_path.stat().st_size if write_path.exists() else 0
-            compressed_size = output_path.stat().st_size
-            ratio = (1 - compressed_size / original_size) * 100 if original_size > 0 else 0
-            print(
-                f"Compression: {original_size // (1024 * 1024)}MB -> {compressed_size // (1024 * 1024)}MB ({ratio:.0f}% reduction)"
-            )
-        else:
-            print(f"FFmpeg error: {result.stderr}")
-            print(f"Temp file saved to: {write_path}")
+    if args.compress:
+        try:
+            writer.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+        writer.wait()
+        if writer.returncode != 0:
+            print(f"FFmpeg error: {writer.stderr.read().decode()}")
             return 1
-
-    print(f"\nSaved to: {output_path}")
+        print(f"Saved to: {output_path}")
+    else:
+        writer.release()
+        print(f"\nSaved to: {output_path}")
     return 0
 
 
@@ -592,12 +633,15 @@ def _draw_hud(
     width: int,
     blade_state_left: BladeState3D | None = None,
     blade_state_right: BladeState3D | None = None,
+    visible_side: str | None = None,
+    floor_angle: float = 0.0,
 ) -> np.ndarray:
     """Draw minimal HUD.
 
     Layout:
     - Top-left: Element info (name, boundaries, confidence)
     - Top-left (below element): Blade edge indicators
+    - Bottom-left: Visible side + floor angle
     - Top-right: Frame counter, timestamp
     """
     # Top-left: Element info
@@ -609,17 +653,25 @@ def _draw_hud(
         elem_text = f"{elem_type} [{start}:{end}] conf={conf:.2f}"
         draw_text_box(frame, elem_text, (10, 30))
 
-    # Top-right: Frame counter
+    # Top-right: Frame counter + timestamp
     time_sec = frame_idx / fps
-    frame_text = f"Frame: {frame_idx}/{total_frames} | {time_sec:.2f}s"
-    (fw, _fh), _ = cv2.getTextSize(frame_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-    draw_text_box(frame, frame_text, (width - fw - 20, 30))
+    minutes = int(time_sec) // 60
+    seconds = time_sec % 60
+    ms = int((seconds % 1) * 100)
+    frame_text = f"{frame_idx}/{total_frames}  {minutes:02d}:{int(seconds):02d}.{ms:02d}"
+    (fw, _fh), _ = cv2.getTextSize(frame_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    draw_text_box(frame, frame_text, (width - fw - 20, 10), font_scale=0.5)
 
     # Blade edge indicators (below element info)
     if blade_state_left is not None:
         draw_blade_indicator_hud(frame, blade_state_left, position=(10, 55))
     if blade_state_right is not None:
         draw_blade_indicator_hud(frame, blade_state_right, position=(80, 55))
+
+    # Bottom-left: Visible side + floor angle (Task 6)
+    info_y = height - 40
+    side_str = visible_side or "N/A"
+    draw_text_outlined(frame, f"Side: {side_str}  Floor: {floor_angle:.1f} deg", (10, info_y), font_scale=0.45, thickness=1)
 
     return frame
 

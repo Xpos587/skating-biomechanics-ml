@@ -35,7 +35,7 @@ def _get_extractor(pose_backend: str, **kwargs):
 
     Args:
         pose_backend: "rtmlib" or "yolo".
-        **kwargs: Forwarded to the extractor constructor.
+        **kwargs: Forwarded to the extractor constructor (including tracking_mode).
 
     Returns:
         RTMPoseExtractor or H36MExtractor instance.
@@ -61,7 +61,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     reference_store = None
     if args.reference_dir:
         # Create builder with the selected pose backend
-        extractor = _get_extractor(args.pose_backend, output_format="normalized")
+        extractor = _get_extractor(args.pose_backend, output_format="normalized", tracking_mode=args.tracking)
         norm = PoseNormalizer(target_spine_length=0.4)
         builder = ReferenceBuilder(extractor, norm)
         reference_store = ReferenceStore(args.reference_dir)
@@ -73,7 +73,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     elif args.select_person:
         from .pose_estimation.person_selector import select_persons_interactive
 
-        extractor = _get_extractor(args.pose_backend, output_format="normalized")
+        extractor = _get_extractor(args.pose_backend, output_format="normalized", tracking_mode=args.tracking)
         persons = extractor.preview_persons(args.video)
         if not persons:
             print("No persons detected in the first seconds of the video.")
@@ -197,7 +197,7 @@ def cmd_build_ref(args: argparse.Namespace) -> int:
         return 1
 
     # Initialize components (H3.6M format)
-    pose_extractor = _get_extractor(args.pose_backend, output_format="normalized")
+    pose_extractor = _get_extractor(args.pose_backend, output_format="normalized", tracking_mode=args.tracking)
     normalizer = PoseNormalizer(target_spine_length=0.4)
     builder = ReferenceBuilder(pose_extractor, normalizer)
 
@@ -287,7 +287,7 @@ def cmd_segment(args: argparse.Namespace) -> int:
         # Export segments as references if output-dir specified
         if args.export_dir:
             # Use the selected pose backend for export extraction
-            extractor = _get_extractor(args.pose_backend, output_format="normalized")
+            extractor = _get_extractor(args.pose_backend, output_format="normalized", tracking_mode=args.tracking)
             norm = PoseNormalizer(target_spine_length=0.4)
 
             # Extract poses in H3.6M format with tracking
@@ -495,6 +495,12 @@ def main() -> None:
         help="2D pose estimation backend (default: rtmlib)",
     )
     analyze_parser.add_argument(
+        "--tracking",
+        choices=["auto", "sports2d", "deepsort"],
+        default="auto",
+        help="Tracking mode: auto (built-in), sports2d (rtmlib Sports2D), deepsort (external DeepSORT)",
+    )
+    analyze_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Подробный вывод ошибок",
@@ -571,6 +577,12 @@ def main() -> None:
         default="rtmlib",
         help="2D pose estimation backend (default: rtmlib)",
     )
+    ref_parser.add_argument(
+        "--tracking",
+        choices=["auto", "sports2d", "deepsort"],
+        default="auto",
+        help="Tracking mode: auto (built-in), sports2d (rtmlib Sports2D), deepsort (external DeepSORT)",
+    )
 
     # segment command
     segment_parser = subparsers.add_parser(
@@ -599,6 +611,12 @@ def main() -> None:
         choices=["rtmlib", "yolo"],
         default="rtmlib",
         help="2D pose estimation backend (default: rtmlib)",
+    )
+    segment_parser.add_argument(
+        "--tracking",
+        choices=["auto", "sports2d", "deepsort"],
+        default="auto",
+        help="Tracking mode: auto (built-in), sports2d (rtmlib Sports2D), deepsort (external DeepSORT)",
     )
     segment_parser.add_argument(
         "--verbose",

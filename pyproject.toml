@@ -36,6 +36,9 @@ dev = [
     "jupyter>=1.0.0",
 ]
 
+[project.optional-dependencies]
+deepsort = ["deep-sort-realtime>=1.3.2"]
+
 [project.scripts]
 analyze = "cli:main"
 
