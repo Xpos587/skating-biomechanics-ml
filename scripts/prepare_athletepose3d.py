@@ -9,6 +9,7 @@ Usage:
     uv run python scripts/prepare_athletepose3d.py --split train_set --sample-rate 3
     uv run python scripts/prepare_athletepose3d.py --max-sequences 10 --dry-run
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,13 +22,13 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.datasets.projector import project_foot_frame, validate_foot_projection
 from src.datasets.coco_builder import (
-    merge_coco_foot_keypoints,
-    format_keypoints,
     build_coco_json,
+    format_keypoints,
+    merge_coco_foot_keypoints,
     save_coco_json,
 )
+from src.datasets.projector import project_foot_frame, validate_foot_projection
 
 DATA_ROOT = Path("data/datasets/athletepose3d")
 OUTPUT_DIR = DATA_ROOT / "coco_annotations"
@@ -109,29 +110,35 @@ def process_sequence(
         img_id += 1
         ann_id += 1
 
-        images.append({
-            "file_name": f"{video_stem}/frame_{frame_idx:06d}.jpg",
-            "id": img_id,
-            "width": image_width,
-            "height": image_height,
-        })
+        images.append(
+            {
+                "file_name": f"{video_stem}/frame_{frame_idx:06d}.jpg",
+                "id": img_id,
+                "width": image_width,
+                "height": image_height,
+            }
+        )
 
-        annotations.append({
-            "image_id": img_id,
-            "id": ann_id,
-            "keypoints": format_keypoints(pts_scaled, vis),
-            "num_keypoints": n_visible,
-            "bbox": [x_min, y_min, w, h],
-            "area": w * h,
-            "iscrowd": 0,
-        })
+        annotations.append(
+            {
+                "image_id": img_id,
+                "id": ann_id,
+                "keypoints": format_keypoints(pts_scaled, vis),
+                "num_keypoints": n_visible,
+                "bbox": [x_min, y_min, w, h],
+                "area": w * h,
+                "iscrowd": 0,
+            }
+        )
 
     return images, annotations, img_id, ann_id
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Convert AthletePose3D to HALPE26 COCO JSON")
-    parser.add_argument("--split", default="train_set", choices=["train_set", "valid_set", "test_set"])
+    parser.add_argument(
+        "--split", default="train_set", choices=["train_set", "valid_set", "test_set"]
+    )
     parser.add_argument("--sample-rate", type=int, default=3, help="Extract every Nth frame")
     parser.add_argument("--max-sequences", type=int, default=0, help="Max sequences (0=all)")
     parser.add_argument("--dry-run", action="store_true")
@@ -139,7 +146,7 @@ def main() -> int:
     parser.add_argument("--target-height", type=int, default=1088, help="Target image height")
     args = parser.parse_args()
 
-    with open(DATA_ROOT / "cam_param.json") as f:
+    with (DATA_ROOT / "cam_param.json").open() as f:
         cam_params = json.load(f)
 
     sequences = discover_sequences(args.split)
@@ -156,7 +163,9 @@ def main() -> int:
     ann_id = 0
     skipped = 0
 
-    for npy_path, coco_path, json_path, mp4_path in tqdm(sequences, desc=f"Processing {args.split}"):
+    for npy_path, coco_path, json_path, _mp4_path in tqdm(
+        sequences, desc=f"Processing {args.split}"
+    ):
         kp3d = np.load(npy_path)
         coco_kps = np.load(coco_path)
 
@@ -169,7 +178,7 @@ def main() -> int:
             skipped += 1
             continue
 
-        with open(json_path) as f:
+        with json_path.open() as f:
             meta = json.load(f)
         cam_key = meta["cam"]
         if cam_key not in cam_params:
@@ -181,10 +190,17 @@ def main() -> int:
         scale_y = args.target_height / meta.get("video_height", 1088)
 
         images, annotations, img_id, ann_id = process_sequence(
-            kp3d, coco_kps, cam, args.sample_rate,
-            args.target_width, args.target_height,
-            npy_path.stem, img_id, ann_id,
-            scale_x, scale_y,
+            kp3d,
+            coco_kps,
+            cam,
+            args.sample_rate,
+            args.target_width,
+            args.target_height,
+            npy_path.stem,
+            img_id,
+            ann_id,
+            scale_x,
+            scale_y,
         )
 
         all_images.extend(images)

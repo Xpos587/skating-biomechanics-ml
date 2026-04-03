@@ -54,7 +54,7 @@ ELEMENT_NAMES_RU = {
     "двойка": "double_three_turn",
     "скобка": "bracket_turn",
     "лост": "mohawk",
-    "хoki": "choctaw",  # noqa: RUF001
+    "хoki": "choctaw",
     # Other
     "спираль": "spiral",
     "дорожка": "step_sequence",

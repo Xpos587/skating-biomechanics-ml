@@ -21,12 +21,10 @@ from src.visualization.core.geometry import (
     project_3d_to_2d,
 )
 from src.visualization.skeleton.joints import (
-    get_bone_thickness,
     get_bone_thickness_3d,
     get_joint_color,
     get_joint_radius,
     get_joint_radius_3d,
-    get_skeleton_color,
 )
 
 # =============================================================================
@@ -127,6 +125,7 @@ def draw_skeleton(
         conf = 1.0 if confidences is None else confidences[joint_idx]
         if confidences is not None and conf >= confidence_threshold:
             from src.visualization.skeleton.joints import get_confidence_color_rdygn
+
             color = get_confidence_color_rdygn(conf)
         else:
             color = get_joint_color(joint_idx)
@@ -400,8 +399,8 @@ def draw_skeleton_3d_pip(
 # =============================================================================
 
 # Sports2D color constants (BGR)
-_SPORTS2D_LEFT_COLOR: tuple[int, int, int] = (0, 255, 0)     # Green
-_SPORTS2D_RIGHT_COLOR: tuple[int, int, int] = (0, 128, 255)   # Orange
+_SPORTS2D_LEFT_COLOR: tuple[int, int, int] = (0, 255, 0)  # Green
+_SPORTS2D_RIGHT_COLOR: tuple[int, int, int] = (0, 128, 255)  # Orange
 _SPORTS2D_CENTER_COLOR: tuple[int, int, int] = (255, 153, 51)  # Blue
 
 # Indices into the (6, 3) foot keypoint array
@@ -491,10 +490,22 @@ def _get_sports2d_bone_color(joint_a: int, joint_b: int) -> tuple[int, int, int]
     """
     from src.types import H36Key
 
-    left_joints = {H36Key.LHIP, H36Key.LKNEE, H36Key.LFOOT,
-                   H36Key.LSHOULDER, H36Key.LELBOW, H36Key.LWRIST}
-    right_joints = {H36Key.RHIP, H36Key.RKNEE, H36Key.RFOOT,
-                    H36Key.RSHOULDER, H36Key.RELBOW, H36Key.RWRIST}
+    left_joints = {
+        H36Key.LHIP,
+        H36Key.LKNEE,
+        H36Key.LFOOT,
+        H36Key.LSHOULDER,
+        H36Key.LELBOW,
+        H36Key.LWRIST,
+    }
+    right_joints = {
+        H36Key.RHIP,
+        H36Key.RKNEE,
+        H36Key.RFOOT,
+        H36Key.RSHOULDER,
+        H36Key.RELBOW,
+        H36Key.RWRIST,
+    }
 
     a_left = joint_a in left_joints
     a_right = joint_a in right_joints

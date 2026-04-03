@@ -63,8 +63,12 @@ class AnglePanelLayer(Layer):
         bg_width = self.bar_width + 220
         overlay = frame.copy()
         cv2.rectangle(
-            overlay, (x0 - 5, y0 - 5), (x0 + bg_width, y0 + total_height),
-            hud_bg_color, -1, cv2.LINE_AA,
+            overlay,
+            (x0 - 5, y0 - 5),
+            (x0 + bg_width, y0 + total_height),
+            hud_bg_color,
+            -1,
+            cv2.LINE_AA,
         )
         frame[:] = cv2.addWeighted(overlay, hud_bg_alpha, frame, 1 - hud_bg_alpha, 0)
 
@@ -72,15 +76,26 @@ class AnglePanelLayer(Layer):
             y = y0 + i * self.line_spacing + hud_padding
 
             if np.isnan(value):
-                draw_text_outlined(frame, f"{name}:", (x0, y + 10), font_scale=0.4, thickness=1, color=COLOR_BLACK)
+                draw_text_outlined(
+                    frame, f"{name}:", (x0, y + 10), font_scale=0.4, thickness=1, color=COLOR_BLACK
+                )
                 continue
 
             # Label
-            draw_text_outlined(frame, f"{name}:", (x0, y + 10), font_scale=0.4, thickness=1, color=COLOR_GREEN)
+            draw_text_outlined(
+                frame, f"{name}:", (x0, y + 10), font_scale=0.4, thickness=1, color=COLOR_GREEN
+            )
 
             # Value
             val_x = x0 + 150
-            draw_text_outlined(frame, f"{value:.1f}", (val_x, y + 10), font_scale=0.4, thickness=1, color=COLOR_GREEN)
+            draw_text_outlined(
+                frame,
+                f"{value:.1f}",
+                (val_x, y + 10),
+                font_scale=0.4,
+                thickness=1,
+                color=COLOR_GREEN,
+            )
 
             # Progress bar
             bar_x = x0 + 200
@@ -89,11 +104,23 @@ class AnglePanelLayer(Layer):
             bar_len = int(pct * self.bar_width)
 
             # Bar background
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + self.bar_width, bar_y + self.bar_height),
-                         (50, 50, 50), -1, cv2.LINE_AA)
+            cv2.rectangle(
+                frame,
+                (bar_x, bar_y),
+                (bar_x + self.bar_width, bar_y + self.bar_height),
+                (50, 50, 50),
+                -1,
+                cv2.LINE_AA,
+            )
             # Bar fill
             if bar_len > 0:
-                cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_len, bar_y + self.bar_height),
-                             COLOR_GREEN, -1, cv2.LINE_AA)
+                cv2.rectangle(
+                    frame,
+                    (bar_x, bar_y),
+                    (bar_x + bar_len, bar_y + self.bar_height),
+                    COLOR_GREEN,
+                    -1,
+                    cv2.LINE_AA,
+                )
 
         return frame

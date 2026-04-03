@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import contextlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -21,14 +22,14 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
+from src.analysis.angles import compute_joint_angles
 from src.detection.blade_edge_detector_3d import BladeEdgeDetector3D
 from src.detection.spatial_reference import SpatialReferenceDetector
 from src.pose_estimation import H36Key, H36MExtractor
 from src.types import BladeState3D
+from src.utils.geometry import detect_visible_side, estimate_floor_angle
 from src.utils.subtitles import SubtitleParser
 from src.utils.video import get_video_meta
-from src.analysis.angles import compute_joint_angles
-from src.utils.geometry import detect_visible_side, estimate_floor_angle
 from src.visualization import (
     JointAngleLayer,
     LayerContext,
@@ -41,8 +42,7 @@ from src.visualization import (
     render_cyrillic_text,
     render_layers,
 )
-from src.visualization.core.text import draw_text_box
-from src.visualization.core.text import draw_text_outlined
+from src.visualization.core.text import draw_text_box, draw_text_outlined
 
 
 def main() -> int:
@@ -224,16 +224,9 @@ def main() -> int:
 
                     _sp.run(["xdg-open", preview_path], check=False)
 
-                print(f"\nDetected {len(persons)} persons:\n")
-                for i, p in enumerate(persons, 1):
-                    x1, y1, x2, y2 = p["bbox"]
-                    print(
-                        f"  #{i}: track_id={p['track_id']}, "
-                        f"bbox=({x1:.2f},{y1:.2f})-({x2:.2f},{y2:.2f}), "
-                        f"hits={p['hits']}, first_frame={p['first_frame']}"
-                    )
+                print(f"\nОбнаружено {len(persons)} человек. Смотри превью.")
                 if preview_path:
-                    print(f"\n  Preview: {preview_path}")
+                    print(f"  {preview_path}")
                 print()
                 try:
                     choice = int(input(f"Select person [1-{len(persons)}]: "))
@@ -422,7 +415,9 @@ def main() -> int:
     layers: list = []
     if args.layer >= 1:
         layers.append(VelocityLayer(scale=3.0, max_length=30, color_mode="solid"))
-        layers.append(TrailLayer(length=args.trail_length, joint=H36Key.LFOOT, width=1, color=(200, 80, 80)))
+        layers.append(
+            TrailLayer(length=args.trail_length, joint=H36Key.LFOOT, width=1, color=(200, 80, 80))
+        )
     if args.layer >= 2:
         layers.append(JointAngleLayer(show_degree_labels=False))
         layers.append(VerticalAxisLayer())
@@ -475,7 +470,15 @@ def main() -> int:
         # Layer 0: Skeleton — always use raw rtmlib (no 3D jitter)
         if args.layer >= 0 and current_pose_idx is not None:
             foot_kp = raw_foot_kps[current_pose_idx] if raw_foot_kps is not None else None
-            frame = draw_skeleton(frame, poses[current_pose_idx], draw_h, draw_w, line_width=1, joint_radius=3, foot_keypoints=foot_kp)
+            frame = draw_skeleton(
+                frame,
+                poses[current_pose_idx],
+                draw_h,
+                draw_w,
+                line_width=1,
+                joint_radius=3,
+                foot_keypoints=foot_kp,
+            )
             context.pose_2d = poses_viz[current_pose_idx]
             if poses_3d is not None and current_pose_idx < len(poses_3d):
                 context.pose_3d = poses_3d[current_pose_idx]
@@ -583,10 +586,8 @@ def main() -> int:
     cap.release()
 
     if args.compress:
-        try:
+        with contextlib.suppress(BrokenPipeError, OSError):
             writer.stdin.close()
-        except (BrokenPipeError, OSError):
-            pass
         writer.wait()
         if writer.returncode != 0:
             print(f"FFmpeg error: {writer.stderr.read().decode()}")
@@ -679,7 +680,13 @@ def _draw_hud(
     # Bottom-left: Visible side + floor angle (Task 6)
     info_y = height - 40
     side_str = visible_side or "N/A"
-    draw_text_outlined(frame, f"Side: {side_str}  Floor: {floor_angle:.1f} deg", (10, info_y), font_scale=0.45, thickness=1)
+    draw_text_outlined(
+        frame,
+        f"Side: {side_str}  Floor: {floor_angle:.1f} deg",
+        (10, info_y),
+        font_scale=0.45,
+        thickness=1,
+    )
 
     return frame
 

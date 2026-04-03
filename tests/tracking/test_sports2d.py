@@ -1,15 +1,12 @@
 """Тесты Sports2DTracker."""
 
 import numpy as np
-import pytest
 
 from src.tracking.sports2d import Sports2DTracker
 from src.types import H36Key
 
 
-def _make_person_pose(
-    cx: float, cy: float, scale: float = 0.1
-) -> np.ndarray:
+def _make_person_pose(cx: float, cy: float, scale: float = 0.1) -> np.ndarray:
     """Создать простую позу стоящего человека по центру (cx, cy)."""
     pose = np.zeros((17, 2), dtype=np.float32)
     s = scale / 0.1  # нормализация масштаба
@@ -42,8 +39,7 @@ class TestFirstFrame:
     def test_first_frame_assigns_sequential_ids(self):
         """Первый кадр получает ID [0, 1, ...]."""
         tracker = Sports2DTracker()
-        kps = np.array([_make_person_pose(0.3, 0.5),
-                         _make_person_pose(0.7, 0.5)])
+        kps = np.array([_make_person_pose(0.3, 0.5), _make_person_pose(0.7, 0.5)])
         scores = _make_scores(2)
 
         ids = tracker.update(kps, scores)
@@ -65,8 +61,7 @@ class TestStableTracking:
 
         # Кадр 2 — оба чуть сдвинулись
         ids2 = tracker.update(
-            np.array([_make_person_pose(0.31, 0.51),
-                       _make_person_pose(0.69, 0.49)]),
+            np.array([_make_person_pose(0.31, 0.51), _make_person_pose(0.69, 0.49)]),
             _make_scores(2),
         )
 
@@ -101,8 +96,7 @@ class TestNewPerson:
 
         # Кадр 2: 2 человека
         ids2 = tracker.update(
-            np.array([_make_person_pose(0.31, 0.51),
-                       _make_person_pose(0.7, 0.5)]),
+            np.array([_make_person_pose(0.31, 0.51), _make_person_pose(0.7, 0.5)]),
             _make_scores(2),
         )
 
@@ -130,7 +124,7 @@ class TestPersonLeaves:
 
         assert ids1[0] == 0  # A
         assert ids1[1] == 1  # B
-        assert ids2 == [0]    # A остался
+        assert ids2 == [0]  # A остался
         assert ids3[0] == 0  # A всё ещё ID 0
 
     def test_person_reappears_after_occlusion(self):
@@ -223,8 +217,7 @@ class TestAutoMaxDist:
 
         # Кадр 2: небольшое смещение (должно сопоставиться)
         ids2 = tracker.update(
-            np.array([_make_person_pose(0.31, 0.51),
-                       _make_person_pose(0.69, 0.49)]),
+            np.array([_make_person_pose(0.31, 0.51), _make_person_pose(0.69, 0.49)]),
             _make_scores(2),
         )
 
@@ -264,7 +257,7 @@ class TestKalmanPrediction:
             a = _make_person_pose(0.3 + 0.03 * i, 0.5)
             b = _make_person_pose(0.7, 0.5)
             ids = tracker.update(np.array([a, b]), _make_scores(2))
-            assert ids[0] == 0, f"Frame {i+1}: expected A=0, got {ids}"
+            assert ids[0] == 0, f"Frame {i + 1}: expected A=0, got {ids}"
 
         # Frame 6: A continues to 0.45, B jumps to A's previous position (0.42).
         # Kalman predicts A at ~0.45 (velocity converged). B at 0.42 is behind.
@@ -302,16 +295,14 @@ class TestKalmanPrediction:
         """Lost track recovery still works."""
         tracker = Sports2DTracker(max_disappeared=30, fps=30.0)
         ids1 = tracker.update(
-            np.array([_make_person_pose(0.3, 0.5),
-                       _make_person_pose(0.7, 0.5)]),
+            np.array([_make_person_pose(0.3, 0.5), _make_person_pose(0.7, 0.5)]),
             _make_scores(2),
         )
         assert ids1 == [0, 1]
         tracker.update(np.array([_make_person_pose(0.7, 0.5)]), _make_scores(1))
         tracker.update(np.array([_make_person_pose(0.7, 0.5)]), _make_scores(1))
         ids4 = tracker.update(
-            np.array([_make_person_pose(0.3, 0.5),
-                       _make_person_pose(0.7, 0.5)]),
+            np.array([_make_person_pose(0.3, 0.5), _make_person_pose(0.7, 0.5)]),
             _make_scores(2),
         )
         assert 0 in ids4

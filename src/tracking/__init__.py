@@ -7,15 +7,15 @@
 - TrackletMerger: post-hoc tracklet merging for occlusion recovery
 """
 
-from .sports2d import Sports2DTracker
 from .deepsort_tracker import DeepSORTTracker
 from .skeletal_identity import (
     SkeletalIdentityExtractor,
+    compute_2d_skeletal_ratios,
     compute_bone_lengths_3d,
     compute_identity_profile,
-    compute_2d_skeletal_ratios,
     identity_similarity,
 )
+from .sports2d import Sports2DTracker
 from .tracklet_merger import (
     Tracklet,
     TrackletMerger,
@@ -23,14 +23,14 @@ from .tracklet_merger import (
 )
 
 __all__ = [
-    "Sports2DTracker",
     "DeepSORTTracker",
     "SkeletalIdentityExtractor",
-    "TrackletMerger",
+    "Sports2DTracker",
     "Tracklet",
+    "TrackletMerger",
     "build_tracklets",
+    "compute_2d_skeletal_ratios",
     "compute_bone_lengths_3d",
     "compute_identity_profile",
-    "compute_2d_skeletal_ratios",
     "identity_similarity",
 ]

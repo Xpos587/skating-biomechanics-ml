@@ -70,7 +70,7 @@ class DeepSORTTracker:
             raise ImportError(
                 "deep-sort-realtime нужен для DeepSORT-трекинга. "
                 "Установите: uv add deep-sort-realtime"
-            )
+            ) from None
 
     def update(
         self,
@@ -114,15 +114,13 @@ class DeepSORTTracker:
         width_pad = width + 2 * width * padding / 100
         height_pad = height + height * padding / 100
 
-        bboxes_ltwh = np.stack(
-            (x_min_pad, y_min_pad, width_pad, height_pad), axis=1
-        )
+        bboxes_ltwh = np.stack((x_min_pad, y_min_pad, width_pad, height_pad), axis=1)
 
         # DeepSORT needs pixel coordinates for frame cropping
-        bboxes_ltwh[:, 0] *= frame_width   # x_min
-        bboxes_ltwh[:, 1] *= frame_height   # y_min
-        bboxes_ltwh[:, 2] *= frame_width   # width
-        bboxes_ltwh[:, 3] *= frame_height   # height
+        bboxes_ltwh[:, 0] *= frame_width  # x_min
+        bboxes_ltwh[:, 1] *= frame_height  # y_min
+        bboxes_ltwh[:, 2] *= frame_width  # width
+        bboxes_ltwh[:, 3] *= frame_height  # height
         bbox_scores = np.nanmean(scores, axis=1)
 
         detections = list(
@@ -130,14 +128,13 @@ class DeepSORTTracker:
                 bboxes_ltwh.tolist(),
                 bbox_scores.tolist(),
                 ["person"] * n_curr,
+                strict=False,
             )
         )
         det_ids = list(range(n_curr))
 
         if frame is not None:
-            tracks = self._tracker.update_tracks(
-                detections, frame=frame, others=det_ids
-            )
+            tracks = self._tracker.update_tracks(detections, frame=frame, others=det_ids)
         else:
             tracks = self._tracker.update_tracks(detections, others=det_ids)
 

@@ -162,9 +162,11 @@ class RTMPoseExtractor:
         deepsort_tracker = None
         if resolved_mode == "sports2d":
             from ..tracking.sports2d import Sports2DTracker
+
             sports2d_tracker = Sports2DTracker(max_disappeared=30, fps=video_meta.fps)
         elif resolved_mode == "deepsort":
             from ..tracking.deepsort_tracker import DeepSORTTracker
+
             deepsort_tracker = DeepSORTTracker(max_age=30, embedder_gpu=True)
 
         target_track_id: int | None = None
@@ -271,8 +273,11 @@ class RTMPoseExtractor:
                     track_ids = sports2d_tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
                 elif deepsort_tracker is not None:
                     track_ids = deepsort_tracker.update(
-                        h36m_poses[:, :, :2], h36m_poses[:, :, 2],
-                        frame=frame, frame_width=w, frame_height=h,
+                        h36m_poses[:, :, :2],
+                        h36m_poses[:, :, 2],
+                        frame=frame,
+                        frame_width=w,
+                        frame_height=h,
                     )
                 elif self._tracking_backend == "custom":
                     track_ids = custom_tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
@@ -427,7 +432,8 @@ class RTMPoseExtractor:
                 )
 
                 identity_ext = SkeletalIdentityExtractor(
-                    model_path=model_3d, device="auto",
+                    model_path=model_3d,
+                    device="auto",
                 )
 
             merger = TrackletMerger(
@@ -447,32 +453,28 @@ class RTMPoseExtractor:
                 if len(valid_frames) > 0:
                     last_valid = int(valid_frames[-1])
                     if last_valid < num_frames - 1:
-                        candidates = [
-                            t for t in tracklets
-                            if t.track_id != target_track_id
-                        ]
+                        candidates = [t for t in tracklets if t.track_id != target_track_id]
                         match = merger.find_best_match(
-                            target_tracklet, candidates,
+                            target_tracklet,
+                            candidates,
                         )
                         if match is not None:
                             for f in match.frames:
-                                if (
-                                    f < num_frames
-                                    and np.isnan(all_poses[f, 0, 0])
-                                ):
+                                if f < num_frames and np.isnan(all_poses[f, 0, 0]):
                                     all_poses[f] = match.poses.get(
-                                        f, all_poses[f],
+                                        f,
+                                        all_poses[f],
                                     )
                                     all_feet[f] = match.foot_keypoints.get(
-                                        f, all_feet[f],
+                                        f,
+                                        all_feet[f],
                                     )
                             logger.info(
                                 "Post-hoc merge: filled %d frames from track %d",
                                 sum(
                                     1
                                     for f in match.frames
-                                    if f < num_frames
-                                    and np.isnan(all_poses[f, 0, 0])
+                                    if f < num_frames and np.isnan(all_poses[f, 0, 0])
                                 ),
                                 match.track_id,
                             )
@@ -496,6 +498,112 @@ class RTMPoseExtractor:
     # ------------------------------------------------------------------
     # Preview
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_person_grid(
+        best_frame: np.ndarray,
+        persons: list[dict],
+    ) -> str:
+        """Нарисовать bbox + номер на полном кадре.
+
+        Авто-контраст: измеряет яркость фона и выбирает светлую/тёмную рамку.
+        Анти-перекрытие: сдвигает метки при наложении.
+
+        Args:
+            best_frame: Кадр (H, W, 3) BGR.
+            persons: Список dict с ключами:
+                - best_kps: (17, 3) нормализованные H3.6M ключевые точки
+                - hits: int
+                - best_conf: float
+
+        Returns:
+            Путь к сохранённому изображению.
+        """
+        if not persons:
+            return ""
+
+        import tempfile
+
+        preview = best_frame.copy()
+        frame_h, frame_w = best_frame.shape[:2]
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.55
+        thickness = 1
+
+        # Собираем данные для рисования
+        placements: list[tuple[int, int, int, int, int, int, float, int]] = []
+        for person in persons:
+            kps = person["best_kps"]
+            valid = kps[kps[:, 2] > 0.1]
+            if len(valid) < 3:
+                continue
+            bx1 = int(np.min(valid[:, 0]) * frame_w)
+            by1 = int(np.min(valid[:, 1]) * frame_h)
+            bx2 = int(np.max(valid[:, 0]) * frame_w)
+            by2 = int(np.max(valid[:, 1]) * frame_h)
+            cx = (bx1 + bx2) // 2
+            iy = int(np.clip(by1, 0, frame_h - 1))
+            ix = int(np.clip(cx, 0, frame_w - 1))
+            brightness = float(preview[iy, ix].mean())
+            hits = person["hits"]
+            placements.append((cx, 0, bx1, by1, bx2, by2, brightness, hits))
+
+        # Анти-перекрытие меток
+        occupied: list[tuple[int, int, int, int]] = []
+
+        for i, (_cx, _cy, bx1, by1, bx2, by2, bg_brightness, hits) in enumerate(placements):
+            is_dark = bg_brightness < 128
+            color = (255, 255, 255) if is_dark else (0, 0, 0)
+
+            # Bbox
+            cv2.rectangle(preview, (bx1, by1), (bx2, by2), color, 1, cv2.LINE_AA)
+
+            # Метка с номером
+            label = f" {i + 1} ({hits}) "
+            (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+            pad = 3
+            tag_w = tw + 2 * pad
+            tag_h = th + baseline + 2 * pad
+
+            lx = bx1
+            ly = by1 - tag_h - 2
+            lx = max(2, min(lx, frame_w - tag_w - 2))
+            ly = max(2, ly)
+
+            # Анти-перекрытие
+            for _ in range(10):
+                overlap = False
+                for ox1, oy1, ox2, oy2 in occupied:
+                    if lx < ox2 and lx + tag_w > ox1 and ly < oy2 and ly + tag_h > oy1:
+                        ly = oy2 + 2
+                        overlap = True
+                        break
+                if not overlap:
+                    break
+
+            occupied.append((lx, ly, lx + tag_w, ly + tag_h))
+
+            # Полупрозрачная плашка
+            overlay = preview.copy()
+            cv2.rectangle(overlay, (lx, ly), (lx + tag_w, ly + tag_h), color, -1)
+            cv2.addWeighted(overlay, 0.7, preview, 0.3, 0, dst=preview)
+
+            # Текст (инвертированный цвет)
+            text_color = (0, 0, 0) if is_dark else (255, 255, 255)
+            cv2.putText(
+                preview,
+                label,
+                (lx + pad, ly + pad + th),
+                font,
+                font_scale,
+                text_color,
+                thickness,
+                cv2.LINE_AA,
+            )
+
+        preview_path = str(Path(tempfile.mktemp(suffix=".jpg")).with_name("person_preview.jpg"))
+        cv2.imwrite(preview_path, preview)
+        return preview_path
 
     def preview_persons(
         self,
@@ -537,9 +645,11 @@ class RTMPoseExtractor:
         deepsort_tracker = None
         if resolved_mode == "sports2d":
             from ..tracking.sports2d import Sports2DTracker
+
             sports2d_tracker = Sports2DTracker(max_disappeared=30, fps=video_meta.fps)
         elif resolved_mode == "deepsort":
             from ..tracking.deepsort_tracker import DeepSORTTracker
+
             deepsort_tracker = DeepSORTTracker(max_age=30, embedder_gpu=True)
 
         rtmlib_id_map: dict[int, int] = {}
@@ -590,8 +700,11 @@ class RTMPoseExtractor:
                     track_ids = sports2d_tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
                 elif deepsort_tracker is not None:
                     track_ids = deepsort_tracker.update(
-                        h36m_poses[:, :, :2], h36m_poses[:, :, 2],
-                        frame=frame, frame_width=w, frame_height=h,
+                        h36m_poses[:, :, :2],
+                        h36m_poses[:, :, 2],
+                        frame=frame,
+                        frame_width=w,
+                        frame_height=h,
                     )
                 elif tracker is not None:
                     track_ids = tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
@@ -617,35 +730,19 @@ class RTMPoseExtractor:
         finally:
             cap.release()
 
-        # Build visual preview with numbered bboxes
+        # Build person grid preview
         preview_path: str | None = None
         if best_frame is not None and person_data:
-            preview_img = best_frame.copy()
-            for i, (tid, data) in enumerate(
-                sorted(person_data.items(), key=lambda kv: kv[1]["hits"], reverse=True)
+            persons_for_grid = []
+            for _tid, data in sorted(
+                person_data.items(), key=lambda kv: kv[1]["hits"], reverse=True
             ):
-                kps = data["best_kps"]
-                if kps is None:
-                    continue
-                valid = kps[kps[:, 2] > 0.1]
-                if len(valid) < 3:
-                    continue
-                bx1 = int(np.min(valid[:, 0]) * preview_img.shape[1])
-                by1 = int(np.min(valid[:, 1]) * preview_img.shape[0])
-                bx2 = int(np.max(valid[:, 0]) * preview_img.shape[1])
-                by2 = int(np.max(valid[:, 1]) * preview_img.shape[0])
-                label = f"#{i+1} (hits={data['hits']})"
-                cv2.rectangle(preview_img, (bx1, by1), (bx2, by2), (0, 200, 255), 2)
-                cv2.putText(
-                    preview_img, label, (bx1, by1 - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 1, cv2.LINE_AA,
-                )
-            import tempfile
-
-            preview_path = str(
-                Path(tempfile.mktemp(suffix=".jpg")).with_name("person_preview.jpg")
-            )
-            cv2.imwrite(preview_path, preview_img)
+                if data["best_kps"] is not None:
+                    valid = data["best_kps"][data["best_kps"][:, 2] > 0.1]
+                    if len(valid) >= 3:
+                        persons_for_grid.append(data)
+            if persons_for_grid:
+                preview_path = RTMPoseExtractor._build_person_grid(best_frame, persons_for_grid)
 
         # Build output
         output: list[dict] = []
@@ -684,6 +781,7 @@ class RTMPoseExtractor:
             return self._tracking_mode
         try:
             import deep_sort_realtime  # noqa: F401
+
             logger.info("Авто-выбор: DeepSORT (deep-sort-realtime доступен)")
             return "deepsort"
         except ImportError:

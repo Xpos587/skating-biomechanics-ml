@@ -43,8 +43,7 @@ class TestDeepSORTBasic:
         from src.tracking.deepsort_tracker import DeepSORTTracker
 
         tracker = DeepSORTTracker(embedder_gpu=False)
-        kps = np.array([_make_person_pose(0.3, 0.5),
-                         _make_person_pose(0.7, 0.5)])
+        kps = np.array([_make_person_pose(0.3, 0.5), _make_person_pose(0.7, 0.5)])
         scores = np.full((2, 17), 0.8, dtype=np.float32)
 
         ids = tracker.update(kps, scores)
@@ -63,8 +62,7 @@ class TestDeepSORTBasic:
 
         ids1 = tracker.update(np.array([person_a, person_b]), scores)
         ids2 = tracker.update(
-            np.array([_make_person_pose(0.31, 0.51),
-                       _make_person_pose(0.69, 0.49)]),
+            np.array([_make_person_pose(0.31, 0.51), _make_person_pose(0.69, 0.49)]),
             scores,
         )
 

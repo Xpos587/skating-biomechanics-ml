@@ -14,7 +14,7 @@ import numpy as np
 
 from src.pose_estimation import H36Key
 from src.utils.geometry import angle_3pt
-from src.visualization.config import COLOR_YELLOW, LayerConfig, VisualizationConfig
+from src.visualization.config import LayerConfig, VisualizationConfig
 from src.visualization.core.geometry import normalized_to_pixel
 from src.visualization.layers.base import Frame, Layer, LayerContext
 

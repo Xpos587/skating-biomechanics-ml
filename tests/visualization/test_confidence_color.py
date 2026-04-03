@@ -1,7 +1,5 @@
 """Tests for RdYlGn confidence coloring."""
 
-import pytest
-
 from src.visualization.skeleton.joints import get_confidence_color_rdygn
 
 

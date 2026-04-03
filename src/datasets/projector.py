@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
-from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 # AthletePose3D 142kp indices for HALPE26 foot keypoints (17-22)
 FOOT_AP3D_INDICES = np.array([49, 26, 10, 112, 93, 77], dtype=np.intp)
@@ -34,7 +38,7 @@ def project_point(
     if np.isnan(p_world).any():
         return (np.nan, np.nan)
 
-    K, rot_mat, t, fu, fv, cu, cv = _load_camera(cam)
+    _K, rot_mat, t, fu, fv, cu, cv = _load_camera(cam)
     translated = p_world - t
     kpts_camera = rot_mat @ translated
 
@@ -71,7 +75,7 @@ def project_foot_frame(
         (6, 2) projected 2D coordinates for HALPE26 foot keypoints 17-22.
         Indices 2 (L_small_toe) and 5 (R_small_toe) are always NaN.
     """
-    K, rot_mat, t, fu, fv, cu, cv = _load_camera(cam)
+    _K, rot_mat, t, fu, fv, cu, cv = _load_camera(cam)
     pts = np.full((6, 2), np.nan, dtype=np.float32)
 
     # --- Heels: weak-perspective (processed system) ---
@@ -122,8 +126,8 @@ def project_foot_frame(
     # frame than processed markers. Project them independently with full
     # perspective — they happen to produce reasonable 2D positions.
     toe_pairs = [
-        (1, 26),   # foot_2d[1]=L_big_toe, AP3D[26]=L_Toe
-        (4, 93),   # foot_2d[4]=R_big_toe, AP3D[93]=R_Toe
+        (1, 26),  # foot_2d[1]=L_big_toe, AP3D[26]=L_Toe
+        (4, 93),  # foot_2d[4]=R_big_toe, AP3D[93]=R_Toe
     ]
 
     for foot_idx, toe_ap3d in toe_pairs:
@@ -186,7 +190,6 @@ def validate_foot_projection(
             # Heel: max 60px from ankle, must not be above ankle
             if dist > 60 or foot_2d[i, 1] < reference_ankle[1] - 30:
                 foot_2d[i] = [np.nan, np.nan]
-        else:
-            # Toe: max 80px from ankle, must not be above ankle
-            if dist > 80 or foot_2d[i, 1] < reference_ankle[1] - 30:
-                foot_2d[i] = [np.nan, np.nan]
+        # Toe: max 80px from ankle, must not be above ankle
+        elif dist > 80 or foot_2d[i, 1] < reference_ankle[1] - 30:
+            foot_2d[i] = [np.nan, np.nan]

@@ -1,7 +1,6 @@
 """Tests for 3D skeletal identity extraction."""
 
 import numpy as np
-import pytest
 
 from src.tracking.skeletal_identity import (
     NUM_BONES,

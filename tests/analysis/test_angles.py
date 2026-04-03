@@ -1,20 +1,19 @@
 """Tests for comprehensive biomechanics angle computation."""
 
 import numpy as np
-import pytest
 
 from src.analysis.angles import (
-    compute_joint_angles,
-    compute_segment_angles,
     ANGLE_DEFS,
     SEGMENT_DEFS,
+    compute_joint_angles,
+    compute_segment_angles,
 )
 
 
 def _standing_pose():
     """Create a standing pose with known angles."""
     pose = np.zeros((17, 2), dtype=np.float32)
-    pose[0] = [320, 80]   # HIP_CENTER
+    pose[0] = [320, 80]  # HIP_CENTER
     pose[1] = [310, 200]  # RHIP
     pose[2] = [310, 280]  # RKNEE
     pose[3] = [310, 360]  # RFOOT
@@ -25,12 +24,12 @@ def _standing_pose():
     pose[8] = [320, 120]  # THORAX
     pose[9] = [320, 100]  # NECK
     pose[10] = [320, 80]  # HEAD
-    pose[11] = [300, 120] # LSHOULDER
-    pose[12] = [280, 170] # LELBOW
-    pose[13] = [260, 220] # LWRIST
-    pose[14] = [340, 120] # RSHOULDER
-    pose[15] = [360, 170] # RELBOW
-    pose[16] = [380, 220] # RWRIST
+    pose[11] = [300, 120]  # LSHOULDER
+    pose[12] = [280, 170]  # LELBOW
+    pose[13] = [260, 220]  # LWRIST
+    pose[14] = [340, 120]  # RSHOULDER
+    pose[15] = [360, 170]  # RELBOW
+    pose[16] = [380, 220]  # RWRIST
     return pose
 
 

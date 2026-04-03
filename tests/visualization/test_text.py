@@ -1,7 +1,6 @@
 """Tests for dual-layer outlined text rendering."""
 
 import numpy as np
-import pytest
 
 from src.visualization.core.text import draw_text_outlined
 
@@ -28,7 +27,11 @@ class TestDrawTextOutlined:
         draw_text_outlined(frame, "Test", (10, 30), color=green)
         text_region = frame[0:60, 0:200]
         # Check for green pixels (BGR: channel 1 is green, channel 0/2 should be 0)
-        has_green = np.any((text_region[:, :, 1] == 255) & (text_region[:, :, 0] == 0) & (text_region[:, :, 2] == 0))
+        has_green = np.any(
+            (text_region[:, :, 1] == 255)
+            & (text_region[:, :, 0] == 0)
+            & (text_region[:, :, 2] == 0)
+        )
         assert has_green.any()
 
     def test_custom_font_scale(self):

@@ -74,6 +74,9 @@ ignore = [
     "PLC0415", # import not at top-level (lazy imports for heavy deps)
     "SIM108", # ternary instead of if-else
     "ARG002", # unused method argument (common in callback interfaces)
+    "RUF001", # ambiguous Cyrillic chars in strings (Russian UI text)
+    "RUF002", # ambiguous Cyrillic chars in docstrings (Russian docs)
+    "RUF003", # ambiguous Cyrillic chars in comments (Russian comments)
 ]
 unfixable = [
     "ERA",    # don't auto-remove commented out code
@@ -86,9 +89,9 @@ known-first-party = ["src"]
 "tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117"]
 "__init__.py" = ["F401"]  # unused imports
 "scripts/visualize_with_skeleton.py" = ["ARG001"]
-"src/analysis/rules/*.py" = ["RUF001"]  # Russian text strings with Cyrillic chars
-"src/visualization/**/*.py" = ["RUF001"]  # Russian text in visualization
-"src/cli.py" = ["RUF001"]  # Russian help text
+"src/analysis/rules/*.py" = []
+"src/visualization/**/*.py" = []
+"src/cli.py" = []
 "src/**/*.py" = ["ARG001", "F841"]  # unused args in callback-heavy code
 
 [tool.mypy]

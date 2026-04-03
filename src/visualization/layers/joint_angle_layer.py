@@ -174,9 +174,8 @@ class JointAngleLayer(Layer):
         for spec in self.joints:
             # Determine angle source based on mode
             angle = None
-            use_3d = (
-                self.angle_source == "3d"
-                or (self.angle_source == "auto" and context.pose_3d is not None)
+            use_3d = self.angle_source == "3d" or (
+                self.angle_source == "auto" and context.pose_3d is not None
             )
 
             if use_3d and context.pose_3d is not None:

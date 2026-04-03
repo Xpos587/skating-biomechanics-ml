@@ -4,8 +4,6 @@ import numpy as np
 import pytest
 
 from src.pose_estimation import H36Key
-from src.utils.geometry import angle_3pt
-from src.visualization.config import VisualizationConfig
 from src.visualization.layers.base import LayerContext
 from src.visualization.layers.joint_angle_layer import JointAngleLayer
 
@@ -88,8 +86,10 @@ class TestHybridMode:
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
         layer = JointAngleLayer(angle_source="2d")
         ctx = LayerContext(
-            frame_width=640, frame_height=480,
-            pose_2d=pose_2d, pose_3d=pose_3d,
+            frame_width=640,
+            frame_height=480,
+            pose_2d=pose_2d,
+            pose_3d=pose_3d,
             normalized=False,
         )
         result = layer.render(frame, ctx)

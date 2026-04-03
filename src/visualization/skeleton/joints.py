@@ -6,7 +6,6 @@ Provides functions for:
 - Skeleton line colors
 """
 
-import numpy as np
 from typing import Final
 
 from src.types import H36Key

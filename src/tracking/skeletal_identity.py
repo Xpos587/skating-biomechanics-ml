@@ -21,18 +21,18 @@ logger = logging.getLogger(__name__)
 
 # 12 discriminative bone pairs for identity (indices into H3.6M 17-keypoint format)
 BONE_PAIRS: list[tuple[int, int]] = [
-    (H36Key.RHIP, H36Key.RKNEE),          # 0: femur R
-    (H36Key.RKNEE, H36Key.RFOOT),         # 1: tibia R
-    (H36Key.LHIP, H36Key.LKNEE),          # 2: femur L
-    (H36Key.LKNEE, H36Key.LFOOT),         # 3: tibia L
-    (H36Key.RSHOULDER, H36Key.RELBOW),    # 4: humerus R
-    (H36Key.RELBOW, H36Key.RWRIST),       # 5: ulna R
-    (H36Key.LSHOULDER, H36Key.LELBOW),    # 6: humerus L
-    (H36Key.LELBOW, H36Key.LWRIST),       # 7: ulna L
-    (H36Key.HIP_CENTER, H36Key.THORAX),   # 8: spine lower
-    (H36Key.THORAX, H36Key.NECK),         # 9: spine upper
-    (H36Key.LSHOULDER, H36Key.RSHOULDER), # 10: shoulder width
-    (H36Key.LHIP, H36Key.RHIP),           # 11: pelvis width
+    (H36Key.RHIP, H36Key.RKNEE),  # 0: femur R
+    (H36Key.RKNEE, H36Key.RFOOT),  # 1: tibia R
+    (H36Key.LHIP, H36Key.LKNEE),  # 2: femur L
+    (H36Key.LKNEE, H36Key.LFOOT),  # 3: tibia L
+    (H36Key.RSHOULDER, H36Key.RELBOW),  # 4: humerus R
+    (H36Key.RELBOW, H36Key.RWRIST),  # 5: ulna R
+    (H36Key.LSHOULDER, H36Key.LELBOW),  # 6: humerus L
+    (H36Key.LELBOW, H36Key.LWRIST),  # 7: ulna L
+    (H36Key.HIP_CENTER, H36Key.THORAX),  # 8: spine lower
+    (H36Key.THORAX, H36Key.NECK),  # 9: spine upper
+    (H36Key.LSHOULDER, H36Key.RSHOULDER),  # 10: shoulder width
+    (H36Key.LHIP, H36Key.RHIP),  # 11: pelvis width
 ]
 
 NUM_BONES = len(BONE_PAIRS)  # 12
@@ -115,7 +115,8 @@ class SkeletalIdentityExtractor:
                 )
 
                 self._extractor = AthletePose3DExtractor(
-                    model_path=model_path, device=device,
+                    model_path=model_path,
+                    device=device,
                 )
                 self._use_ml = True
                 logger.info("SkeletalIdentity: using MotionAGFormer-S")
@@ -123,7 +124,8 @@ class SkeletalIdentityExtractor:
                 logger.warning("MotionAGFormer unavailable: %s", e)
 
     def extract_profile(
-        self, poses_2d: np.ndarray,
+        self,
+        poses_2d: np.ndarray,
     ) -> np.ndarray | None:
         """Extract identity profile from 2D poses.
 
@@ -157,7 +159,8 @@ class SkeletalIdentityExtractor:
         return self._estimate_3d_simple(poses_2d)
 
     def _estimate_3d_simple(
-        self, poses_2d: np.ndarray,
+        self,
+        poses_2d: np.ndarray,
     ) -> np.ndarray | None:
         """Fallback: biomechanics-based 3D estimation."""
         try:

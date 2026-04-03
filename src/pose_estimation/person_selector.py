@@ -8,10 +8,14 @@ Provides:
 
 from __future__ import annotations
 
-import numpy as np
-from numpy.typing import NDArray
-from pathlib import Path
+from typing import TYPE_CHECKING
 
+import numpy as np
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from numpy.typing import NDArray
 
 BBox = tuple[int, int, int, int]  # (x1, y1, x2, y2)
 
@@ -122,7 +126,7 @@ def select_persons_interactive(
             fontsize=10,
             color="white",
             fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="black", alpha=0.6),
+            bbox={"boxstyle": "round,pad=0.2", "facecolor": "black", "alpha": 0.6},
         )
 
     def on_click(event):
@@ -164,7 +168,7 @@ def _cli_fallback(
     """CLI fallback when matplotlib is not available."""
     n = len(poses)
     if n == 1:
-        print(f"Auto-selecting person 0 (only one detected).")
+        print("Auto-selecting person 0 (only one detected).")
         return [0]
 
     print(f"Detected {n} persons:")

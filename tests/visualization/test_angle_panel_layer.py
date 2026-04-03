@@ -1,7 +1,6 @@
 """Tests for angle panel layer."""
 
 import numpy as np
-import pytest
 
 from src.visualization.layers.angle_panel_layer import AnglePanelLayer
 from src.visualization.layers.base import LayerContext

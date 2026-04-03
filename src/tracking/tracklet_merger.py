@@ -80,12 +80,14 @@ def build_tracklets(
     tracklets: list[Tracklet] = []
     for tid, entries in track_data.items():
         entries.sort(key=lambda x: x[0])
-        tracklets.append(Tracklet(
-            track_id=tid,
-            frames=[e[0] for e in entries],
-            poses={e[0]: e[1] for e in entries},
-            foot_keypoints={e[0]: e[2] for e in entries},
-        ))
+        tracklets.append(
+            Tracklet(
+                track_id=tid,
+                frames=[e[0] for e in entries],
+                poses={e[0]: e[1] for e in entries},
+                foot_keypoints={e[0]: e[2] for e in entries},
+            )
+        )
     return tracklets
 
 
@@ -160,7 +162,9 @@ class TrackletMerger:
         if best_score >= self.similarity_threshold:
             logger.info(
                 "Tracklet merge: track %d → %d (score=%.3f, gap=%d frames)",
-                target.track_id, best_match.track_id, best_score,
+                target.track_id,
+                best_match.track_id,
+                best_score,
                 best_match.start_frame - target.end_frame,
             )
             return best_match
@@ -203,7 +207,9 @@ class TrackletMerger:
         )
 
     def _spatial_only_match(
-        self, target: Tracklet, candidates: list[Tracklet],
+        self,
+        target: Tracklet,
+        candidates: list[Tracklet],
     ) -> Tracklet | None:
         best_dist = float("inf")
         best: Tracklet | None = None

@@ -52,12 +52,15 @@ class Sports2DTracker:
         # 4D constant-velocity Kalman: state = [cx, cy, vx, vy]
         # dt=1 (frame-based): vx is in normalized-coords-per-frame.
         # This converges faster than dt=1/fps for inter-frame association.
-        self._F = np.array([
-            [1, 0, 1, 0],
-            [0, 1, 0, 1],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1],
-        ], dtype=np.float64)
+        self._F = np.array(
+            [
+                [1, 0, 1, 0],
+                [0, 1, 0, 1],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ],
+            dtype=np.float64,
+        )
         self._H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float64)
         # Q: position noise low, velocity noise moderate (skaters change speed)
         self._Q = np.diag([1e-4, 1e-4, 1e-2, 1e-2])
@@ -70,7 +73,7 @@ class Sports2DTracker:
 
         # Состояние
         self._prev_keypoints: np.ndarray | None = None  # (P_prev, 17, 2)
-        self._prev_scores: np.ndarray | None = None      # (P_prev, 17)
+        self._prev_scores: np.ndarray | None = None  # (P_prev, 17)
         self._prev_track_ids: list[int] = []
         self._track_last_seen: dict[int, int] = {}
         # Последние keypoints для треков, пропавших на текущем кадре
@@ -158,12 +161,12 @@ class Sports2DTracker:
             return track_ids
 
         # Predicted centroid distance matrix: (n_prev, n_curr)
-        pred_centroids = self._predict_centroids()   # (n_prev, 2)
+        pred_centroids = self._predict_centroids()  # (n_prev, 2)
         curr_centroids = np.zeros((n_curr, 2), dtype=np.float64)
         for j in range(n_curr):
             curr_centroids[j] = self._centroid(keypoints[j])
         diff = pred_centroids[:, np.newaxis, :] - curr_centroids[np.newaxis, :, :]
-        dist_matrix = np.linalg.norm(diff, axis=2)   # (n_prev, n_curr)
+        dist_matrix = np.linalg.norm(diff, axis=2)  # (n_prev, n_curr)
         dist_matrix = np.nan_to_num(dist_matrix, nan=1e10, posinf=1e10)
 
         # Авто max_dist из bbox
@@ -176,7 +179,7 @@ class Sports2DTracker:
             y_max = np.nanmax(all_kps[:, :, 1], axis=1)
             widths = x_max - x_min
             heights = y_max - y_min
-            diagonals = np.sqrt(widths ** 2 + heights ** 2)
+            diagonals = np.sqrt(widths**2 + heights**2)
             valid_diags = diagonals[diagonals > 0]
             if len(valid_diags) > 0:
                 max_dist = float(1.5 * np.mean(valid_diags))
@@ -188,7 +191,7 @@ class Sports2DTracker:
 
         # Фильтр по порогу
         valid_associations: list[tuple[int, int]] = []
-        for pre_id, curr_id in zip(pre_ids, curr_ids):
+        for pre_id, curr_id in zip(pre_ids, curr_ids, strict=False):
             if dist_matrix[pre_id, curr_id] <= max_dist:
                 valid_associations.append((pre_id, curr_id))
 
@@ -230,9 +233,9 @@ class Sports2DTracker:
         # Re-ассоциация: попытка сопоставить несопоставленных с пропавшими треками
         if self._lost_keypoints and unassociated_curr:
             lost_ids = [
-                tid for tid in self._lost_keypoints
-                if self._frame_count - self._track_last_seen.get(tid, 0)
-                <= self._max_disappeared
+                tid
+                for tid in self._lost_keypoints
+                if self._frame_count - self._track_last_seen.get(tid, 0) <= self._max_disappeared
             ]
             if lost_ids:
                 lost_kps = np.array([self._lost_keypoints[tid] for tid in lost_ids])
@@ -241,14 +244,14 @@ class Sports2DTracker:
                 disp_exp = lost_kps[:, np.newaxis, :, :]  # (n_lost, 1, 17, 2)
                 unassoc_exp = unassoc_kps[np.newaxis, :, :, :]  # (1, n_unassoc, 17, 2)
                 d = unassoc_exp - disp_exp
-                dists = np.sqrt(np.nansum(d ** 2, axis=3))
+                dists = np.sqrt(np.nansum(d**2, axis=3))
                 lost_matrix = np.nanmean(dists, axis=2)
                 lost_matrix = np.nan_to_num(lost_matrix, nan=1e10, posinf=1e10)
 
                 lost_ids_idx, unassoc_ids_idx = linear_sum_assignment(lost_matrix)
 
                 matched_unassoc: set[int] = set()
-                for l_idx, u_idx in zip(lost_ids_idx, unassoc_ids_idx):
+                for l_idx, u_idx in zip(lost_ids_idx, unassoc_ids_idx, strict=False):
                     if lost_matrix[l_idx, u_idx] <= max_dist:
                         real_curr_idx = unassociated_curr[u_idx]
                         track_ids[real_curr_idx] = lost_ids[l_idx]
@@ -266,7 +269,8 @@ class Sports2DTracker:
 
                 # Обновить unassociated_curr, убрав сопоставленные
                 unassociated_curr = [
-                    unassociated_curr[i] for i in range(len(unassociated_curr))
+                    unassociated_curr[i]
+                    for i in range(len(unassociated_curr))
                     if i not in matched_unassoc
                 ]
 
@@ -301,17 +305,15 @@ class Sports2DTracker:
     def _purge_old_tracks(self) -> None:
         """Удалить старые треки из всех структур."""
         self._track_last_seen = {
-            tid: last for tid, last in self._track_last_seen.items()
+            tid: last
+            for tid, last in self._track_last_seen.items()
             if self._frame_count - last <= self._max_disappeared
         }
         self._lost_keypoints = {
-            tid: kps
-            for tid, kps in self._lost_keypoints.items()
-            if tid in self._track_last_seen
+            tid: kps for tid, kps in self._lost_keypoints.items() if tid in self._track_last_seen
         }
         self._kalman_states = {
-            tid: state for tid, state in self._kalman_states.items()
-            if tid in self._track_last_seen
+            tid: state for tid, state in self._kalman_states.items() if tid in self._track_last_seen
         }
 
     def reset(self) -> None:

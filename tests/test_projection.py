@@ -1,5 +1,8 @@
 """Tests for foot keypoint 3D→2D projection."""
+
 import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -8,7 +11,7 @@ DATA_ROOT = "data/datasets/athletepose3d"
 
 @pytest.fixture
 def cam_params():
-    with open(f"{DATA_ROOT}/cam_param.json") as f:
+    with Path(f"{DATA_ROOT}/cam_param.json").open() as f:
         return json.load(f)
 
 
@@ -78,12 +81,7 @@ class TestFootProjection:
             non_nan = [i for i in projected_indices if not np.isnan(pts[i]).any()]
             assert len(non_nan) > 0, f"All projected foot points are NaN in {cam_name}"
             # At least some foot points should be in-frame
-            valid = (
-                (pts[:, 0] >= 0)
-                & (pts[:, 0] <= 1920)
-                & (pts[:, 1] >= 0)
-                & (pts[:, 1] <= 1088)
-            )
+            valid = (pts[:, 0] >= 0) & (pts[:, 0] <= 1920) & (pts[:, 1] >= 0) & (pts[:, 1] <= 1088)
             assert valid.any(), f"No valid foot points for {cam_name}"
 
     def test_nan_3d_returns_nan(self, cam_params):
@@ -170,7 +168,7 @@ class TestWeakPerspectiveProjection:
         # Right side is fully valid
         kp3d[95] = [2000.0, 500.0, 2000.0]  # R_ankle (processed)
         kp3d[112] = [2000.0, 300.0, 2000.0]  # RHEL (processed)
-        kp3d[93] = [2100.0, 300.0, 2000.0]   # R_Toe (raw)
+        kp3d[93] = [2100.0, 300.0, 2000.0]  # R_Toe (raw)
 
         foot_2d = project_foot_frame(kp3d, cam)
 
@@ -202,14 +200,17 @@ class TestValidateFootProjection:
         coco_2d[15] = l_ankle
         coco_2d[16] = r_ankle
 
-        foot_2d = np.array([
-            [500.0, 820.0],   # L heel: 20px below ankle
-            [530.0, 870.0],   # L big toe
-            [490.0, 860.0],   # L small toe
-            [700.0, 820.0],   # R heel: 20px below ankle
-            [730.0, 870.0],   # R big toe
-            [690.0, 860.0],   # R small toe
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [500.0, 820.0],  # L heel: 20px below ankle
+                [530.0, 870.0],  # L big toe
+                [490.0, 860.0],  # L small toe
+                [700.0, 820.0],  # R heel: 20px below ankle
+                [730.0, 870.0],  # R big toe
+                [690.0, 860.0],  # R small toe
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -224,14 +225,17 @@ class TestValidateFootProjection:
         coco_2d[15] = [500.0, 800.0]  # L ankle
         coco_2d[16] = [700.0, 800.0]  # R ankle
 
-        foot_2d = np.array([
-            [500.0, 750.0],   # L heel: 50px above ankle (> 30px tolerance)
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [700.0, 820.0],   # R heel: valid
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [500.0, 750.0],  # L heel: 50px above ankle (> 30px tolerance)
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [700.0, 820.0],  # R heel: valid
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -246,14 +250,17 @@ class TestValidateFootProjection:
         coco_2d[15] = [500.0, 800.0]  # L ankle
         coco_2d[16] = [700.0, 800.0]  # R ankle
 
-        foot_2d = np.array([
-            [500.0, 900.0],   # L heel: 100px below ankle (> 60px max)
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [500.0, 900.0],  # L heel: 100px below ankle (> 60px max)
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -267,14 +274,17 @@ class TestValidateFootProjection:
         coco_2d[15] = [500.0, 800.0]  # L ankle
         coco_2d[16] = [700.0, 800.0]  # R ankle
 
-        foot_2d = np.array([
-            [0.0, 0.0],       # placeholder (heel)
-            [530.0, 870.0],   # L big toe: ~74px from ankle
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [730.0, 870.0],   # R big toe: ~74px from ankle
-            [0.0, 0.0],       # placeholder
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [0.0, 0.0],  # placeholder (heel)
+                [530.0, 870.0],  # L big toe: ~74px from ankle
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [730.0, 870.0],  # R big toe: ~74px from ankle
+                [0.0, 0.0],  # placeholder
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -289,14 +299,17 @@ class TestValidateFootProjection:
         coco_2d[15] = [500.0, 800.0]  # L ankle
         coco_2d[16] = [700.0, 800.0]  # R ankle
 
-        foot_2d = np.array([
-            [0.0, 0.0],       # placeholder
-            [540.0, 880.0],   # L big toe: ~89px from ankle (> 80px max)
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [0.0, 0.0],  # placeholder
+                [540.0, 880.0],  # L big toe: ~89px from ankle (> 80px max)
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -310,14 +323,17 @@ class TestValidateFootProjection:
         coco_2d[15] = [500.0, 800.0]  # L ankle
         coco_2d[16] = [700.0, 800.0]  # R ankle
 
-        foot_2d = np.array([
-            [500.0, 820.0],   # L heel: 20px, valid
-            [540.0, 880.0],   # L big toe: 89px, INVALID
-            [490.0, 850.0],   # L small toe: ~51px, valid
-            [700.0, 750.0],   # R heel: 50px above ankle, INVALID
-            [730.0, 870.0],   # R big toe: 74px, valid
-            [700.0, 900.0],   # R small toe: 100px, INVALID
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [500.0, 820.0],  # L heel: 20px, valid
+                [540.0, 880.0],  # L big toe: 89px, INVALID
+                [490.0, 850.0],  # L small toe: ~51px, valid
+                [700.0, 750.0],  # R heel: 50px above ankle, INVALID
+                [730.0, 870.0],  # R big toe: 74px, valid
+                [700.0, 900.0],  # R small toe: 100px, INVALID
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -338,14 +354,17 @@ class TestValidateFootProjection:
         coco_2d[15] = [500.0, 800.0]
         coco_2d[16] = [700.0, 800.0]
 
-        foot_2d = np.array([
-            [np.nan, np.nan],
-            [530.0, 870.0],
-            [np.nan, np.nan],
-            [np.nan, np.nan],
-            [730.0, 870.0],
-            [np.nan, np.nan],
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [np.nan, np.nan],
+                [530.0, 870.0],
+                [np.nan, np.nan],
+                [np.nan, np.nan],
+                [730.0, 870.0],
+                [np.nan, np.nan],
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -362,16 +381,19 @@ class TestValidateFootProjection:
 
         coco_2d = np.zeros((17, 2))
         coco_2d[15] = [np.nan, np.nan]  # L ankle is NaN
-        coco_2d[16] = [700.0, 800.0]    # R ankle is valid
+        coco_2d[16] = [700.0, 800.0]  # R ankle is valid
 
-        foot_2d = np.array([
-            [500.0, 820.0],   # L heel: would be valid but ankle is NaN
-            [530.0, 870.0],   # L big toe: same
-            [490.0, 860.0],   # L small toe: same
-            [700.0, 820.0],   # R heel: valid
-            [730.0, 870.0],   # R big toe: valid
-            [690.0, 860.0],   # R small toe: valid
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [500.0, 820.0],  # L heel: would be valid but ankle is NaN
+                [530.0, 870.0],  # L big toe: same
+                [490.0, 860.0],  # L small toe: same
+                [700.0, 820.0],  # R heel: valid
+                [730.0, 870.0],  # R big toe: valid
+                [690.0, 860.0],  # R small toe: valid
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 
@@ -389,14 +411,17 @@ class TestValidateFootProjection:
         coco_2d = np.zeros((17, 2))
         coco_2d[15] = [500.0, 800.0]  # L ankle
 
-        foot_2d = np.array([
-            [0.0, 0.0],       # placeholder
-            [495.0, 760.0],   # L big toe: 40px above ankle (800-30=770 threshold)
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-            [0.0, 0.0],       # placeholder
-        ], dtype=np.float32)
+        foot_2d = np.array(
+            [
+                [0.0, 0.0],  # placeholder
+                [495.0, 760.0],  # L big toe: 40px above ankle (800-30=770 threshold)
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+                [0.0, 0.0],  # placeholder
+            ],
+            dtype=np.float32,
+        )
 
         validate_foot_projection(foot_2d, coco_2d)
 

@@ -1,7 +1,6 @@
 """Tests for matplotlib person selector logic."""
 
 import numpy as np
-import pytest
 
 from src.pose_estimation.person_selector import compute_bboxes_from_poses, point_in_bbox
 

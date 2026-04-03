@@ -1,7 +1,6 @@
 """Tests for skeleton drawer Sports2D-style updates."""
 
 import numpy as np
-import pytest
 
 from src.visualization.skeleton.drawer import draw_skeleton
 
@@ -41,19 +40,22 @@ class TestFootKeypoints:
     def test_draws_foot_keypoints(self):
         """Should draw foot keypoints when provided."""
         pose = np.zeros((17, 2), dtype=np.float32)
-        pose[0] = [320, 80]   # HEAD
+        pose[0] = [320, 80]  # HEAD
         pose[5] = [310, 200]  # LHIP
         pose[6] = [310, 280]  # LKNEE
         pose[7] = [310, 360]  # LFOOT
 
-        foot_kp = np.array([
-            [290, 365, 0.9],  # L_Heel
-            [330, 370, 0.9],  # L_BigToe
-            [310, 372, 0.5],  # L_SmallToe (skipped)
-            [340, 365, 0.9],  # R_Heel
-            [380, 370, 0.9],  # R_BigToe
-            [360, 372, 0.5],  # R_SmallToe (skipped)
-        ], dtype=np.float32)
+        foot_kp = np.array(
+            [
+                [290, 365, 0.9],  # L_Heel
+                [330, 370, 0.9],  # L_BigToe
+                [310, 372, 0.5],  # L_SmallToe (skipped)
+                [340, 365, 0.9],  # R_Heel
+                [380, 370, 0.9],  # R_BigToe
+                [360, 372, 0.5],  # R_SmallToe (skipped)
+            ],
+            dtype=np.float32,
+        )
 
         frame_before = np.zeros((480, 640, 3), dtype=np.uint8)
         frame_after = frame_before.copy()
@@ -72,14 +74,17 @@ class TestFootKeypoints:
         """Should draw line connecting heel to big toe."""
         pose = np.zeros((17, 2), dtype=np.float32)
         pose[7] = [310, 360]  # LFOOT
-        foot_kp = np.array([
-            [290, 365, 0.9],  # L_Heel
-            [330, 370, 0.9],  # L_BigToe
-            [310, 372, 0.0],  # L_SmallToe
-            [0, 0, 0.0],      # R_Heel
-            [0, 0, 0.0],      # R_BigToe
-            [0, 0, 0.0],      # R_SmallToe
-        ], dtype=np.float32)
+        foot_kp = np.array(
+            [
+                [290, 365, 0.9],  # L_Heel
+                [330, 370, 0.9],  # L_BigToe
+                [310, 372, 0.0],  # L_SmallToe
+                [0, 0, 0.0],  # R_Heel
+                [0, 0, 0.0],  # R_BigToe
+                [0, 0, 0.0],  # R_SmallToe
+            ],
+            dtype=np.float32,
+        )
 
         frame = _frame()
         draw_skeleton(frame, pose, 480, 640, foot_keypoints=foot_kp)

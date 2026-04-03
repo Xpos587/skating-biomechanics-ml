@@ -19,14 +19,14 @@ VIDEO_SOURCES = [
         "filename": "skating_video.mp4",
         "url": "https://youtu.be/7wjiqGGv_RY?si=LRZSYUcTUVF8neaS",
         "title": "Лига фигурного катания - тренировка по скольжению",
-        "description": "Обучающее видео о скольжении, тройках и базовых упражнениях",  # noqa: RUF001
+        "description": "Обучающее видео о скольжении, тройках и базовых упражнениях",
     },
     {
         "id": "video2",
         "filename": "skating_video2.mp4",
         "url": "https://youtu.be/y9fwL-3OCpk?si=ikG9xrTVRNzuq0Hd",
         "title": "Фигурное катание - техника",
-        "description": "Видео о технике фигурного катания",  # noqa: RUF001
+        "description": "Видео о технике фигурного катания",
     },
     {
         "id": "video3",
