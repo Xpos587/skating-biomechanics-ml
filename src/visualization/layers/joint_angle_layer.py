@@ -154,11 +154,15 @@ class JointAngleLayer(Layer):
         viz_config: VisualizationConfig | None = None,
         joints: list[JointAngleSpec] | None = None,
         show_degree_labels: bool = True,
+        angle_source: str = "auto",
     ):
+        if angle_source not in ("auto", "2d", "3d"):
+            raise ValueError(f"angle_source must be 'auto', '2d', or '3d', got '{angle_source}'")
         super().__init__(config=config or LayerConfig(enabled=True, z_index=6))
         self.viz = viz_config or VisualizationConfig()
         self.joints = joints or DEFAULT_JOINT_SPECS
         self.show_degree_labels = show_degree_labels
+        self.angle_source = angle_source
 
     def render(self, frame: Frame, context: LayerContext) -> Frame:
         pose = context.pose_2d
@@ -168,16 +172,21 @@ class JointAngleLayer(Layer):
         w, h = context.frame_width, context.frame_height
 
         for spec in self.joints:
-            # Prefer 3D angles (more accurate via kinematic constraints)
+            # Determine angle source based on mode
             angle = None
-            if context.pose_3d is not None:
+            use_3d = (
+                self.angle_source == "3d"
+                or (self.angle_source == "auto" and context.pose_3d is not None)
+            )
+
+            if use_3d and context.pose_3d is not None:
                 a3 = context.pose_3d[spec.point_a]
                 v3 = context.pose_3d[spec.vertex]
                 c3 = context.pose_3d[spec.point_c]
                 if not (np.isnan(a3).any() or np.isnan(v3).any() or np.isnan(c3).any()):
                     angle = angle_3pt(a3, v3, c3)
 
-            # Fallback to 2D
+            # Fallback to 2D (or use 2D if angle_source == "2d")
             if angle is None:
                 if context.normalized:
                     pa = normalized_to_pixel(pose[spec.point_a], w, h)
