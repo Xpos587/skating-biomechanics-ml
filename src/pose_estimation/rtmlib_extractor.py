@@ -332,7 +332,9 @@ class RTMPoseExtractor:
                                     )
                                     skeletal_anomaly = ratio_change > 0.25
 
-                                if jump > 0.15 or skeletal_anomaly:
+                                # Require BOTH signals: position jump AND body change.
+                                # Skeletal anomaly alone fires during salchow leg swings.
+                                if jump > 0.15 and skeletal_anomaly:
                                     stolen = True
                                     break
                             all_poses[frame_idx] = h36m_poses[p]
