@@ -162,7 +162,7 @@ class RTMPoseExtractor:
         deepsort_tracker = None
         if resolved_mode == "sports2d":
             from ..tracking.sports2d import Sports2DTracker
-            sports2d_tracker = Sports2DTracker(max_disappeared=30)
+            sports2d_tracker = Sports2DTracker(max_disappeared=30, fps=video_meta.fps)
         elif resolved_mode == "deepsort":
             from ..tracking.deepsort_tracker import DeepSORTTracker
             deepsort_tracker = DeepSORTTracker(max_age=30, embedder_gpu=True)
@@ -535,7 +535,7 @@ class RTMPoseExtractor:
         deepsort_tracker = None
         if resolved_mode == "sports2d":
             from ..tracking.sports2d import Sports2DTracker
-            sports2d_tracker = Sports2DTracker(max_disappeared=30)
+            sports2d_tracker = Sports2DTracker(max_disappeared=30, fps=video_meta.fps)
         elif resolved_mode == "deepsort":
             from ..tracking.deepsort_tracker import DeepSORTTracker
             deepsort_tracker = DeepSORTTracker(max_age=30, embedder_gpu=True)

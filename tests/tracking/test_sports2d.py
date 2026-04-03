@@ -113,8 +113,8 @@ class TestNewPerson:
 
 
 class TestPersonLeaves:
-    def test_person_disappears_id_persists(self):
-        """Если человек пропал на кадр, его ID сохраняется при возвращении."""
+    def test_person_leaves_a_remains(self):
+        """Если человек пропал на кадр, оставшийся сохраняет ID."""
         tracker = Sports2DTracker(max_disappeared=30)
         person_a = _make_person_pose(0.3, 0.5)
         person_b = _make_person_pose(0.7, 0.5)
@@ -122,17 +122,36 @@ class TestPersonLeaves:
         # Кадр 1: 2 человека
         ids1 = tracker.update(np.array([person_a, person_b]), _make_scores(2))
 
-        # Кадр 2: только 1 человек
+        # Кадр 2: только 1 человек — A сохраняет ID
         ids2 = tracker.update(np.array([person_a]), _make_scores(1))
 
-        # Кадр 3: снова 2 человека
+        # Кадр 3: снова 2 человека — A сохраняет ID
         ids3 = tracker.update(np.array([person_a, person_b]), _make_scores(2))
 
         assert ids1[0] == 0  # A
         assert ids1[1] == 1  # B
         assert ids2 == [0]    # A остался
-        assert ids3[0] == 0  # A
-        assert ids3[1] == 1  # B вернулся с тем же ID
+        assert ids3[0] == 0  # A всё ещё ID 0
+
+    def test_person_reappears_after_occlusion(self):
+        """Человек вернулся после окклюзии — сохраняет тот же ID."""
+        tracker = Sports2DTracker(max_disappeared=30)
+        person_a = _make_person_pose(0.3, 0.5)
+        person_b = _make_person_pose(0.7, 0.5)
+
+        # Кадр 1: 2 человека
+        ids1 = tracker.update(np.array([person_a, person_b]), _make_scores(2))
+
+        # Кадры 2-3: только occluder (B) — A пропал
+        tracker.update(np.array([person_b]), _make_scores(1))
+        tracker.update(np.array([person_b]), _make_scores(1))
+
+        # Кадр 4: A снова виден вместе с B
+        ids4 = tracker.update(np.array([person_a, person_b]), _make_scores(2))
+
+        assert ids1[0] == 0  # A
+        assert ids1[1] == 1  # B
+        assert ids4[0] == 0  # A восстановил свой ID после окклюзии
 
 
 class TestNaNHandling:
@@ -230,3 +249,96 @@ class TestTrackPurge:
         # Новый человек → новый ID (старый 0 удалён)
         ids5 = tracker.update(np.array([person_a]), _make_scores(1))
         assert ids5 == [1]
+
+
+class TestKalmanPrediction:
+    """Tests for Kalman filter velocity prediction in Sports2DTracker."""
+
+    def test_occluder_does_not_steal_track(self):
+        """After velocity builds, occluder at target's old position does not steal ID."""
+        tracker = Sports2DTracker(max_dist=None, fps=30.0)
+
+        # Frames 1-5: A moves right steadily (+0.03/frame), B stays at 0.7.
+        # Kalman converges velocity estimate to ~0.03/frame.
+        for i in range(5):
+            a = _make_person_pose(0.3 + 0.03 * i, 0.5)
+            b = _make_person_pose(0.7, 0.5)
+            ids = tracker.update(np.array([a, b]), _make_scores(2))
+            assert ids[0] == 0, f"Frame {i+1}: expected A=0, got {ids}"
+
+        # Frame 6: A continues to 0.45, B jumps to A's previous position (0.42).
+        # Kalman predicts A at ~0.45 (velocity converged). B at 0.42 is behind.
+        a_continues = _make_person_pose(0.45, 0.5)
+        b_at_a_old = _make_person_pose(0.42, 0.5)
+        ids6 = tracker.update(np.array([a_continues, b_at_a_old]), _make_scores(2))
+
+        # ID 0 stays on index 0 (A), not stolen by B
+        assert ids6[0] == 0
+
+    def test_stable_tracking_with_kalman(self):
+        """Kalman does not break normal small movements."""
+        tracker = Sports2DTracker(fps=30.0)
+        prev_ids = None
+        for frame in range(10):
+            a = _make_person_pose(0.3 + 0.001 * frame, 0.5)
+            b = _make_person_pose(0.7 - 0.001 * frame, 0.5)
+            ids = tracker.update(np.array([a, b]), _make_scores(2))
+            if prev_ids is not None:
+                assert ids == prev_ids, f"IDs changed at frame {frame}"
+            prev_ids = ids
+        assert prev_ids == [0, 1]
+
+    def test_kalman_velocity_builds_over_frames(self):
+        """After several frames, velocity estimate supports association."""
+        tracker = Sports2DTracker(fps=30.0)
+        for i in range(5):
+            a = _make_person_pose(0.3 + 0.01 * i, 0.5)
+            tracker.update(np.array([a]), _make_scores(1))
+        a = _make_person_pose(0.35, 0.5)
+        ids = tracker.update(np.array([a]), _make_scores(1))
+        assert ids == [0]
+
+    def test_reappear_after_occlusion_with_kalman(self):
+        """Lost track recovery still works."""
+        tracker = Sports2DTracker(max_disappeared=30, fps=30.0)
+        ids1 = tracker.update(
+            np.array([_make_person_pose(0.3, 0.5),
+                       _make_person_pose(0.7, 0.5)]),
+            _make_scores(2),
+        )
+        assert ids1 == [0, 1]
+        tracker.update(np.array([_make_person_pose(0.7, 0.5)]), _make_scores(1))
+        tracker.update(np.array([_make_person_pose(0.7, 0.5)]), _make_scores(1))
+        ids4 = tracker.update(
+            np.array([_make_person_pose(0.3, 0.5),
+                       _make_person_pose(0.7, 0.5)]),
+            _make_scores(2),
+        )
+        assert 0 in ids4
+
+    def test_empty_then_normal_with_kalman(self):
+        """Empty frame (all people gone) clears previous state — new IDs on return."""
+        tracker = Sports2DTracker(fps=30.0)
+        tracker.update(np.array([_make_person_pose(0.3, 0.5)]), _make_scores(1))
+        tracker.update(np.zeros((0, 17, 2)), np.zeros((0, 17)))
+        ids3 = tracker.update(np.array([_make_person_pose(0.3, 0.5)]), _make_scores(1))
+        # After full empty frame, _prev_keypoints is None → first-frame branch → new ID
+        assert ids3 == [1]
+
+    def test_swap_order_with_kalman(self):
+        """Order swap — IDs stay stable."""
+        tracker = Sports2DTracker(fps=30.0)
+        a, b = _make_person_pose(0.3, 0.5), _make_person_pose(0.7, 0.5)
+        tracker.update(np.array([a, b]), _make_scores(2))
+        ids2 = tracker.update(np.array([b, a]), _make_scores(2))
+        assert ids2[0] == 1
+        assert ids2[1] == 0
+
+    def test_kalman_reset_clears_state(self):
+        """reset() clears Kalman state."""
+        tracker = Sports2DTracker(fps=30.0)
+        tracker.update(np.array([_make_person_pose(0.3, 0.5)]), _make_scores(1))
+        assert len(tracker._kalman_states) == 1
+        tracker.reset()
+        assert len(tracker._kalman_states) == 0
+        assert tracker._next_id == 0
