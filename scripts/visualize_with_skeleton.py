@@ -43,6 +43,7 @@ from src.visualization import (
     render_layers,
 )
 from src.visualization.core.text import draw_text_box, draw_text_outlined
+from src.visualization.hud.coach_panel import CoachOverlayData, compute_coach_overlays, draw_coach_panel
 
 
 def main() -> int:
@@ -96,6 +97,12 @@ def main() -> int:
     )
     parser.add_argument("--poses", type=Path, help="Pre-computed poses .npz file (optional)")
     parser.add_argument("--segments", type=Path, help="Segmentation JSON file (optional)")
+    parser.add_argument(
+        "--element",
+        type=str,
+        default=None,
+        help="Element type for AI coach overlay (e.g., salchow, waltz_jump, toe_loop)",
+    )
     parser.add_argument(
         "--subtitles", type=Path, help="VTT subtitle file (auto-detected if not provided)"
     )
@@ -269,6 +276,38 @@ def main() -> int:
     # Initialize blade states
     blade_states_left = [None] * len(poses_viz)
     blade_states_right = [None] * len(poses_viz)
+
+    # --- Pre-compute AI coach overlays ---
+    coach_overlays: list[CoachOverlayData] = []
+    if args.element and poses_viz is not None:
+        try:
+            from src.analysis.metrics import BiomechanicsAnalyzer
+            from src.analysis.phase_detector import PhaseDetector
+            from src.analysis.recommender import Recommender
+            from src.analysis.element_defs import get_element_def
+
+            element_def = get_element_def(args.element)
+            if element_def:
+                detector = PhaseDetector()
+                analyzer = BiomechanicsAnalyzer(element_def)
+                recommender = Recommender()
+
+                phase_result = detector.detect_phases(poses_viz, meta.fps, args.element)
+                metrics = analyzer.analyze(poses_viz, phase_result.phases, meta.fps)
+                recs = recommender.recommend(metrics, args.element)
+                coach_overlays = compute_coach_overlays(
+                    phases=phase_result.phases,
+                    metrics=metrics,
+                    recommendations=recs,
+                    element_type=args.element,
+                    fps=meta.fps,
+                )
+                if coach_overlays:
+                    ov = coach_overlays[0]
+                    print(f"Coach overlay: {ov.element_name_ru} at frame {ov.landing_frame}")
+        except Exception as e:
+            print(f"Coach overlay skipped: {e}")
+            coach_overlays = []
 
     # Initialize 3D pose extraction if requested
     poses_3d = None
@@ -579,6 +618,11 @@ def main() -> int:
         blade_left = _get_blade_state(blade_states_left, current_pose_idx)
         blade_right = _get_blade_state(blade_states_right, current_pose_idx)
 
+        # AI coach overlay (after landing, for display_duration seconds)
+        coach_overlay = _get_coach_overlay(coach_overlays, frame_idx)
+        if coach_overlay is not None:
+            frame = draw_coach_panel(frame, coach_overlay, position=(10, 90))
+
         frame = _draw_hud(
             frame,
             active_segment,
@@ -686,6 +730,16 @@ def _get_active_segment(segments: list, frame_idx: int) -> dict:
                 "confidence": seg.get("confidence", 0.0),
             }
     return {}
+
+
+def _get_coach_overlay(
+    overlays: list[CoachOverlayData], frame_idx: int
+) -> CoachOverlayData | None:
+    """Find the coach overlay visible at the current frame."""
+    for overlay in overlays:
+        if overlay.is_visible_at(frame_idx):
+            return overlay
+    return None
 
 
 def _draw_hud(
