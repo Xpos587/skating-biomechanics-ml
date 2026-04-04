@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from src.visualization.config import LayerConfig
+from src.visualization.core.text import put_text
 from src.visualization.hud.elements import (
     draw_frame_counter,
     draw_metrics_panel,
@@ -180,74 +181,21 @@ class DebugHUDLayer(Layer):
         """Render debug HUD to frame."""
         x, y = self.position
 
-        # Frame info
-        import cv2
+        put_text(frame, f"Frame: {context.frame_idx}/{context.total_frames or '?'}", (x, y), font_size=14)
+        y += 22
 
-        cv2.putText(
-            frame,
-            f"Frame: {context.frame_idx}/{context.total_frames or '?'}",
-            (x, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        y += 25
+        put_text(frame, f"FPS: {context.fps:.1f}", (x, y), font_size=14)
+        y += 22
 
-        # FPS
-        cv2.putText(
-            frame,
-            f"FPS: {context.fps:.1f}",
-            (x, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        y += 25
-
-        # Phase
         if context.phase:
-            cv2.putText(
-                frame,
-                f"Phase: {context.phase}",
-                (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
-            y += 25
+            put_text(frame, f"Phase: {context.phase}", (x, y), font_size=14)
+            y += 22
 
-        # Blade state
         if context.blade_state:
-            blade_text = f"Blade: {context.blade_state.blade_type.name}"
-            cv2.putText(
-                frame,
-                blade_text,
-                (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
-            y += 25
+            put_text(frame, f"Blade: {context.blade_state.blade_type.name}", (x, y), font_size=14)
+            y += 22
 
-        # Metrics count
         if context.metrics:
-            cv2.putText(
-                frame,
-                f"Metrics: {len(context.metrics)}",
-                (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
+            put_text(frame, f"Metrics: {len(context.metrics)}", (x, y), font_size=14)
 
         return frame
