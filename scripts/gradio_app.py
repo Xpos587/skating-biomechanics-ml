@@ -39,7 +39,7 @@ def _detect_persons(
         (annotated_image, radio_choices, persons_state, status)
     """
     if not video_path:
-        return None, [], [], "⚠️ Please upload a video first."
+        return None, gr.update(choices=[], value=None), [], "⚠️ Please upload a video first."
 
     try:
         extractor = RTMPoseExtractor(
@@ -47,13 +47,14 @@ def _detect_persons(
             tracking_backend="rtmlib",
             tracking_mode=tracking,
             conf_threshold=0.3,
+            output_format="normalized",
             device="cuda",
         )
 
         persons, preview_path = extractor.preview_persons(video_path, num_frames=30)
 
         if not persons:
-            return None, [], [], "⚠️ No persons detected. Try a different video."
+            return None, gr.update(choices=[], value=None), [], "⚠️ No persons detected. Try a different video."
 
         # Load the preview frame (first frame with detections)
         import cv2
@@ -62,7 +63,7 @@ def _detect_persons(
         cap.release()
 
         if not ret:
-            return None, [], [], "⚠️ Failed to read video frame."
+            return None, gr.update(choices=[], value=None), [], "⚠️ Failed to read video frame."
 
         # Render annotated preview with numbered bboxes
         annotated = render_person_preview(frame, persons, selected_idx=None)
@@ -74,10 +75,10 @@ def _detect_persons(
         choices = persons_to_choices(persons)
         status = f"✅ Detected {len(persons)} person(s). Click on the image or select from the list."
 
-        return annotated, choices, persons, status
+        return annotated, gr.update(choices=choices, value=choices[0] if len(choices) == 1 else None), persons, status
 
     except Exception as e:
-        return None, [], [], f"❌ Error: {e}"
+        return None, gr.update(choices=[], value=None), [], f"❌ Error: {e}"
 
 
 def _on_image_select(
@@ -274,16 +275,15 @@ def build_app() -> gr.Blocks:
         gr.Markdown("Upload a video, select a person, and analyze biomechanics.")
 
         # State
-        persons_state = gr.State(list[dict])
+        persons_state = gr.State()
         person_click_state = gr.State(None)
 
         with gr.Row():
             # Left column: Controls
             with gr.Column(scale=1):
-                video_input = gr.File(
+                video_input = gr.Video(
                     label="Upload Video",
-                    file_types=[".mp4", ".webm", ".mov", ".avi"],
-                    type="filepath",
+                    sources=["upload"],
                 )
 
                 tracking_dropdown = gr.Dropdown(
@@ -297,8 +297,8 @@ def build_app() -> gr.Blocks:
 
                 preview_image = gr.Image(
                     label="Preview (click to select person)",
-                    interactive=True,
-                    type="filepath",
+                    interactive=False,
+                    type="numpy",
                     height=400,
                 )
 
