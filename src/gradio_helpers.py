@@ -138,7 +138,7 @@ def process_video_pipeline(
     video_path = Path(video_path)
     output_path = Path(output_path)
 
-    meta = get_video_meta(str(video_path))
+    meta = get_video_meta(video_path)
     cap = cv2.VideoCapture(str(video_path))
 
     if progress_cb:
