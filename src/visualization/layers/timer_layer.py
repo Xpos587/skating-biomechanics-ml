@@ -3,9 +3,8 @@
 Shows elapsed time as mm:ss.ms overlay on the video frame.
 """
 
-import cv2
-
 from src.visualization.config import COLOR_WHITE, LayerConfig
+from src.visualization.core.text import put_text
 from src.visualization.layers.base import Frame, Layer, LayerContext
 
 
@@ -31,40 +30,19 @@ class TimerLayer(Layer):
         seconds = elapsed % 60
         ms = int((seconds % 1) * 100)
 
-        time_str = f"{minutes:02d}:{int(seconds):02d}.{ms:02d}"
+        text = f"{minutes:02d}:{int(seconds):02d}.{ms:02d}"
 
         # Position in top-right corner
-        text = time_str
-
-        # Measure text size for background box
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.5
-        thickness = 1
-        (tw, th), baseline = cv2.getTextSize(text, font, font_scale, thickness)
-
         margin = 10
-        x = context.frame_width - tw - margin * 2
+        x = context.frame_width - 120  # approximate width for "00:00.00"
         y = margin
 
-        # Draw background
-        cv2.rectangle(
-            frame,
-            (x - margin, y - margin),
-            (x + tw + margin, y + th + margin + baseline),
-            (0, 0, 0),
-            -1,
-        )
-
-        # Draw text
-        cv2.putText(
-            frame,
-            text,
-            (x, y + th),
-            font,
-            font_scale,
-            COLOR_WHITE,
-            thickness,
-            cv2.LINE_AA,
+        put_text(
+            frame, text, (x, y),
+            font_size=14,
+            color=COLOR_WHITE,
+            bg_color=(0, 0, 0),
+            bg_alpha=0.6,
         )
 
         return frame
