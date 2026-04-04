@@ -35,7 +35,7 @@ class PhaseDetector:
         Returns:
             PhaseDetectionResult with detected boundaries and confidence.
         """
-        if element_type in ("waltz_jump", "toe_loop", "flip"):
+        if element_type in ("waltz_jump", "toe_loop", "flip", "salchow", "loop", "lutz", "axel"):
             return self.detect_jump_phases(poses, fps)
         elif element_type == "three_turn":
             return self.detect_three_turn_phases(poses, fps)
@@ -56,9 +56,8 @@ class PhaseDetector:
     def detect_jump_phases(self, poses: NormalizedPose, fps: float) -> PhaseDetectionResult:
         """Detect jump phases: takeoff, peak, landing.
 
-        Uses improved Center of Mass (CoM) trajectory with velocity-based detection
-        and adaptive sigma-based thresholds for better accuracy across different
-        video qualities and jump types.
+        Uses parabolic CoM fitting to identify true flight phases.
+        Falls back to velocity-based detection when no parabola passes quality checks.
 
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
@@ -67,7 +66,7 @@ class PhaseDetector:
         Returns:
             PhaseDetectionResult with jump phase boundaries.
         """
-        return self._detect_jump_phases_com_improved(poses, fps)
+        return self._detect_jump_phases_parabolic(poses, fps)
 
     def _detect_jump_phases_com_improved(
         self, poses: NormalizedPose, fps: float
@@ -203,6 +202,202 @@ class PhaseDetector:
         )
 
         return PhaseDetectionResult(phases=phases, confidence=confidence)
+
+    def _detect_jump_phases_parabolic(
+        self, poses: NormalizedPose, fps: float
+    ) -> PhaseDetectionResult:
+        """Detect jump phases by fitting parabolas to CoM trajectory segments.
+
+        During true flight the CoM follows a parabolic arc (gravity only).
+        Preparation movements (leg swings, crouches) produce flat or noisy CoM
+        that does not fit a parabola well. By sliding over elevated segments
+        and fitting y(t) = at² + bt + c, we discriminate real flight from prep.
+
+        Falls back to :meth:`_detect_jump_phases_com_improved` when no segment
+        passes the quality checks.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            fps: Frame rate.
+
+        Returns:
+            PhaseDetectionResult with jump phase boundaries.
+        """
+        from scipy.ndimage import median_filter as _median_filter
+
+        N = len(poses)
+        if N < 12:
+            # Too short for any meaningful analysis — fallback
+            return self._detect_jump_phases_com_improved(poses, fps)
+
+        # 1. Compute CoM trajectory
+        com_y = calculate_com_trajectory(poses)
+
+        # 2. Smooth with median filter (remove spikes)
+        com_smooth = _median_filter(com_y.astype(np.float64), size=5)
+
+        # 3. Compute baseline via large-window median
+        baseline_win = min(61, max(21, N // 3))
+        baseline = _median_filter(com_smooth, size=baseline_win)
+
+        # 4. Threshold: standard deviation of excursion
+        excursion = com_smooth - baseline
+        threshold = float(np.std(excursion))
+        if threshold < 1e-6:
+            # Essentially flat — no jump present
+            return self._detect_jump_phases_com_improved(poses, fps)
+
+        # 5. Find contiguous elevated segments (com_smooth < baseline - threshold)
+        #    In image coords, lower Y means person is higher.
+        elevated = com_smooth < baseline - threshold
+
+        # 6. Extract segments, merge close ones (gap < 3 frames)
+        segments: list[tuple[int, int]] = []
+        seg_start = None
+        for i in range(N):
+            if elevated[i]:
+                if seg_start is None:
+                    seg_start = i
+            else:
+                if seg_start is not None:
+                    # Check if gap to previous segment is small → merge
+                    if segments and (i - segments[-1][1]) < 3:
+                        segments[-1] = (segments[-1][0], i - 1)
+                    else:
+                        segments.append((seg_start, i - 1))
+                    seg_start = None
+        # Handle segment that runs to end
+        if seg_start is not None:
+            if segments and (N - 1 - segments[-1][1]) < 3:
+                segments[-1] = (segments[-1][0], N - 1)
+            else:
+                segments.append((seg_start, N - 1))
+
+        # 7. Filter by minimum duration
+        min_dur = max(5, int(0.2 * fps))
+        segments = [(s, e) for s, e in segments if (e - s + 1) >= min_dur]
+
+        if not segments:
+            return self._detect_jump_phases_com_improved(poses, fps)
+
+        # 8. For each segment, extend, fit parabola, score
+        best_score = -1.0
+        best_result: PhaseDetectionResult | None = None
+
+        for seg_start, seg_end in segments:
+            # Extend by 3 frames each side for better fit
+            ext_start = max(0, seg_start - 3)
+            ext_end = min(N - 1, seg_end + 3)
+
+            t_local = np.arange(ext_start, ext_end + 1, dtype=np.float64)
+            y_local = com_smooth[ext_start:ext_end + 1]
+
+            if len(t_local) < 4:
+                continue
+
+            # Fit parabola: y(t) = a*t^2 + b*t + c
+            coeffs, residuals, _rank, _sv, _rcond = np.polyfit(
+                t_local, y_local, 2, full=True
+            )
+            a_coeff = coeffs[0]
+            b_coeff = coeffs[1]
+
+            # Compute R²
+            y_pred = np.polyval(coeffs, t_local)
+            ss_res = float(np.sum((y_local - y_pred) ** 2))
+            ss_tot = float(np.sum((y_local - np.mean(y_local)) ** 2))
+            r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 1e-10 else 0.0
+
+            # Peak of parabola
+            parabola_peak_t = -b_coeff / (2.0 * a_coeff) if abs(a_coeff) > 1e-12 else -1.0
+
+            # 9. Quality checks
+            #    a > 0: parabola opens upward (image coords: lower y = higher person)
+            #    Peak inside segment
+            #    R² > 0.80
+            peak_inside = seg_start <= parabola_peak_t <= seg_end
+            if a_coeff > 0 and peak_inside and r_squared > 0.80:
+                peak_frame = int(round(parabola_peak_t))
+
+                # 11. Find takeoff/landing by scanning to baseline crossing
+                takeoff_idx = self._scan_to_baseline(
+                    com_smooth, baseline, peak_frame, direction=-1
+                )
+                landing_idx = self._scan_to_baseline(
+                    com_smooth, baseline, peak_frame, direction=+1
+                )
+
+                # Validate order
+                if takeoff_idx >= peak_frame:
+                    takeoff_idx = max(0, peak_frame - 5)
+                if landing_idx <= peak_frame:
+                    landing_idx = min(N - 1, peak_frame + 5)
+
+                # Validate physical plausibility
+                airtime = (landing_idx - takeoff_idx) / fps
+                if airtime < 0.3:
+                    continue
+
+                # Score = R² × excursion magnitude
+                seg_excursion = float(
+                    baseline[peak_frame] - com_smooth[peak_frame]
+                )
+                score = r_squared * seg_excursion
+
+                if score > best_score:
+                    best_score = score
+
+                    # Build phase boundaries
+                    start_idx = max(0, takeoff_idx - 10)
+                    end_idx = min(N - 1, landing_idx + 10)
+
+                    # Confidence from R² and excursion
+                    confidence = min(1.0, r_squared * min(1.0, seg_excursion / 0.1))
+
+                    best_result = PhaseDetectionResult(
+                        phases=ElementPhase(
+                            name="jump",
+                            start=start_idx,
+                            takeoff=takeoff_idx,
+                            peak=peak_frame,
+                            landing=landing_idx,
+                            end=end_idx,
+                        ),
+                        confidence=confidence,
+                    )
+
+        # 12. Fallback if no good parabola found
+        if best_result is None:
+            return self._detect_jump_phases_com_improved(poses, fps)
+
+        return best_result
+
+    @staticmethod
+    def _scan_to_baseline(
+        com_smooth: np.ndarray,
+        baseline: np.ndarray,
+        peak_frame: int,
+        direction: int,
+    ) -> int:
+        """Scan backward or forward from peak to find baseline crossing.
+
+        Args:
+            com_smooth: Smoothed CoM trajectory.
+            baseline: Baseline trajectory.
+            peak_frame: Peak frame index.
+            direction: -1 for backward (takeoff), +1 for forward (landing).
+
+        Returns:
+            Frame index where CoM returns to baseline.
+        """
+        N = len(com_smooth)
+        i = peak_frame
+        while 0 <= i < N:
+            if com_smooth[i] >= baseline[i]:
+                return i
+            i += direction
+        # Reached boundary
+        return i - direction  # last valid index in scan direction
 
     def detect_three_turn_phases(
         self,
