@@ -20,13 +20,15 @@ from src.visualization.config import (
     blade_outside_color,
     blade_unknown_color,
     font_color,
+    font_path,
     font_scale,
     font_thickness,
     hud_bg_alpha,
     hud_bg_color,
     hud_padding,
 )
-from src.visualization.core.text import draw_text_box
+from src.visualization.core.text import draw_text_box, put_text
+from src.visualization.core.overlay import draw_overlay_rect
 
 # =============================================================================
 # TYPE ALIASES
@@ -149,15 +151,16 @@ def draw_metrics_panel(
     x, y = position
 
     # Draw title
-    cv2.putText(
+    put_text(
         frame,
         title,
         (x, y),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        font_color,
-        font_thickness,
-        cv2.LINE_AA,
+        font_path=font_path,
+        font_size=int(0.6 * 32),  # Convert from font_scale to font_size (32 is default font_size)
+        color=font_color,
+        bg_color=None,
+        bg_alpha=0,
+        padding=0,
     )
     y += 25
 
@@ -230,15 +233,16 @@ def draw_phase_indicator(
     x, y = position
 
     # Draw title
-    cv2.putText(
+    put_text(
         frame,
         "PHASE",
         (x, y),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        font_color,
-        font_thickness,
-        cv2.LINE_AA,
+        font_path=font_path,
+        font_size=int(0.6 * 32),  # Convert from font_scale to font_size (32 is default font_size)
+        color=font_color,
+        bg_color=None,
+        bg_alpha=0,
+        padding=0,
     )
     y += 25
 
@@ -337,15 +341,16 @@ def draw_blade_indicator_hud(
     label_x = x - text_width // 2
     label_y = y + size + 20
 
-    cv2.putText(
+    put_text(
         frame,
         label,
         (label_x, label_y),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        font_scale,
-        color,
-        font_thickness,
-        cv2.LINE_AA,
+        font_path=font_path,
+        font_size=int(font_scale * 32),  # Convert from font_scale to font_size (32 is default font_size)
+        color=color,
+        bg_color=None,
+        bg_alpha=0,
+        padding=0,
     )
 
     # Draw foot angle value
@@ -360,15 +365,16 @@ def draw_blade_indicator_hud(
     angle_x = x - angle_width // 2
     angle_y = label_y + angle_height + 15
 
-    cv2.putText(
+    put_text(
         frame,
         angle_text,
         (angle_x, angle_y),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        font_scale * 0.8,
-        font_color,
-        1,
-        cv2.LINE_AA,
+        font_path=font_path,
+        font_size=int(font_scale * 0.8 * 32),  # Convert from font_scale to font_size (32 is default font_size)
+        color=font_color,
+        bg_color=None,
+        bg_alpha=0,
+        padding=0,
     )
 
     return frame
@@ -462,15 +468,16 @@ def draw_info_text(
     x, y = position
 
     for line in lines:
-        cv2.putText(
+        put_text(
             frame,
             line,
             (x, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            font_scale,
-            font_color,
-            font_thickness,
-            cv2.LINE_AA,
+            font_path=font_path,
+            font_size=int(font_scale * 32),  # Convert from font_scale to font_size (32 is default font_size)
+            color=font_color,
+            bg_color=None,
+            bg_alpha=0,
+            padding=0,
         )
         y += line_spacing
 
