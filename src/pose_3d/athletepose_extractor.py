@@ -59,7 +59,7 @@ class AthletePose3DExtractor:
         if model_path is not None:
             onnx_path = Path(model_path).with_suffix(".onnx")
             if onnx_path.exists():
-                self._onnx = ONNXPoseExtractor(onnx_path, device="cpu")
+                self._onnx = ONNXPoseExtractor(onnx_path, device=device)
                 self._onnx_mode = True
                 import logging as _log
 
@@ -67,11 +67,10 @@ class AthletePose3DExtractor:
                 return
 
         # PyTorch fallback (only if no ONNX)
-        if device == "auto":
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        from ..device import DeviceConfig
 
-        else:
-            self.device = torch.device(device)
+        cfg = DeviceConfig(device=device)
+        self.device = torch.device(cfg.device)
 
         # Temporal buffer for 81-frame window
         self.temporal_buffer: deque[np.ndarray] = deque(maxlen=self.TEMPORAL_WINDOW)

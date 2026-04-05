@@ -691,8 +691,8 @@ def main() -> None:
     compare_parser.add_argument(
         "--device",
         type=str,
-        default="0",
-        help="Устройство: '0' GPU, 'cpu' CPU (default: 0)",
+        default="auto",
+        help="Устройство: 'auto' (default), 'cuda', 'cpu', или GPU index '0'",
     )
 
     args = parser.parse_args()

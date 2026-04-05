@@ -21,6 +21,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
+from src.device import DeviceConfig
+
 # Ensure src/ is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -59,7 +61,7 @@ def _create_extractor(backend: str, conf_threshold: float = 0.3):
             output_format="normalized",
             conf_threshold=conf_threshold,
             det_frequency=1,
-            device="cuda",
+            device=DeviceConfig.default().device,
         )
     elif backend == "yolo":
         from src.pose_estimation.h36m_extractor import H36MExtractor

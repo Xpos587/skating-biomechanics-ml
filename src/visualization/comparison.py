@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
+from src.device import DeviceConfig
 from src.pose_estimation import RTMPoseExtractor
 from src.utils.smoothing import PoseSmoother, get_skating_optimized_config
 from src.utils.video import get_video_meta
@@ -62,7 +63,7 @@ class ComparisonConfig:
     crf: int = 30
     max_frames: int = 0
     start_frame: int = 0
-    device: str = "0"
+    device: str = "auto"
     no_cache: bool = False
 
 
@@ -90,17 +91,10 @@ class ComparisonRenderer:
         self.layers = _build_layers(self.config.overlays)
         self._sorted_layers = sorted(self.layers, key=lambda ly: ly.z_index)
 
-    def _create_extractor(self, device: str) -> RTMPoseExtractor:
-        """Create RTMPoseExtractor with GPU fallback to CPU."""
-        dev = "cuda" if device not in ("cpu", "") else "cpu"
-        try:
-            print(f"  Trying device: {device} (GPU)...", flush=True)
-            extractor = RTMPoseExtractor(conf_threshold=0.3, device=dev)
-            return extractor
-        except Exception as exc:
-            logger.warning("GPU failed: %s", exc)
-            print(f"  WARNING: GPU failed ({exc}). Falling back to CPU.", flush=True)
-            return RTMPoseExtractor(conf_threshold=0.3, device="cpu")
+    def _create_extractor(self, device: str = "auto") -> RTMPoseExtractor:
+        """Create RTMPoseExtractor using DeviceConfig."""
+        cfg = DeviceConfig(device=device)
+        return RTMPoseExtractor(conf_threshold=0.3, device=cfg.device)
 
     # -- Pose caching --------------------------------------------------------
 

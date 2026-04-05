@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
+from src.device import DeviceConfig
 from src.types import PersonClick
 from src.utils.video import get_video_meta
 from src.utils.video_writer import H264Writer
@@ -158,7 +159,7 @@ def process_video_pipeline(
         conf_threshold=0.3,
         det_frequency=frame_skip,
         frame_skip=frame_skip,
-        device="cuda",
+        device=DeviceConfig.default().device,
         tracking_mode=tracking,
     )
     extraction = extractor.extract_video_tracked(

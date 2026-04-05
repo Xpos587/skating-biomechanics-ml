@@ -41,10 +41,10 @@ class TCPFormerExtractor:
         self.use_simple = use_simple or (not self.model_path.exists())
 
         # Set device
-        if device == "auto":
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = torch.device(device)
+        from ..device import DeviceConfig
+
+        cfg = DeviceConfig(device=device)
+        self.device = torch.device(cfg.device)
 
         # Load model (lazy loading on first use)
         self.model: torch.nn.Module | None = None
