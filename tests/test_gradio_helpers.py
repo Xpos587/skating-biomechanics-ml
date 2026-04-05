@@ -1,7 +1,6 @@
 """Tests for gradio_helpers — pure functions used by the Gradio UI."""
 
 import numpy as np
-import pytest
 
 from src.gradio_helpers import (
     match_click_to_person,

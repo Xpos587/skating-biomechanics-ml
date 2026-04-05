@@ -1,6 +1,6 @@
 """Tests for core overlay primitives."""
+
 import numpy as np
-import pytest
 
 from src.visualization.core.overlay import draw_overlay_rect
 
@@ -42,9 +42,12 @@ def test_draw_overlay_rect_alpha_zero_no_change():
 def test_draw_overlay_rect_with_border():
     frame = _make_frame()
     draw_overlay_rect(
-        frame, (10, 20, 60, 40),
-        color=(0, 0, 0), alpha=0.5,
-        border_color=(0, 255, 0), border_thickness=2,
+        frame,
+        (10, 20, 60, 40),
+        color=(0, 0, 0),
+        alpha=0.5,
+        border_color=(0, 255, 0),
+        border_thickness=2,
     )
     # Border pixels should be green
     assert not np.array_equal(frame[20, 10], [0, 0, 0])

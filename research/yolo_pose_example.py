@@ -5,7 +5,6 @@ This shows how to use YOLOv11-Pose as an alternative to BlazePose
 for 2D pose estimation in the skating analysis pipeline.
 """
 
-
 import numpy as np
 from ultralytics import YOLO
 

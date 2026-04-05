@@ -1,7 +1,8 @@
 # tests/pose_3d/test_onnx_extractor.py
+from pathlib import Path
+
 import numpy as np
 import pytest
-from pathlib import Path
 
 
 @pytest.fixture
@@ -14,12 +15,14 @@ def onnx_model_path():
 
 def test_onnx_extractor_init(onnx_model_path):
     from src.pose_3d.onnx_extractor import ONNXPoseExtractor
+
     ext = ONNXPoseExtractor(onnx_model_path, device="cpu")
     assert ext.temporal_window == 81
 
 
 def test_onnx_extractor_single_window(onnx_model_path):
     from src.pose_3d.onnx_extractor import ONNXPoseExtractor
+
     ext = ONNXPoseExtractor(onnx_model_path, device="cpu")
     # Input: (81, 17, 2) normalized 2D poses
     poses_2d = np.random.rand(81, 17, 2).astype(np.float32) * 0.5 + 0.25
@@ -32,6 +35,7 @@ def test_onnx_extractor_single_window(onnx_model_path):
 
 def test_onnx_extractor_long_sequence(onnx_model_path):
     from src.pose_3d.onnx_extractor import ONNXPoseExtractor
+
     ext = ONNXPoseExtractor(onnx_model_path, device="cpu")
     # Input longer than 81 frames — should be windowed
     poses_2d = np.random.rand(200, 17, 2).astype(np.float32) * 0.5 + 0.25
@@ -41,6 +45,7 @@ def test_onnx_extractor_long_sequence(onnx_model_path):
 
 def test_onnx_extractor_short_sequence(onnx_model_path):
     from src.pose_3d.onnx_extractor import ONNXPoseExtractor
+
     ext = ONNXPoseExtractor(onnx_model_path, device="cpu")
     # Input shorter than 81 frames — should be padded
     poses_2d = np.random.rand(30, 17, 2).astype(np.float32) * 0.5 + 0.25

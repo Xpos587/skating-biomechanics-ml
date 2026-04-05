@@ -246,6 +246,7 @@ def render_cyrillic_text(
         >>> render_cyrillic_text(frame, "Привет мир", (10, 30))
     """
     import warnings
+
     warnings.warn(
         "render_cyrillic_text() is slow (full-frame Pillow conversion). "
         "Use put_text() or put_cyrillic_text() instead.",

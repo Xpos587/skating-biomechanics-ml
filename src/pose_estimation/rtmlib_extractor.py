@@ -201,8 +201,13 @@ class RTMPoseExtractor:
 
         try:
             frame_idx = 0
-            pbar = tqdm(total=num_frames, desc="Extracting poses", unit="frame", ncols=100,
-                        disable=progress_cb is not None)
+            pbar = tqdm(
+                total=num_frames,
+                desc="Extracting poses",
+                unit="frame",
+                ncols=100,
+                disable=progress_cb is not None,
+            )
             while cap.isOpened() and frame_idx < num_frames:
                 if self._frame_skip > 1 and frame_idx % self._frame_skip != 0:
                     # Skip this frame — just advance the video
@@ -212,7 +217,10 @@ class RTMPoseExtractor:
                     frame_idx += 1
                     pbar.update(1)
                     if progress_cb:
-                        progress_cb(frame_idx / num_frames * 0.3, f"Extracting poses... {frame_idx}/{num_frames}")
+                        progress_cb(
+                            frame_idx / num_frames * 0.3,
+                            f"Extracting poses... {frame_idx}/{num_frames}",
+                        )
                     continue
 
                 ret, frame = cap.read()
@@ -413,7 +421,10 @@ class RTMPoseExtractor:
                 frame_idx += 1
                 pbar.update(1)
                 if progress_cb:
-                    progress_cb(frame_idx / num_frames * 0.3, f"Extracting poses... {frame_idx}/{num_frames}")
+                    progress_cb(
+                        frame_idx / num_frames * 0.3,
+                        f"Extracting poses... {frame_idx}/{num_frames}",
+                    )
         finally:
             cap.release()
             pbar.close()

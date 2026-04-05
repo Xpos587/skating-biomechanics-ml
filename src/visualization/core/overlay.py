@@ -57,8 +57,12 @@ def draw_overlay_rect(
     # Border (drawn on top of blended region)
     if border_color is not None and border_thickness > 0:
         cv2.rectangle(
-            frame, (x1, y1), (x2, y2),
-            border_color, border_thickness, cv2.LINE_AA,
+            frame,
+            (x1, y1),
+            (x2, y2),
+            border_color,
+            border_thickness,
+            cv2.LINE_AA,
         )
 
     return frame

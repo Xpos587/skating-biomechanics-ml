@@ -281,7 +281,6 @@ def main() -> int:
     blade_states_left = [None] * len(poses_viz)
     blade_states_right = [None] * len(poses_viz)
 
-
     # Initialize 3D pose extraction if requested
     poses_3d = None
     if args.blade_3d and not args.use_3d:
@@ -447,8 +446,14 @@ def main() -> int:
 
         big_arc_specs = [
             JointAngleSpec(
-                s.name, s.point_a, s.vertex, s.point_c,
-                s.color, arc_radius=22, good_range=s.good_range, warn_range=s.warn_range,
+                s.name,
+                s.point_a,
+                s.vertex,
+                s.point_c,
+                s.color,
+                arc_radius=22,
+                good_range=s.good_range,
+                warn_range=s.warn_range,
             )
             for s in DEFAULT_JOINT_SPECS
         ]
@@ -689,12 +694,21 @@ def main() -> int:
         # CSV: frame, timestamp, floor_angle, 12 joint angles
         csv_path = out_dir / f"{stem}_biomechanics.csv"
         angle_keys = [
-            "R Ankle", "L Ankle", "R Knee", "L Knee",
-            "R Hip", "L Hip", "R Shoulder", "L Shoulder",
-            "R Elbow", "L Elbow", "R Wrist", "L Wrist",
+            "R Ankle",
+            "L Ankle",
+            "R Knee",
+            "L Knee",
+            "R Hip",
+            "L Hip",
+            "R Shoulder",
+            "L Shoulder",
+            "R Elbow",
+            "L Elbow",
+            "R Wrist",
+            "L Wrist",
         ]
-        header = ["frame", "timestamp_s", "floor_angle_deg"] + angle_keys
-        with open(csv_path, "w", newline="") as f:
+        header = [*["frame", "timestamp_s", "floor_angle_deg"], *angle_keys]
+        with Path(csv_path).open("w", newline="") as f:
             writer = _csv.writer(f)
             writer.writerow(header)
             for idx in range(len(export_frames)):

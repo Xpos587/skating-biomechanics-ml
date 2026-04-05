@@ -1,8 +1,8 @@
 """Tests for unified put_text API."""
-import numpy as np
-import pytest
 
-from src.visualization.core.text import put_text, measure_text_size_fast
+import numpy as np
+
+from src.visualization.core.text import measure_text_size_fast, put_text
 
 
 def _make_frame(h=200, w=400):

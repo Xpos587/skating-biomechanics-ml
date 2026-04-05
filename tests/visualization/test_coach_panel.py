@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from src.types import ElementPhase, H36Key, MetricResult
+from src.types import ElementPhase, MetricResult
 from src.visualization.hud.coach_panel import CoachOverlayData, compute_coach_overlays
 
 
@@ -59,8 +59,16 @@ class TestComputeCoachOverlays:
             end=300,
         )
         metrics = [
-            MetricResult(name="airtime", value=0.37, unit="s", is_good=True, reference_range=(0.3, 0.7)),
-            MetricResult(name="max_height", value=0.12, unit="norm", is_good=False, reference_range=(0.2, 0.5)),
+            MetricResult(
+                name="airtime", value=0.37, unit="s", is_good=True, reference_range=(0.3, 0.7)
+            ),
+            MetricResult(
+                name="max_height",
+                value=0.12,
+                unit="norm",
+                is_good=False,
+                reference_range=(0.2, 0.5),
+            ),
         ]
         recommendations = ["Недостаточная высота прыжка"]
 

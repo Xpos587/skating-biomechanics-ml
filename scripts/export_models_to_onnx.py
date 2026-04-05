@@ -11,7 +11,6 @@ import argparse
 import sys
 from pathlib import Path
 
-import numpy as np
 import torch
 
 
@@ -71,7 +70,9 @@ def export_motionagformer_s(checkpoint_path: str, output_path: str) -> None:
     if missing:
         print(f"  Missing keys ({len(missing)}): {missing[:5]}{'...' if len(missing) > 5 else ''}")
     if unexpected:
-        print(f"  Unexpected keys ({len(unexpected)}): {unexpected[:5]}{'...' if len(unexpected) > 5 else ''}")
+        print(
+            f"  Unexpected keys ({len(unexpected)}): {unexpected[:5]}{'...' if len(unexpected) > 5 else ''}"
+        )
     model.eval()
 
     # Dummy input: [1, 81, 17, 3] (batch, frames, joints, channels)
@@ -100,7 +101,9 @@ def export_motionagformer_s(checkpoint_path: str, output_path: str) -> None:
     result = sess.run(None, {"poses_2d": dummy_input.numpy()})
     print(f"  Verification: output shape = {result[0].shape}, dtype = {result[0].dtype}")
     expected_shape = (1, 81, 17, 3)
-    assert result[0].shape == expected_shape, f"Shape mismatch: {result[0].shape} != {expected_shape}"
+    assert result[0].shape == expected_shape, (
+        f"Shape mismatch: {result[0].shape} != {expected_shape}"
+    )
     print("  ONNX verification PASSED")
 
 
@@ -138,7 +141,9 @@ def export_tcpformer(checkpoint_path: str, output_path: str) -> None:
     if missing:
         print(f"  Missing keys ({len(missing)}): {missing[:5]}{'...' if len(missing) > 5 else ''}")
     if unexpected:
-        print(f"  Unexpected keys ({len(unexpected)}): {unexpected[:5]}{'...' if len(unexpected) > 5 else ''}")
+        print(
+            f"  Unexpected keys ({len(unexpected)}): {unexpected[:5]}{'...' if len(unexpected) > 5 else ''}"
+        )
     model.eval()
 
     dummy_input = torch.randn(1, 81, 17, 3, dtype=torch.float32)
@@ -165,13 +170,17 @@ def export_tcpformer(checkpoint_path: str, output_path: str) -> None:
     result = sess.run(None, {"poses_2d": dummy_input.numpy()})
     print(f"  Verification: output shape = {result[0].shape}, dtype = {result[0].dtype}")
     expected_shape = (1, 81, 17, 3)
-    assert result[0].shape == expected_shape, f"Shape mismatch: {result[0].shape} != {expected_shape}"
+    assert result[0].shape == expected_shape, (
+        f"Shape mismatch: {result[0].shape} != {expected_shape}"
+    )
     print("  ONNX verification PASSED")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export PyTorch models to ONNX")
-    parser.add_argument("--model", choices=["motionagformer-s", "tcpformer"], help="Model to export")
+    parser.add_argument(
+        "--model", choices=["motionagformer-s", "tcpformer"], help="Model to export"
+    )
     parser.add_argument("--all", action="store_true", help="Export all models")
     args = parser.parse_args()
 
@@ -185,7 +194,7 @@ def main() -> None:
         src = models_dir / "motionagformer-s-ap3d.pth.tr"
         dst = models_dir / "motionagformer-s-ap3d.onnx"
         if src.exists():
-            print(f"\n=== Exporting MotionAGFormer-S ===")
+            print("\n=== Exporting MotionAGFormer-S ===")
             print(f"  Source: {src}")
             print(f"  Target: {dst}")
             export_motionagformer_s(str(src), str(dst))
@@ -196,7 +205,7 @@ def main() -> None:
         src = models_dir / "TCPFormer_ap3d_81.pth.tr"
         dst = models_dir / "TCPFormer_ap3d_81.onnx"
         if src.exists():
-            print(f"\n=== Exporting TCPFormer ===")
+            print("\n=== Exporting TCPFormer ===")
             print(f"  Source: {src}")
             print(f"  Target: {dst}")
             export_tcpformer(str(src), str(dst))

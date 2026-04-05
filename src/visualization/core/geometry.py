@@ -68,7 +68,9 @@ def normalized_to_pixel(
             # Replace NaN (from undetected keypoints) with 0 before int cast
             nan_mask = np.isnan(result[..., 0]) | np.isnan(result[..., 1])
             if result.shape[-1] > 2:
-                nan_mask = np.isnan(result[..., 0]) | np.isnan(result[..., 1]) | np.isnan(result[..., 2])
+                nan_mask = (
+                    np.isnan(result[..., 0]) | np.isnan(result[..., 1]) | np.isnan(result[..., 2])
+                )
             result[nan_mask] = 0
         return result.astype(np.int32)
     else:

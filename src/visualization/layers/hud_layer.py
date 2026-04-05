@@ -181,7 +181,9 @@ class DebugHUDLayer(Layer):
         """Render debug HUD to frame."""
         x, y = self.position
 
-        put_text(frame, f"Frame: {context.frame_idx}/{context.total_frames or '?'}", (x, y), font_size=14)
+        put_text(
+            frame, f"Frame: {context.frame_idx}/{context.total_frames or '?'}", (x, y), font_size=14
+        )
         y += 22
 
         put_text(frame, f"FPS: {context.fps:.1f}", (x, y), font_size=14)

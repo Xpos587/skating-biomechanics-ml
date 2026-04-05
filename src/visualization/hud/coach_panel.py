@@ -13,7 +13,6 @@ from numpy.typing import NDArray
 from src.analysis.element_defs import ELEMENT_DEFS
 from src.types import ElementPhase, MetricResult
 from src.visualization.config import font_path
-from src.visualization.hud.panel import HUDPanel
 
 Frame = NDArray[np.uint8]
 Position = tuple[int, int]
@@ -37,7 +36,7 @@ METRIC_NAMES_RU: dict[str, str] = {
 }
 
 QUALITY_SYMBOLS = {
-    True: "\u2713",   # Good
+    True: "\u2713",  # Good
     False: "\u2717",  # Bad
 }
 

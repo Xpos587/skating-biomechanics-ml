@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import csv as _csv
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
-from numpy.typing import NDArray
 
 from src.types import PersonClick
 from src.utils.video import get_video_meta
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 def match_click_to_person(
@@ -53,11 +56,11 @@ def render_person_preview(
     h, w = frame.shape[:2]
 
     colors = [
-        (255, 165, 0),   # Blue (OpenCV BGR)
-        (0, 200, 200),   # Yellow
-        (200, 100, 0),   # Cyan
-        (200, 0, 200),   # Magenta
-        (0, 180, 255),   # Orange
+        (255, 165, 0),  # Blue (OpenCV BGR)
+        (0, 200, 200),  # Yellow
+        (200, 100, 0),  # Cyan
+        (200, 0, 200),  # Magenta
+        (0, 180, 255),  # Orange
     ]
 
     for i, p in enumerate(persons):
@@ -77,8 +80,14 @@ def render_person_preview(
         label = f"#{i + 1} (hits: {p['hits']})"
         cv2.rectangle(annotated, (px1, py1 - 28), (px1 + len(label) * 10 + 10, py1), color, -1)
         cv2.putText(
-            annotated, label, (px1 + 5, py1 - 8),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA,
+            annotated,
+            label,
+            (px1 + 5, py1 - 8),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
         )
 
     return annotated
@@ -87,8 +96,7 @@ def render_person_preview(
 def persons_to_choices(persons: list[dict]) -> list[str]:
     """Convert person list to Gradio Radio choices."""
     return [
-        f"Person #{i + 1} ({p['hits']} hits, track {p['track_id']})"
-        for i, p in enumerate(persons)
+        f"Person #{i + 1} ({p['hits']} hits, track {p['track_id']})" for i, p in enumerate(persons)
     ]
 
 
@@ -99,7 +107,7 @@ def choice_to_person_click(
     height: int,
 ) -> PersonClick:
     """Convert a Gradio Radio selection to a PersonClick."""
-    idx = int(choice.split("#")[1].split(" ")[0]) - 1
+    idx = int(choice.split("#")[1].split(" ", maxsplit=1)[0]) - 1
     mid_hip = persons[idx]["mid_hip"]
     return PersonClick(
         x=int(mid_hip[0] * width),
@@ -152,7 +160,9 @@ def process_video_pipeline(
         device="cuda",
         tracking_mode=tracking,
     )
-    extraction = extractor.extract_video_tracked(str(video_path), person_click=person_click, progress_cb=progress_cb)
+    extraction = extractor.extract_video_tracked(
+        str(video_path), person_click=person_click, progress_cb=progress_cb
+    )
 
     raw_poses = extraction.poses
     raw_foot_kps = extraction.foot_keypoints
@@ -175,6 +185,7 @@ def process_video_pipeline(
     poses_3d = None
     if use_3d:
         from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
+
         estimator = Biomechanics3DEstimator()
         poses_3d = estimator.estimate_3d(poses_viz)
 
@@ -189,9 +200,7 @@ def process_video_pipeline(
     layers: list = []
     if layer >= 1:
         layers.append(VelocityLayer(scale=3.0, max_length=30, color_mode="solid"))
-        layers.append(
-            TrailLayer(length=20, joint=H36Key.LFOOT, width=1, color=(200, 80, 80))
-        )
+        layers.append(TrailLayer(length=20, joint=H36Key.LFOOT, width=1, color=(200, 80, 80)))
         layers.append(JointAngleLayer())
     if layer >= 2:
         layers.append(VerticalAxisLayer())
@@ -246,8 +255,13 @@ def process_video_pipeline(
                 skel_pose = skel_pose * render_scale
                 skel_foot_kp = foot_kp * render_scale if foot_kp is not None else None
             frame = draw_skeleton(
-                frame, skel_pose, draw_h, draw_w,
-                line_width=1, joint_radius=3, foot_keypoints=skel_foot_kp,
+                frame,
+                skel_pose,
+                draw_h,
+                draw_w,
+                line_width=1,
+                joint_radius=3,
+                foot_keypoints=skel_foot_kp,
             )
             context.pose_2d = poses_viz[current_pose_idx]
             if poses_3d is not None and current_pose_idx < len(poses_3d):
@@ -261,6 +275,7 @@ def process_video_pipeline(
         ms = int((frame_idx / meta.fps - int(frame_idx / meta.fps)) * 100)
         frame_text = f"{frame_idx}/{total}  {minutes:02d}:{seconds:02d}.{ms:02d}"
         from src.visualization.core.text import draw_text_box
+
         draw_text_box(frame, frame_text, (draw_w - 220, 10), font_scale=0.5)
 
         if export and current_pose_idx is not None:
@@ -294,18 +309,31 @@ def process_video_pipeline(
 
         csv_path = out_dir / f"{stem}_biomechanics.csv"
         angle_keys = [
-            "R Ankle", "L Ankle", "R Knee", "L Knee",
-            "R Hip", "L Hip", "R Shoulder", "L Shoulder",
-            "R Elbow", "L Elbow", "R Wrist", "L Wrist",
+            "R Ankle",
+            "L Ankle",
+            "R Knee",
+            "L Knee",
+            "R Hip",
+            "L Hip",
+            "R Shoulder",
+            "L Shoulder",
+            "R Elbow",
+            "L Elbow",
+            "R Wrist",
+            "L Wrist",
         ]
-        header = ["frame", "timestamp_s", "floor_angle_deg"] + angle_keys
-        with open(csv_path, "w", newline="") as f:
+        header = [*["frame", "timestamp_s", "floor_angle_deg"], *angle_keys]
+        with csv_path.open("w", newline="") as f:
             w = _csv.writer(f)
             w.writerow(header)
             for idx in range(len(export_frames)):
                 ja = export_joint_angles[idx]
-                row = [export_frames[idx], export_timestamps[idx], export_floor_angles[idx]]
-                row += [round(ja.get(k, float("nan")), 1) for k in angle_keys]
+                row = [
+                    export_frames[idx],
+                    export_timestamps[idx],
+                    export_floor_angles[idx],
+                    *(round(ja.get(k, float("nan")), 1) for k in angle_keys),
+                ]
                 w.writerow(row)
 
     return {

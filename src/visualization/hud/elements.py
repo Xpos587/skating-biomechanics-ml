@@ -28,7 +28,6 @@ from src.visualization.config import (
     hud_padding,
 )
 from src.visualization.core.text import draw_text_box, put_text
-from src.visualization.core.overlay import draw_overlay_rect
 
 # =============================================================================
 # TYPE ALIASES
@@ -346,7 +345,9 @@ def draw_blade_indicator_hud(
         label,
         (label_x, label_y),
         font_path=font_path,
-        font_size=int(font_scale * 32),  # Convert from font_scale to font_size (32 is default font_size)
+        font_size=int(
+            font_scale * 32
+        ),  # Convert from font_scale to font_size (32 is default font_size)
         color=color,
         bg_color=None,
         bg_alpha=0,
@@ -370,7 +371,9 @@ def draw_blade_indicator_hud(
         angle_text,
         (angle_x, angle_y),
         font_path=font_path,
-        font_size=int(font_scale * 0.8 * 32),  # Convert from font_scale to font_size (32 is default font_size)
+        font_size=int(
+            font_scale * 0.8 * 32
+        ),  # Convert from font_scale to font_size (32 is default font_size)
         color=font_color,
         bg_color=None,
         bg_alpha=0,
@@ -473,7 +476,9 @@ def draw_info_text(
             line,
             (x, y),
             font_path=font_path,
-            font_size=int(font_scale * 32),  # Convert from font_scale to font_size (32 is default font_size)
+            font_size=int(
+                font_scale * 32
+            ),  # Convert from font_scale to font_size (32 is default font_size)
             color=font_color,
             bg_color=None,
             bg_alpha=0,

@@ -62,6 +62,7 @@ class AthletePose3DExtractor:
                 self._onnx = ONNXPoseExtractor(onnx_path, device="cpu")
                 self._onnx_mode = True
                 import logging as _log
+
                 _log.info(f"Using ONNX model: {onnx_path.name} (no PyTorch needed)")
                 return
 

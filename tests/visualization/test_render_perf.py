@@ -3,10 +3,10 @@
 These ensure rendering stays within acceptable time budgets.
 If these fail, someone introduced a full-frame copy or Pillow conversion.
 """
+
 import time
 
 import numpy as np
-import pytest
 
 from src.visualization.core.overlay import draw_overlay_rect
 from src.visualization.core.text import put_text
@@ -32,7 +32,7 @@ class TestRenderPerformance:
             put_text(frame, "Высота: 0.45с ✓", (10, 10), font_size=16)
         elapsed = (time.perf_counter() - t0) / 100
 
-        assert elapsed < 0.001, f"put_text took {elapsed*1000:.2f}ms (>1ms)"
+        assert elapsed < 0.001, f"put_text took {elapsed * 1000:.2f}ms (>1ms)"
 
     def test_draw_overlay_rect_under_015ms(self):
         """draw_overlay_rect should render in <0.15ms."""
@@ -42,7 +42,7 @@ class TestRenderPerformance:
             draw_overlay_rect(frame, (10, 10, 200, 100), color=(0, 0, 0), alpha=0.6)
         elapsed = (time.perf_counter() - t0) / 1000
 
-        assert elapsed < 0.00015, f"draw_overlay_rect took {elapsed*1000:.2f}ms (>0.15ms)"
+        assert elapsed < 0.00015, f"draw_overlay_rect took {elapsed * 1000:.2f}ms (>0.15ms)"
 
     def test_coach_panel_under_2ms(self):
         """Full coach panel render should complete in <2ms."""
@@ -67,4 +67,4 @@ class TestRenderPerformance:
             draw_coach_panel(frame, data, position=(10, 90))
         elapsed = (time.perf_counter() - t0) / 100
 
-        assert elapsed < 0.002, f"draw_coach_panel took {elapsed*1000:.2f}ms (>2ms)"
+        assert elapsed < 0.002, f"draw_coach_panel took {elapsed * 1000:.2f}ms (>2ms)"

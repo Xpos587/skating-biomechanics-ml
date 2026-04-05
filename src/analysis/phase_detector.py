@@ -258,14 +258,13 @@ class PhaseDetector:
             if elevated[i]:
                 if seg_start is None:
                     seg_start = i
-            else:
-                if seg_start is not None:
-                    # Check if gap to previous segment is small → merge
-                    if segments and (i - segments[-1][1]) < 3:
-                        segments[-1] = (segments[-1][0], i - 1)
-                    else:
-                        segments.append((seg_start, i - 1))
-                    seg_start = None
+            elif seg_start is not None:
+                # Check if gap to previous segment is small → merge
+                if segments and (i - segments[-1][1]) < 3:
+                    segments[-1] = (segments[-1][0], i - 1)
+                else:
+                    segments.append((seg_start, i - 1))
+                seg_start = None
         # Handle segment that runs to end
         if seg_start is not None:
             if segments and (N - 1 - segments[-1][1]) < 3:
@@ -290,15 +289,13 @@ class PhaseDetector:
             ext_end = min(N - 1, seg_end + 3)
 
             t_local = np.arange(ext_start, ext_end + 1, dtype=np.float64)
-            y_local = com_smooth[ext_start:ext_end + 1]
+            y_local = com_smooth[ext_start : ext_end + 1]
 
             if len(t_local) < 4:
                 continue
 
             # Fit parabola: y(t) = a*t^2 + b*t + c
-            coeffs, residuals, _rank, _sv, _rcond = np.polyfit(
-                t_local, y_local, 2, full=True
-            )
+            coeffs, _residuals, _rank, _sv, _rcond = np.polyfit(t_local, y_local, 2, full=True)
             a_coeff = coeffs[0]
             b_coeff = coeffs[1]
 
@@ -317,15 +314,11 @@ class PhaseDetector:
             #    R² > 0.80
             peak_inside = seg_start <= parabola_peak_t <= seg_end
             if a_coeff > 0 and peak_inside and r_squared > 0.80:
-                peak_frame = int(round(parabola_peak_t))
+                peak_frame = round(parabola_peak_t)
 
                 # 11. Find takeoff/landing by scanning to baseline crossing
-                takeoff_idx = self._scan_to_baseline(
-                    com_smooth, baseline, peak_frame, direction=-1
-                )
-                landing_idx = self._scan_to_baseline(
-                    com_smooth, baseline, peak_frame, direction=+1
-                )
+                takeoff_idx = self._scan_to_baseline(com_smooth, baseline, peak_frame, direction=-1)
+                landing_idx = self._scan_to_baseline(com_smooth, baseline, peak_frame, direction=+1)
 
                 # Validate order
                 if takeoff_idx >= peak_frame:
@@ -339,9 +332,7 @@ class PhaseDetector:
                     continue
 
                 # Score = R² × excursion magnitude
-                seg_excursion = float(
-                    baseline[peak_frame] - com_smooth[peak_frame]
-                )
+                seg_excursion = float(baseline[peak_frame] - com_smooth[peak_frame])
                 score = r_squared * seg_excursion
 
                 if score > best_score:

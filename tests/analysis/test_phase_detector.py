@@ -171,8 +171,8 @@ class TestParabolicFlightDetector:
             # Parabolic: y = a*(t-t0)^2 + peak_y, opens upward
             t = f - peak_frame
             half_span = max(1, (flight_end - flight_start) / 2.0)
-            a = (baseline_y - peak_y) / (half_span ** 2)
-            y = a * (t ** 2) + peak_y
+            a = (baseline_y - peak_y) / (half_span**2)
+            y = a * (t**2) + peak_y
             # Set all keypoints to this y to make CoM ≈ y
             poses[f, :, 1] = y
             # Keep x at baseline (doesn't affect CoM Y)
@@ -229,8 +229,8 @@ class TestParabolicFlightDetector:
         for f in range(flight_start, flight_end + 1):
             t = f - peak_frame
             half_span = max(1, (flight_end - flight_start) / 2.0)
-            a = (baseline_y - peak_y) / (half_span ** 2)
-            y = a * (t ** 2) + peak_y
+            a = (baseline_y - peak_y) / (half_span**2)
+            y = a * (t**2) + peak_y
             poses[f, :, 1] = y
 
         detector = PhaseDetector()

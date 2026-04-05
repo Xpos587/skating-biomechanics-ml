@@ -4,13 +4,17 @@
 Drop-in replacement for AthletePose3DExtractor / TCPFormerExtractor
 that uses ONNX Runtime instead of PyTorch.
 """
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +46,11 @@ class ONNXPoseExtractor:
         if not model_path.exists():
             raise FileNotFoundError(f"ONNX model not found: {model_path}")
 
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if device == "cuda" else ["CPUExecutionProvider"]
+        providers = (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if device == "cuda"
+            else ["CPUExecutionProvider"]
+        )
         self.session = ort.InferenceSession(str(model_path), providers=providers)
         self.input_name = self.session.get_inputs()[0].name
 
@@ -74,7 +82,7 @@ class ONNXPoseExtractor:
             end = min(start + w, n_frames)
             window = poses_2d[start:end]
             out = self._infer_window(window)
-            results[start:end] += out[:end - start]
+            results[start:end] += out[: end - start]
             counts[start:end] += 1
             if end == n_frames:
                 break

@@ -13,12 +13,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import gradio as gr
-
-logger = logging.getLogger(__name__)
-
 import cv2
-import numpy as np
+import gradio as gr
 
 from src.gradio_helpers import (
     choice_to_person_click,
@@ -30,6 +26,8 @@ from src.gradio_helpers import (
 from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
 from src.types import PersonClick
 from src.utils.video import get_video_meta
+
+logger = logging.getLogger(__name__)
 
 
 def _create_extractor(tracking: str) -> RTMPoseExtractor:
@@ -74,13 +72,19 @@ def _detect_persons(
     try:
         extractor = _create_extractor(tracking)
 
-        persons, preview_path = extractor.preview_persons(Path(video_path), num_frames=30)
+        persons, _preview_path = extractor.preview_persons(Path(video_path), num_frames=30)
 
         if not persons:
-            return None, gr.update(choices=[], value=None), [], "⚠️ Люди не найдены. Попробуйте другое видео."
+            return (
+                None,
+                gr.update(choices=[], value=None),
+                [],
+                "⚠️ Люди не найдены. Попробуйте другое видео.",
+            )
 
         # Load the preview frame (first frame with detections)
         import cv2
+
         cap = cv2.VideoCapture(video_path)
         ret, frame = cap.read()
         cap.release()
@@ -92,13 +96,18 @@ def _detect_persons(
         annotated = render_person_preview(frame, persons, selected_idx=None)
 
         # Convert BGR to RGB for Gradio
-        import numpy as np
+
         annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
 
         choices = persons_to_choices(persons)
         status = f"✅ Обнаружено {len(persons)} чел. Нажмите на человека на изображении или выберите из списка."
 
-        return annotated, gr.update(choices=choices, value=choices[0] if len(choices) == 1 else None), persons, status
+        return (
+            annotated,
+            gr.update(choices=choices, value=choices[0] if len(choices) == 1 else None),
+            persons,
+            status,
+        )
 
     except Exception as e:
         return None, gr.update(choices=[], value=None), [], f"❌ Ошибка: {e}"
@@ -140,7 +149,7 @@ def _on_image_select(
     idx = persons_state.index(matched)
 
     # Re-render preview with green highlight
-    import cv2
+
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     cap.release()
@@ -185,10 +194,10 @@ def _on_person_select(
     person_click = choice_to_person_click(choice, persons_state, meta.width, meta.height)
 
     # Find the index
-    idx = int(choice.split("#")[1].split(" ")[0]) - 1
+    idx = int(choice.split("#")[1].split(" ", maxsplit=1)[0]) - 1
 
     # Re-render preview with green highlight
-    import cv2
+
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     cap.release()
@@ -213,7 +222,7 @@ def _run_pipeline(
     use_3d: bool,
     render_scale: float,
     export: bool,
-    progress=gr.Progress(),
+    progress=gr.Progress(),  # noqa: B008
 ) -> tuple[str, str, str, str]:
     """Run the full analysis pipeline.
 
@@ -242,7 +251,12 @@ def _run_pipeline(
         person_click = choice_to_person_click(person_choice, persons_state, meta.width, meta.height)
 
     if person_click is None:
-        return None, None, None, "⚠️ Выберите человека (нажмите на изображение или выберите из списка)."
+        return (
+            None,
+            None,
+            None,
+            "⚠️ Выберите человека (нажмите на изображение или выберите из списка).",
+        )
 
     # Generate output path
     input_path = Path(video_path)

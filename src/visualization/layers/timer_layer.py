@@ -38,7 +38,9 @@ class TimerLayer(Layer):
         y = margin
 
         put_text(
-            frame, text, (x, y),
+            frame,
+            text,
+            (x, y),
             font_size=14,
             color=COLOR_WHITE,
             bg_color=(0, 0, 0),
