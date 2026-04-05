@@ -80,7 +80,7 @@ class RTMPoseExtractor:
         output_format: str = "normalized",
         det_frequency: int = 1,
         frame_skip: int = 1,
-        device: str = "cpu",
+        device: str = "auto",
         backend: str = "onnxruntime",
     ) -> None:
         if PoseTracker is None:
@@ -95,6 +95,12 @@ class RTMPoseExtractor:
         self._frame_skip = max(1, frame_skip)
         self._device = device
         self._backend = backend
+
+        # Resolve device via DeviceConfig for consistent GPU-first behavior
+        if device == "auto":
+            from ..device import DeviceConfig
+
+            self._device = DeviceConfig(device="auto").device
 
         # Lazy-initialised on first call
         self._tracker: PoseTracker | None = None

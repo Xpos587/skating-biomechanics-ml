@@ -17,6 +17,7 @@ import cv2
 import gradio as gr
 import numpy as np
 
+from src.device import DeviceConfig
 from src.gradio_helpers import (
     choice_to_person_click,
     match_click_to_person,
@@ -33,25 +34,15 @@ logger = logging.getLogger(__name__)
 
 def _create_extractor(tracking: str) -> RTMPoseExtractor:
     """Create RTMPoseExtractor with GPU→CPU fallback."""
-    try:
-        return RTMPoseExtractor(
-            mode="balanced",
-            tracking_backend="rtmlib",
-            tracking_mode=tracking,
-            conf_threshold=0.3,
-            output_format="normalized",
-            device="cuda",
-        )
-    except Exception:
-        logger.warning("CUDA unavailable, falling back to CPU")
-        return RTMPoseExtractor(
-            mode="balanced",
-            tracking_backend="rtmlib",
-            tracking_mode=tracking,
-            conf_threshold=0.3,
-            output_format="normalized",
-            device="cpu",
-        )
+    cfg = DeviceConfig.default()
+    return RTMPoseExtractor(
+        mode="balanced",
+        tracking_backend="rtmlib",
+        tracking_mode=tracking,
+        conf_threshold=0.3,
+        output_format="normalized",
+        device=cfg.device,
+    )
 
 
 def _detect_persons(

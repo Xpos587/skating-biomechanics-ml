@@ -277,7 +277,7 @@ class H36MExtractor:
         self,
         model_size: str = "n",
         model_path: Path | str | None = None,
-        device: str = "0",
+        device: str = "auto",
         conf_threshold: float = 0.5,
         output_format: str = "normalized",  # "normalized" or "pixels"
         skip_model_check: bool = False,

@@ -36,22 +36,20 @@ class ONNXPoseExtractor:
     def __init__(
         self,
         model_path: Path | str,
-        device: str = "cpu",
+        device: str = "auto",
         temporal_window: int = 81,
     ) -> None:
         import onnxruntime as ort
+
+        from ..device import DeviceConfig
 
         self.temporal_window = temporal_window
         model_path = Path(model_path)
         if not model_path.exists():
             raise FileNotFoundError(f"ONNX model not found: {model_path}")
 
-        providers = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if device == "cuda"
-            else ["CPUExecutionProvider"]
-        )
-        self.session = ort.InferenceSession(str(model_path), providers=providers)
+        cfg = DeviceConfig(device=device)
+        self.session = ort.InferenceSession(str(model_path), providers=cfg.onnx_providers)
         self.input_name = self.session.get_inputs()[0].name
 
         active = self.session.get_providers()[0]
