@@ -119,6 +119,7 @@ class RTMPoseExtractor:
         self,
         video_path: Path | str,
         person_click: PersonClick | None = None,
+        progress_cb=None,
     ) -> TrackedExtraction:
         """Extract H3.6M + foot keypoints from video with tracking.
 
@@ -129,6 +130,8 @@ class RTMPoseExtractor:
             video_path: Path to video file.
             person_click: Optional click to select target person by
                 proximity to the click point in the first few frames.
+            progress_cb: Optional callback ``(fraction, message)`` for
+                progress reporting (e.g. Gradio progress bar).
 
         Returns:
             TrackedExtraction with poses (N, 17, 3), foot_keypoints
@@ -198,7 +201,8 @@ class RTMPoseExtractor:
 
         try:
             frame_idx = 0
-            pbar = tqdm(total=num_frames, desc="Extracting poses", unit="frame", ncols=100)
+            pbar = tqdm(total=num_frames, desc="Extracting poses", unit="frame", ncols=100,
+                        disable=progress_cb is not None)
             while cap.isOpened() and frame_idx < num_frames:
                 if self._frame_skip > 1 and frame_idx % self._frame_skip != 0:
                     # Skip this frame — just advance the video
@@ -207,6 +211,8 @@ class RTMPoseExtractor:
                         break
                     frame_idx += 1
                     pbar.update(1)
+                    if progress_cb:
+                        progress_cb(frame_idx / num_frames * 0.3, f"Extracting poses... {frame_idx}/{num_frames}")
                     continue
 
                 ret, frame = cap.read()
@@ -406,6 +412,8 @@ class RTMPoseExtractor:
 
                 frame_idx += 1
                 pbar.update(1)
+                if progress_cb:
+                    progress_cb(frame_idx / num_frames * 0.3, f"Extracting poses... {frame_idx}/{num_frames}")
         finally:
             cap.release()
             pbar.close()
@@ -744,10 +752,14 @@ class RTMPoseExtractor:
             if persons_for_grid:
                 preview_path = RTMPoseExtractor._build_person_grid(best_frame, persons_for_grid)
 
-        # Build output
+        # Build output with deduplication
         output: list[dict] = []
         preview_path_out = preview_path
+        min_hits = max(2, num_frames // 10)  # At least 10% of scanned frames
+
         for tid, data in sorted(person_data.items(), key=lambda kv: kv[1]["hits"], reverse=True):
+            if data["hits"] < min_hits:
+                continue
             kps = data["best_kps"]
             if kps is None:
                 continue
@@ -756,6 +768,26 @@ class RTMPoseExtractor:
                 continue
             x1, y1 = float(np.min(valid[:, 0])), float(np.min(valid[:, 1]))
             x2, y2 = float(np.max(valid[:, 0])), float(np.max(valid[:, 1]))
+
+            # NMS: skip if this bbox overlaps heavily with a better (more hits) one
+            skip = False
+            for existing in output:
+                ex1, ey1, ex2, ey2 = existing["bbox"]
+                # IoU check
+                ix1 = max(x1, ex1)
+                iy1 = max(y1, ey1)
+                ix2 = min(x2, ex2)
+                iy2 = min(y2, ey2)
+                inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+                area_a = (x2 - x1) * (y2 - y1)
+                area_b = (ex2 - ex1) * (ey2 - ey1)
+                union = area_a + area_b - inter
+                if union > 0 and inter / union > 0.5:
+                    skip = True
+                    break
+            if skip:
+                continue
+
             # Mid-hip (H3.6M: LHIP=4, RHIP=1)
             mid_hip_x = float((kps[4, 0] + kps[1, 0]) / 2)
             mid_hip_y = float((kps[4, 1] + kps[1, 1]) / 2)

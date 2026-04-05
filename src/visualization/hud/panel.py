@@ -191,7 +191,7 @@ class HUDPanel:
         cv2.putText(
             frame,
             self.title,
-            (title_x, title_y),
+            (int(title_x), int(title_y)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
             self.border_color,

@@ -110,6 +110,7 @@ def choice_to_person_click(
 def process_video_pipeline(
     video_path: str,
     person_click: PersonClick | None,
+    frame_skip: int,
     layer: int,
     tracking: str,
     use_3d: bool,
@@ -146,11 +147,12 @@ def process_video_pipeline(
     extractor = RTMPoseExtractor(
         output_format="normalized",
         conf_threshold=0.3,
-        det_frequency=1,
+        det_frequency=frame_skip,
+        frame_skip=frame_skip,
         device="cuda",
         tracking_mode=tracking,
     )
-    extraction = extractor.extract_video_tracked(str(video_path), person_click=person_click)
+    extraction = extractor.extract_video_tracked(str(video_path), person_click=person_click, progress_cb=progress_cb)
 
     raw_poses = extraction.poses
     raw_foot_kps = extraction.foot_keypoints
@@ -181,7 +183,7 @@ def process_video_pipeline(
 
     out_w = int(meta.width * render_scale)
     out_h = int(meta.height * render_scale)
-    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_path), fourcc, meta.fps, (out_w, out_h))
 
     layers: list = []

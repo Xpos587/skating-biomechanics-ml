@@ -207,6 +207,7 @@ def _run_pipeline(
     person_click_state: PersonClick | None,
     persons_state: list[dict],
     person_choice: str,
+    frame_skip: int,
     layer: int,
     tracking: str,
     use_3d: bool,
@@ -253,6 +254,7 @@ def _run_pipeline(
         result = process_video_pipeline(
             video_path=video_path,
             person_click=person_click,
+            frame_skip=frame_skip,
             layer=layer,
             tracking=tracking,
             use_3d=use_3d,
@@ -330,6 +332,15 @@ def build_app() -> gr.Blocks:
                 )
 
                 with gr.Accordion("Расширенные настройки", open=False):
+                    frame_skip_slider = gr.Slider(
+                        label="Пропуск кадров",
+                        minimum=1,
+                        maximum=8,
+                        step=1,
+                        value=4,
+                        info="1=все кадры (медленно), 4=каждый 4-й (рекомендуется), 8=максимальная скорость",
+                    )
+
                     layer_slider = gr.Slider(
                         label="Уровень HUD",
                         minimum=0,
@@ -412,6 +423,7 @@ def build_app() -> gr.Blocks:
                 person_click_state,
                 persons_state,
                 person_radio,
+                frame_skip_slider,
                 layer_slider,
                 tracking_dropdown,
                 use_3d_checkbox,

@@ -1,0 +1,6 @@
+# ONNX model weights (large binary files, re-export with scripts/export_models_to_onnx.py)
+*.onnx.data
+
+# PyTorch checkpoints (large binary files)
+*.pth.tr
+*.pt

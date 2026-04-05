@@ -209,8 +209,10 @@ class JointAngleLayer(Layer):
                 pv = pose[spec.vertex].astype(int)
                 pc = pose[spec.point_c].astype(int)
 
-            # Skip NaN/invalid angles
+            # Skip NaN/invalid angles or out-of-bounds vertices
             if np.isnan(angle) or angle < 0 or angle > 360:
+                continue
+            if pv[0] < -1000 or pv[1] < -1000 or pv[0] > w + 1000 or pv[1] > h + 1000:
                 continue
 
             color = spec.get_color_for_angle(angle)

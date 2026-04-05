@@ -60,12 +60,13 @@ def draw_text_outlined(
     """
     x, y = position
     black = (0, 0, 0)
+    _pos = (int(x), int(y))
 
     # Black outline (thicker)
     cv2.putText(
         frame,
         text,
-        (x, y),
+        _pos,
         cv2.FONT_HERSHEY_SIMPLEX,
         font_scale,
         black,
@@ -77,7 +78,7 @@ def draw_text_outlined(
     cv2.putText(
         frame,
         text,
-        (x, y),
+        _pos,
         cv2.FONT_HERSHEY_SIMPLEX,
         font_scale,
         color,
@@ -356,7 +357,7 @@ def draw_text_box(
     cv2.putText(
         frame,
         text,
-        (x + padding, y + padding + text_height),
+        (int(x + padding), int(y + padding + text_height)),
         cv2.FONT_HERSHEY_SIMPLEX,
         font_scale,
         color,

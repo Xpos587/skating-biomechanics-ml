@@ -36,6 +36,7 @@ dev = [
     "mypy>=1.0.0",
     "vulture>=2.0",
     "jupyter>=1.0.0",
+    "onnxscript>=0.6.2",
 ]
 
 [project.optional-dependencies]

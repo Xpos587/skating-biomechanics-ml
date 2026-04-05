@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from .biomechanics_estimator import Biomechanics3DEstimator
+from .onnx_extractor import ONNXPoseExtractor
 
 
 class AthletePose3DExtractor:
@@ -52,9 +53,22 @@ class AthletePose3DExtractor:
         self.model_type = model_type.lower()
         self.use_simple = use_simple or (model_path is None)
 
-        # Set device
+        # Auto-detect ONNX model — skip PyTorch entirely when available
+        self._onnx = None
+        self._onnx_mode = False
+        if model_path is not None:
+            onnx_path = Path(model_path).with_suffix(".onnx")
+            if onnx_path.exists():
+                self._onnx = ONNXPoseExtractor(onnx_path, device="cpu")
+                self._onnx_mode = True
+                import logging as _log
+                _log.info(f"Using ONNX model: {onnx_path.name} (no PyTorch needed)")
+                return
+
+        # PyTorch fallback (only if no ONNX)
         if device == "auto":
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         else:
             self.device = torch.device(device)
 
@@ -208,6 +222,10 @@ class AthletePose3DExtractor:
         Returns:
             poses_3d: (N, 17, 3) array with x, y, z coordinates
         """
+        # ONNX path — no PyTorch needed
+        if self._onnx_mode and self._onnx is not None:
+            return self._onnx.estimate_3d(poses_2d[:, :, :2])
+
         # Use simple estimator if enabled or no model
         if self.use_simple or self._simple_estimator is not None:
             return self._simple_estimator.estimate_3d(poses_2d)
