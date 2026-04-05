@@ -73,7 +73,6 @@ Thumbs.db
 
 # Logs
 *.log
-data/models/*.pth.tr
 
 # Output files
 out*.mp4
