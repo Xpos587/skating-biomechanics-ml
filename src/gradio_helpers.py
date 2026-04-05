@@ -169,17 +169,34 @@ def process_video_pipeline(
     raw_poses = extraction.poses
     raw_foot_kps = extraction.foot_keypoints
 
-    # Map pose indices to real video frame indices
-    # extractor returns poses only for processed frames (every frame_skip-th)
-    # but frame_indices are sequential [0..N-1], not actual video frame numbers
+    # Interpolate NaN frames in-place (frame_skip leaves gaps)
+    # Must keep array length = num_frames for 1:1 frame mapping
+    nan_mask = np.isnan(raw_poses[:, 0, 0])
+    if nan_mask.any() and (~nan_mask).sum() >= 2:
+        valid_indices = np.where(~nan_mask)[0]
+        for kp in range(raw_poses.shape[1]):
+            for dim in range(raw_poses.shape[2]):
+                raw_poses[:, kp, dim] = np.interp(
+                    np.arange(len(raw_poses)),
+                    valid_indices,
+                    raw_poses[valid_indices, kp, dim],
+                )
+        if raw_foot_kps is not None:
+            foot_nan = np.isnan(raw_foot_kps[:, 0, 0])
+            if foot_nan.any() and (~foot_nan).sum() >= 2:
+                foot_valid = np.where(~foot_nan)[0]
+                for kp in range(raw_foot_kps.shape[1]):
+                    for dim in range(raw_foot_kps.shape[2]):
+                        raw_foot_kps[:, kp, dim] = np.interp(
+                            np.arange(len(raw_foot_kps)),
+                            foot_valid,
+                            raw_foot_kps[foot_valid, kp, dim],
+                        )
+
+    # All frames are now filled — frame indices map 1:1
     n_poses = len(raw_poses)
-    if n_poses > 0 and n_poses < meta.num_frames:
-        # Real frame indices when frame_skip > 1
-        pose_frame_indices = np.arange(n_poses) * frame_skip
-        pose_frame_indices = np.clip(pose_frame_indices, 0, meta.num_frames - 1)
-    else:
-        pose_frame_indices = extraction.frame_indices
-    n_valid = int(extraction.valid_mask().sum())
+    pose_frame_indices = extraction.frame_indices
+    n_valid = int((~nan_mask).sum())
 
     poses_norm = raw_poses[:, :, :2].copy()
     confs = raw_poses[:, :, 2].copy()
@@ -266,12 +283,13 @@ def process_video_pipeline(
 
         if layer >= 0 and current_pose_idx is not None:
             foot_kp = raw_foot_kps[current_pose_idx] if raw_foot_kps is not None else None
-            # Scale pixel poses to match downscaled frame
-            skel_pose = poses[current_pose_idx]
-            skel_foot_kp = foot_kp
+            # Scale pixel poses to match downscaled frame (preserve confidence)
+            skel_pose = poses[current_pose_idx].copy()
+            skel_foot_kp = foot_kp.copy() if foot_kp is not None else None
             if render_scale != 1.0:
-                skel_pose = skel_pose * render_scale
-                skel_foot_kp = foot_kp * render_scale if foot_kp is not None else None
+                skel_pose[:, :2] *= render_scale  # only x,y, NOT confidence
+                if skel_foot_kp is not None:
+                    skel_foot_kp[:, :2] *= render_scale
             frame = draw_skeleton(
                 frame,  # type: ignore[arg-type]
                 skel_pose,

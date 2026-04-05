@@ -430,7 +430,7 @@ def _draw_foot_keypoints(
     from src.visualization.skeleton.joints import get_confidence_color_rdygn
 
     fk = foot_keypoints.copy()
-    if fk[:, :2].max() <= 1.0:
+    if fk[:, 0].max() <= 1.0 and fk[:, 1].max() <= 1.0:
         fk[:, 0] *= width
         fk[:, 1] *= height
 

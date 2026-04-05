@@ -212,7 +212,6 @@ def _run_pipeline(
     layer: int,
     tracking: str,
     use_3d: bool,
-    render_scale: float,
     export: bool,
     progress=gr.Progress(),  # noqa: B008
 ) -> tuple[str, str, str, str, np.ndarray | None, int]:
@@ -226,7 +225,6 @@ def _run_pipeline(
         layer: HUD layer (0-3).
         tracking: Tracking mode.
         use_3d: Enable 3D-corrected overlay.
-        render_scale: Output render scale (0.5, 0.33, 1.0).
         export: Export poses/CSV.
         progress: Gradio progress callback.
 
@@ -266,7 +264,7 @@ def _run_pipeline(
             layer=layer,
             tracking=tracking,
             use_3d=use_3d,
-            render_scale=render_scale,
+            render_scale=1.0,
             blade_3d=False,  # Disabled for now
             export=export,
             output_path=str(output_path),
@@ -404,15 +402,6 @@ def build_app() -> gr.Blocks:
                         info="0=скелет, 1=скорость+следы+углы, 2=+ось, 3=полный HUD",
                     )
 
-                    render_scale_slider = gr.Slider(
-                        label="Масштаб рендера",
-                        minimum=0.33,
-                        maximum=1.0,
-                        step=0.01,
-                        value=0.5,
-                        info="Меньше = быстрее (0.5 рекомендуется для 1080p+)",
-                    )
-
                     use_3d_checkbox = gr.Checkbox(
                         label="3D-коррекция позы",
                         value=False,
@@ -505,7 +494,6 @@ def build_app() -> gr.Blocks:
                 layer_slider,
                 tracking_dropdown,
                 use_3d_checkbox,
-                render_scale_slider,
                 export_checkbox,
             ],
             outputs=[
