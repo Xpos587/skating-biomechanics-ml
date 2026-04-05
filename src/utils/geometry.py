@@ -129,7 +129,7 @@ def get_mid_hip(poses: NormalizedPose) -> NDArray[np.float32]:
     Returns:
         Mid-hip coordinates (num_frames, 2).
     """
-    return (poses[:, H36Key.LHIP, :] + poses[:, H36Key.RHIP, :]) / 2
+    return ((poses[:, H36Key.LHIP, :] + poses[:, H36Key.RHIP, :]) / 2).astype(np.float32)
 
 
 def get_mid_shoulder(poses: NormalizedPose) -> NDArray[np.float32]:
@@ -141,7 +141,7 @@ def get_mid_shoulder(poses: NormalizedPose) -> NDArray[np.float32]:
     Returns:
         Mid-shoulder coordinates (num_frames, 2).
     """
-    return (poses[:, H36Key.LSHOULDER, :] + poses[:, H36Key.RSHOULDER, :]) / 2
+    return ((poses[:, H36Key.LSHOULDER, :] + poses[:, H36Key.RSHOULDER, :]) / 2).astype(np.float32)
 
 
 def calculate_center_of_mass(poses: NormalizedPose, frame_idx: int) -> float:

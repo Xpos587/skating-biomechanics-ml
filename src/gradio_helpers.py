@@ -117,7 +117,7 @@ def choice_to_person_click(
 
 
 def process_video_pipeline(
-    video_path: str,
+    video_path: str | Path,
     person_click: PersonClick | None,
     frame_skip: int,
     layer: int,
@@ -126,7 +126,7 @@ def process_video_pipeline(
     render_scale: float,
     blade_3d: bool,
     export: bool,
-    output_path: str,
+    output_path: str | Path,
     progress_cb=None,
 ) -> dict:
     """Run the full visualization pipeline (mirrors visualize_with_skeleton.py)."""
@@ -144,8 +144,8 @@ def process_video_pipeline(
         render_layers,
     )
 
-    video_path = Path(video_path)
-    output_path = Path(output_path)
+    video_path = Path(video_path) if isinstance(video_path, str) else video_path
+    output_path = Path(output_path) if isinstance(output_path, str) else output_path
 
     meta = get_video_meta(video_path)
     cap = cv2.VideoCapture(str(video_path))
@@ -255,7 +255,7 @@ def process_video_pipeline(
                 skel_pose = skel_pose * render_scale
                 skel_foot_kp = foot_kp * render_scale if foot_kp is not None else None
             frame = draw_skeleton(
-                frame,
+                frame,  # type: ignore[arg-type]
                 skel_pose,
                 draw_h,
                 draw_w,
@@ -268,7 +268,7 @@ def process_video_pipeline(
                 context.pose_3d = poses_3d[current_pose_idx]
 
         if layer >= 1 and current_pose_idx is not None:
-            frame = render_layers(frame, layers, context)
+            frame = render_layers(frame, layers, context)  # type: ignore[arg-type]
 
         minutes = int(frame_idx / meta.fps) // 60
         seconds = int(frame_idx / meta.fps) % 60
@@ -276,7 +276,7 @@ def process_video_pipeline(
         frame_text = f"{frame_idx}/{total}  {minutes:02d}:{seconds:02d}.{ms:02d}"
         from src.visualization.core.text import draw_text_box
 
-        draw_text_box(frame, frame_text, (draw_w - 220, 10), font_scale=0.5)
+        draw_text_box(frame, frame_text, (draw_w - 220, 10), font_scale=0.5)  # type: ignore[arg-type]
 
         if export and current_pose_idx is not None:
             export_frames.append(frame_idx)
@@ -301,8 +301,8 @@ def process_video_pipeline(
     poses_path = None
     csv_path = None
     if export and export_poses_list:
-        out_dir = output_path.parent
-        stem = output_path.stem
+        out_dir = output_path.parent  # type: ignore[attr-defined]
+        stem = output_path.stem  # type: ignore[attr-defined]
 
         poses_path = out_dir / f"{stem}_poses.npy"
         np.save(str(poses_path), np.array(export_poses_list))

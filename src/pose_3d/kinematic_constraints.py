@@ -109,7 +109,7 @@ def _rodrigues_rotate(
     one_minus_cos = 1.0 - cos_t
     dot_kv = float(np.dot(k, v))
     cross_kv = np.cross(k, v)
-    result: NDArray[np.float32] = v * cos_t + cross_kv * sin_t + k * (dot_kv * one_minus_cos)
+    result = v * cos_t + cross_kv * sin_t + k * (dot_kv * one_minus_cos)
     return result.astype(np.float32)
 
 

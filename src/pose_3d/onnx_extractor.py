@@ -112,4 +112,4 @@ class ONNXPoseExtractor:
 
         result = self.session.run(None, {self.input_name: inp})[0]
         # result: (1, w, 17, 3) → (w, 17, 3)
-        return result[0]
+        return result[0]  # type: ignore[index]

@@ -213,7 +213,7 @@ class PoseTracker:
         # Predict all track positions
         predicted_positions = []
         for track in self.tracks:
-            if track.state is not None:
+            if track.state is not None and track.covariance is not None:
                 track.state, track.covariance = self._kalman_predict(
                     track.state, track.covariance, self.F, self.Q
                 )
@@ -223,7 +223,7 @@ class PoseTracker:
 
         # Associate detections to tracks
         matched, unmatched_dets, unmatched_trks = self._associate(
-            poses, mid_hips, predicted_positions
+            poses, mid_hips, np.array(predicted_positions)
         )
 
         # Update matched tracks
@@ -237,7 +237,7 @@ class PoseTracker:
                 # Initialize state [x, y, vx, vy, ax, ay]
                 track.state = np.array([[mid_hip[0]], [mid_hip[1]], [0], [0], [0], [0]])
                 track.covariance = self.P0.copy()
-            else:
+            elif track.covariance is not None:
                 track.state, track.covariance = self._kalman_update(
                     track.state, track.covariance, z, self.H, self.R
                 )
@@ -397,11 +397,11 @@ class PoseTracker:
         # Scale-invariant ratios (avoid division by zero)
         eps = 1e-8
         return {
-            "shoulder_width/torso": shoulder_width / (torso_length + eps),
-            "femur/tibia": femur_length / (tibia_length + eps),
-            "arm_span/height": arm_span / (height + eps),
-            "torso/height": torso_length / (height + eps),
-            "shoulder_width/height": shoulder_width / (height + eps),
+            "shoulder_width/torso": float(shoulder_width / (torso_length + eps)),
+            "femur/tibia": float(femur_length / (tibia_length + eps)),
+            "arm_span/height": float(arm_span / (height + eps)),
+            "torso/height": float(torso_length / (height + eps)),
+            "shoulder_width/height": float(shoulder_width / (height + eps)),
         }
 
     def _biometric_distance(

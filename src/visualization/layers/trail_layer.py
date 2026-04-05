@@ -161,7 +161,7 @@ class TrailLayer(Layer):
                     int(self.color[1] * alpha),
                     int(self.color[2] * alpha),
                 )
-                cv2.line(frame, pt1, pt2, color, self.width, cv2.LINE_AA)
+                cv2.line(frame, pt1, pt2, color, self.width, cv2.LINE_AA)  # type: ignore[arg-type]
 
     def _draw_trail_3d(
         self,
@@ -206,7 +206,7 @@ class TrailLayer(Layer):
                     int(self.color[1] * alpha),
                     int(self.color[2] * alpha),
                 )
-                cv2.line(frame, pt1, pt2, color, self.width, cv2.LINE_AA)
+                cv2.line(frame, pt1, pt2, color, self.width, cv2.LINE_AA)  # type: ignore[arg-type]
 
     def reset(self) -> None:
         """Reset trail history.

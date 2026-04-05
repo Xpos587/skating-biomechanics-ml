@@ -113,7 +113,7 @@ def _get_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont:
             _font_cache[cache_key] = ImageFont.truetype(font_path, font_size)
         except OSError:
             # Fallback to default font
-            _font_cache[cache_key] = ImageFont.load_default()
+            _font_cache[cache_key] = ImageFont.load_default()  # type: ignore[assignment]
 
     return _font_cache[cache_key]
 
@@ -180,7 +180,7 @@ def measure_text_size_pillow(
     width = bbox[2] - bbox[0]
     height = bbox[3] - bbox[1]
 
-    return (width, height)
+    return (int(width), int(height))
 
 
 def measure_text_size(
@@ -457,7 +457,7 @@ def _render_text_bitmap(
     h = bbox[3] - bbox[1] + 2
 
     # Render onto small RGBA image
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    img = Image.new("RGBA", (int(w), int(h)), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     draw.text((-bbox[0] + 1, -bbox[1] + 1), text, font=font, fill=(*color_rgb, 255))
 

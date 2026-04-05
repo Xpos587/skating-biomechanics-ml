@@ -211,7 +211,7 @@ class SpatialReferenceDetector:
         history.append(value)
         if len(history) > self._smoothing_window:
             history.pop(0)
-        return np.mean(history)
+        return float(np.mean(history))
 
     def compensate_poses(self, poses: PixelPose, camera_pose: CameraPose) -> PixelPose:
         """Compensate poses for camera tilt.
@@ -506,7 +506,10 @@ def compensate_poses_per_frame(
     sample_rolls = np.array([cp[1].roll for cp in camera_poses], dtype=float)
 
     # Linear interpolation of roll across all frames
-    target_indices = frame_indices.astype(float)
+    if frame_indices is not None:
+        target_indices = frame_indices.astype(float)
+    else:
+        target_indices = np.array([], dtype=float)
     if len(sample_indices) >= 2:
         interpolated_rolls = np.interp(
             target_indices,

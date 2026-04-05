@@ -231,9 +231,9 @@ def project_3d_to_normalized(
         # Assuming standard 1920x1080 for normalization
         pixel_coords = project_3d_to_2d(pos_3d, 1920, 1080, focal_length, camera_distance)
         # Convert to normalized
-        return pixel_to_normalized(pixel_coords, 1920, 1080)
+        return pixel_to_normalized(pixel_coords, 1920, 1080)  # type: ignore[arg-type]
     else:
-        x, y = pos_3d
+        x, y = pos_3d[0], pos_3d[1]  # type: ignore[assignment]
 
         # Perspective projection
         depth = camera_distance - pos_3d[2]

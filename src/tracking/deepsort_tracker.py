@@ -133,10 +133,12 @@ class DeepSORTTracker:
         )
         det_ids = list(range(n_curr))
 
-        if frame is not None:
+        if frame is not None and self._tracker is not None:
             tracks = self._tracker.update_tracks(detections, frame=frame, others=det_ids)
-        else:
+        elif self._tracker is not None:
             tracks = self._tracker.update_tracks(detections, others=det_ids)
+        else:
+            tracks = []
 
         # Маппинг DeepSORT ID → наш внутренний ID
         track_ids = [-1] * n_curr

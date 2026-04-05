@@ -219,10 +219,10 @@ class JointAngleLayer(Layer):
             _vx, _vy = int(pv[0]), int(pv[1])
 
             # Draw angle arc with optional degree label (white for max contrast)
-            self._draw_arc(frame, pv, pa, pc, spec.arc_radius, (220, 220, 220))
+            self._draw_arc(frame, pv, pa, pc, spec.arc_radius, (220, 220, 220))  # type: ignore[arg-type]
 
             if self.show_degree_labels and not np.isnan(angle):
-                self._draw_degree_label(frame, pv, angle, color)
+                self._draw_degree_label(frame, pv, angle, color)  # type: ignore[arg-type]
 
         return frame
 

@@ -88,7 +88,7 @@ class AthletePose3DExtractor:
         if self._model_loaded:
             return self.model  # type: ignore
 
-        if not self.model_path.exists():
+        if not self.model_path or not self.model_path.exists():  # type: ignore[optional-attr]
             raise FileNotFoundError(f"Model not found: {self.model_path}")
 
         # Import models from our models directory
@@ -102,14 +102,14 @@ class AthletePose3DExtractor:
 
         # Load checkpoint
         checkpoint = torch.load(
-            self.model_path,
+            self.model_path,  # type: ignore[arg-type]
             map_location=self.device,
             weights_only=False,
         )
 
         # Choose model class based on type
         if self.model_type == "tcpformer":
-            from tcpformer import MemoryInducedTransformer
+            from tcpformer import MemoryInducedTransformer  # type: ignore[import]
 
             ModelClass = MemoryInducedTransformer
             # TCPFormer uses 3 input channels (x, y, confidence)
@@ -119,7 +119,7 @@ class AthletePose3DExtractor:
             dim_feat = 128
         else:
             # Default to MotionAGFormer
-            from motionagformer import MotionAGFormer
+            from motionagformer import MotionAGFormer  # type: ignore[import]
 
             ModelClass = MotionAGFormer
             # MotionAGFormer also uses 3 input channels (x, y, confidence)
@@ -172,17 +172,18 @@ class AthletePose3DExtractor:
                 new_state_dict[new_key] = v
 
         # Load weights (handle different architectures)
-        if self.model_type == "tcpformer":
-            # TCPFormer uses strict loading (architecture matches)
-            self.model.load_state_dict(new_state_dict, strict=True)
-        else:
-            # MotionAGFormer - use non-strict (checkpoint has only att branches)
-            self.model.load_state_dict(new_state_dict, strict=False)
-        self.model.to(self.device)
-        self.model.eval()
-        self._model_loaded = True
+        if self.model is not None:
+            if self.model_type == "tcpformer":
+                # TCPFormer uses strict loading (architecture matches)
+                self.model.load_state_dict(new_state_dict, strict=True)
+            else:
+                # MotionAGFormer - use non-strict (checkpoint has only att branches)
+                self.model.load_state_dict(new_state_dict, strict=False)
+            self.model.to(self.device)
+            self.model.eval()
+            self._model_loaded = True
 
-        return self.model
+        return self.model  # type: ignore[return-value]
 
     def extract_frame(
         self,
@@ -228,7 +229,7 @@ class AthletePose3DExtractor:
             return self._onnx.estimate_3d(poses_2d[:, :, :2])
 
         # Use simple estimator if enabled or no model
-        if self.use_simple or self._simple_estimator is not None:
+        if self._simple_estimator is not None and self.use_simple:
             return self._simple_estimator.estimate_3d(poses_2d)
 
         n_frames = poses_2d.shape[0]

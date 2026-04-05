@@ -159,13 +159,13 @@ class TrackletMerger:
                 best_score = score
                 best_match = candidate
 
-        if best_score >= self.similarity_threshold:
+        if best_score >= self.similarity_threshold and best_match is not None:
             logger.info(
                 "Tracklet merge: track %d → %d (score=%.3f, gap=%d frames)",
                 target.track_id,
                 best_match.track_id,
                 best_score,
-                best_match.start_frame - target.end_frame,
+                best_match.start_frame - target.end_frame,  # type: ignore[optional-attr]
             )
             return best_match
         return None
@@ -200,7 +200,7 @@ class TrackletMerger:
 
         temporal_sim = max(0.0, 1.0 - gap / self.max_gap_frames)
 
-        return (
+        return float(
             self.bone_weight * bone_sim
             + self.spatial_weight * spatial_sim
             + self.temporal_weight * temporal_sim

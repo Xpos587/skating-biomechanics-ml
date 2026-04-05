@@ -172,11 +172,11 @@ class PhaseDetector:
 
         phases = ElementPhase(
             name="jump",
-            start=start_idx,
-            takeoff=takeoff_idx,
-            peak=peak_idx,
-            landing=landing_idx,
-            end=end_idx,
+            start=int(start_idx),
+            takeoff=int(takeoff_idx),
+            peak=int(peak_idx),
+            landing=int(landing_idx),
+            end=int(end_idx),
         )
 
         # Confidence based on multiple factors
@@ -201,7 +201,7 @@ class PhaseDetector:
             ),
         )
 
-        return PhaseDetectionResult(phases=phases, confidence=confidence)
+        return PhaseDetectionResult(phases=phases, confidence=float(confidence))
 
     def _detect_jump_phases_parabolic(
         self, poses: NormalizedPose, fps: float
@@ -458,7 +458,7 @@ class PhaseDetector:
         max_change = float(np.max(np.abs(edge_derivative)))
         confidence = min(1.0, max_change / 0.5)
 
-        return PhaseDetectionResult(phases=phases, confidence=confidence)
+        return PhaseDetectionResult(phases=phases, confidence=float(confidence))
 
     def _find_takeoff_accel(
         self,

@@ -70,7 +70,7 @@ class TCPFormerExtractor:
         if str(models_dir) not in sys.path:
             sys.path.insert(0, str(models_dir))
 
-        from tcpformer import MemoryInducedTransformer
+        from tcpformer import MemoryInducedTransformer  # type: ignore[import]
 
         # Load checkpoint
         checkpoint = torch.load(
@@ -108,12 +108,13 @@ class TCPFormerExtractor:
         )
 
         # Load weights
-        self.model.load_state_dict(new_state_dict, strict=True)
-        self.model.to(self.device)
-        self.model.eval()
-        self._model_loaded = True
+        if self.model is not None:
+            self.model.load_state_dict(new_state_dict, strict=True)
+            self.model.to(self.device)
+            self.model.eval()
+            self._model_loaded = True
 
-        return self.model
+        return self.model  # type: ignore[return-value]
 
     def extract_sequence(
         self,
@@ -128,7 +129,7 @@ class TCPFormerExtractor:
             poses_3d: (N, 17, 3) array with x, y, z coordinates
         """
         # Use simple estimator if enabled or no model
-        if self.use_simple or self._simple_estimator is not None:
+        if self._simple_estimator is not None and self.use_simple:
             return self._simple_estimator.estimate_3d(poses_2d)
 
         n_frames = poses_2d.shape[0]

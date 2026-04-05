@@ -34,21 +34,21 @@ class H264Writer:
         self._container = av.open(str(path), "w")
         rate = Fraction(fps).limit_denominator(1000)
         self._stream = self._container.add_stream(codec, rate=rate)
-        self._stream.width = width
-        self._stream.height = height
-        self._stream.pix_fmt = "yuv420p"
-        self._stream.options = {"preset": preset, "crf": str(crf)}
+        self._stream.width = width  # type: ignore[attr-defined]
+        self._stream.height = height  # type: ignore[attr-defined]
+        self._stream.pix_fmt = "yuv420p"  # type: ignore[attr-defined]
+        self._stream.options = {"preset": preset, "crf": str(crf)}  # type: ignore[attr-defined]
 
     def write(self, frame: np.ndarray) -> None:
         """Write a BGR frame (numpy array)."""
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        av_frame = av.VideoFrame.from_ndarray(frame_rgb, format="rgb24")
-        for packet in self._stream.encode(av_frame):
+        av_frame = av.VideoFrame.from_ndarray(frame_rgb, format="rgb24")  # type: ignore[arg-type]
+        for packet in self._stream.encode(av_frame):  # type: ignore[attr-defined]
             self._container.mux(packet)
 
     def close(self) -> None:
         """Flush remaining packets and close the file."""
-        for packet in self._stream.encode():
+        for packet in self._stream.encode():  # type: ignore[attr-defined]
             self._container.mux(packet)
         self._container.close()
 

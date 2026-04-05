@@ -125,3 +125,10 @@ typecheck:
   commands:
     basedpyright:
       run: uv run basedpyright --level error src/
+
+post-push:
+  commands:
+    vast-deploy:
+      tags: vast
+      run: bash scripts/deploy.sh
+      description: Deploy to active vast.ai instance after push
