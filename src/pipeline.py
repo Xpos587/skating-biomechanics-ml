@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .device import DeviceConfig
 from .types import AnalysisReport, ElementPhase, PersonClick, SegmentationResult
 from .utils.video import VideoMeta, get_video_meta
 
@@ -49,7 +50,7 @@ class AnalysisPipeline:
     def __init__(
         self,
         reference_store: "ReferenceStore | None" = None,  # type: ignore[valid-type]
-        use_gpu: bool = True,
+        device: str | DeviceConfig = "auto",
         enable_smoothing: bool = True,
         smoothing_config: "OneEuroFilterConfig | None" = None,  # type: ignore[valid-type]
         person_click: PersonClick | None = None,
@@ -60,7 +61,8 @@ class AnalysisPipeline:
 
         Args:
             reference_store: ReferenceStore for loading expert references.
-            use_gpu: Whether to use GPU acceleration (when available).
+            device: Device configuration — ``"auto"`` (default), ``"cuda"``, ``"cpu"``,
+                or a DeviceConfig instance for custom behavior.
             enable_smoothing: Whether to apply One-Euro Filter temporal smoothing.
             smoothing_config: Optional custom smoothing configuration.
             person_click: Optional click point to select target person in multi-person videos.
@@ -72,7 +74,7 @@ class AnalysisPipeline:
             from .pose_estimation.rtmlib_extractor import RTMPoseExtractor
 
         self._reference_store = reference_store
-        self._use_gpu = use_gpu
+        self._device_config = DeviceConfig(device) if isinstance(device, str) else device
         self._enable_smoothing = enable_smoothing
         self._smoothing_config = smoothing_config
         self._person_click = person_click
@@ -382,12 +384,14 @@ class AnalysisPipeline:
 
                 self._pose_2d_extractor = RTMPoseExtractor(
                     output_format="normalized",
+                    device=self._device_config.device,
                 )
             else:
                 from .pose_estimation import H36MExtractor
 
                 self._pose_2d_extractor = H36MExtractor(
                     output_format="normalized",
+                    device=self._device_config.device,
                 )
         return self._pose_2d_extractor  # type: ignore[return-value]
 
@@ -399,6 +403,7 @@ class AnalysisPipeline:
             model_path = "data/models/motionagformer-s-ap3d.pth.tr"
             self._pose_3d_extractor = AthletePose3DExtractor(
                 model_path=Path(model_path) if Path(model_path).exists() else None,
+                device=self._device_config.device,
                 use_simple=True,  # Fallback to biomechanics estimator
             )
         return self._pose_3d_extractor
