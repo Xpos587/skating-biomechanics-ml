@@ -473,11 +473,12 @@ def main() -> int:
         # Layer 0: Skeleton — always use raw rtmlib (no 3D jitter)
         if args.layer >= 0 and current_pose_idx is not None:
             foot_kp = raw_foot_kps[current_pose_idx] if raw_foot_kps is not None else None
-            skel_pose = poses[current_pose_idx]
-            skel_foot_kp = foot_kp
+            skel_pose = poses[current_pose_idx].copy()
+            skel_foot_kp = foot_kp.copy() if foot_kp is not None else None
             if render_scale != 1.0:
-                skel_pose = skel_pose * render_scale
-                skel_foot_kp = foot_kp * render_scale if foot_kp is not None else None
+                skel_pose[:, :2] *= render_scale  # only x,y, NOT confidence
+                if skel_foot_kp is not None:
+                    skel_foot_kp[:, :2] *= render_scale
             frame = draw_skeleton(
                 frame,
                 skel_pose,
