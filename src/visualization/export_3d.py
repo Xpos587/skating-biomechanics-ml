@@ -142,7 +142,7 @@ def poses_to_glb(
                 rot = trimesh.transformations.rotation_matrix(np.radians(angle), axis)
                 bone_mesh.apply_transform(rot)
 
-        bone_mesh.visual.face_colors = color
+        bone_mesh.visual.face_colors = color  # type: ignore[attr-defined]
         scene.add_geometry(bone_mesh)
 
     # Draw joints as spheres
@@ -154,7 +154,7 @@ def poses_to_glb(
         color = joint_colors.get(i, (200, 200, 200))
         joint_mesh = trimesh.creation.icosphere(radius=joint_radius, subdivisions=1)
         joint_mesh.apply_translation(p)
-        joint_mesh.visual.face_colors = color
+        joint_mesh.visual.face_colors = color  # type: ignore[attr-defined]
         scene.add_geometry(joint_mesh)
 
     # Add ground plane grid
@@ -200,13 +200,11 @@ def poses_to_glb_sequence(
 
 def _add_ground_grid(scene: trimesh.Scene, pose: np.ndarray) -> None:
     """Add a subtle ground plane grid below the skeleton."""
-    # Find the lowest point (feet)
     valid_y = pose[~np.isnan(pose[:, 1]), 1]
     if len(valid_y) == 0:
         return
     ground_y = valid_y.min()
 
-    # Create a simple grid
     grid_size = 2.0
     grid_lines = 8
     step = grid_size / grid_lines
@@ -214,24 +212,12 @@ def _add_ground_grid(scene: trimesh.Scene, pose: np.ndarray) -> None:
 
     for i in range(grid_lines + 1):
         pos = -half + i * step
-        # Lines along X
-        points_x = np.array(
-            [
-                [pos, ground_y, -half],
-                [pos, ground_y, half],
-            ]
-        )
-        line_x = trimesh.load_path(points_x)
-        line_x.visual.face_colors = (100, 100, 100, 80)
-        scene.add_geometry(line_x)
-
         # Lines along Z
-        points_z = np.array(
-            [
-                [-half, ground_y, pos],
-                [half, ground_y, pos],
-            ]
-        )
-        line_z = trimesh.load_path(points_z)
-        line_z.visual.face_colors = (100, 100, 100, 80)
+        pts_z = np.array([[-half, ground_y, pos], [half, ground_y, pos]])
+        line_z = trimesh.load_path(pts_z)
         scene.add_geometry(line_z)
+
+        # Lines along X
+        pts_x = np.array([[pos, ground_y, -half], [pos, ground_y, half]])
+        line_x = trimesh.load_path(pts_x)
+        scene.add_geometry(line_x)
