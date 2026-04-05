@@ -21,19 +21,19 @@ class TestVizPipelineInit:
         assert pipe.layer == 0
         assert len(pipe.layers) == 0
 
-    def test_layer_1_builds_velocity_and_trail(self):
+    def test_layer_1_builds_no_layers(self):
         meta = _fake_meta()
         poses = np.random.rand(10, 17, 2).astype(np.float32)
         pipe = VizPipeline(meta=meta, poses_norm=poses, layer=1)
-        assert len(pipe.layers) >= 2
+        assert len(pipe.layers) == 0
 
     def test_layer_2_adds_axis(self):
         meta = _fake_meta()
         poses = np.random.rand(10, 17, 2).astype(np.float32)
-        pipe = VizPipeline(meta=meta, poses_norm=poses, layer=1)
-        l1_count = len(pipe.layers)
+        pipe1 = VizPipeline(meta=meta, poses_norm=poses, layer=1)
         pipe2 = VizPipeline(meta=meta, poses_norm=poses, layer=2)
-        assert len(pipe2.layers) > l1_count
+        assert len(pipe1.layers) == 0
+        assert len(pipe2.layers) == 1
 
     def test_with_poses_3d(self):
         meta = _fake_meta()
@@ -49,9 +49,9 @@ class TestVizPipelineBuildLayers:
         poses = np.random.rand(10, 17, 2).astype(np.float32)
         pipe = VizPipeline(meta=meta, poses_norm=poses, layer=0)
         assert len(pipe.layers) == 0
-        pipe.layer = 1
+        pipe.layer = 2
         pipe.build_layers()
-        assert len(pipe.layers) >= 2
+        assert len(pipe.layers) == 1
 
 
 class TestVizPipelineIntegration:

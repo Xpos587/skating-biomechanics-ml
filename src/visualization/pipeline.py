@@ -12,17 +12,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.pose_estimation import H36Key
 from src.visualization import (
-    JointAngleLayer,
     LayerContext,
-    TrailLayer,
-    VelocityLayer,
     VerticalAxisLayer,
     draw_skeleton,
     render_layers,
 )
-from src.visualization.layers.joint_angle_layer import DEFAULT_JOINT_SPECS
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -81,14 +76,6 @@ class VizPipeline:
     def build_layers(self) -> None:
         """Construct visualization layers based on ``self.layer`` level."""
         self.layers = []
-        if self.layer >= 1:
-            self.layers.append(VelocityLayer(scale=3.0, max_length=30, color_mode="solid"))
-            self.layers.append(
-                TrailLayer(length=20, joint=H36Key.LFOOT, width=1, color=(200, 80, 80))
-            )
-            self.layers.append(
-                JointAngleLayer(joints=DEFAULT_JOINT_SPECS, show_degree_labels=True, arc_scale=0.30)
-            )
         if self.layer >= 2:
             self.layers.append(VerticalAxisLayer())
 
