@@ -73,7 +73,7 @@ def _detect_persons(
     try:
         extractor = _create_extractor(tracking)
 
-        persons, _preview_path = extractor.preview_persons(Path(video_path), num_frames=30)
+        persons = extractor.preview_persons(Path(video_path), num_frames=30)
 
         if not persons:
             return (
