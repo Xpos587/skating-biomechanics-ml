@@ -409,22 +409,11 @@ def main() -> int:
             TrailLayer(length=args.trail_length, joint=H36Key.LFOOT, width=1, color=(200, 80, 80))
         )
         # Joint angles with degree labels at layer 1
-        from src.visualization.layers.joint_angle_layer import DEFAULT_JOINT_SPECS, JointAngleSpec
+        from src.visualization.layers.joint_angle_layer import DEFAULT_JOINT_SPECS
 
-        big_arc_specs = [
-            JointAngleSpec(
-                s.name,
-                s.point_a,
-                s.vertex,
-                s.point_c,
-                s.color,
-                arc_radius=22,
-                good_range=s.good_range,
-                warn_range=s.warn_range,
-            )
-            for s in DEFAULT_JOINT_SPECS
-        ]
-        layers.append(JointAngleLayer(joints=big_arc_specs, show_degree_labels=True))
+        layers.append(
+            JointAngleLayer(joints=DEFAULT_JOINT_SPECS, show_degree_labels=True, arc_scale=0.30)
+        )
     if args.layer >= 2:
         layers.append(VerticalAxisLayer())
 

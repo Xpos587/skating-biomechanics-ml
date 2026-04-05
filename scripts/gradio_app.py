@@ -15,6 +15,7 @@ from pathlib import Path
 
 import cv2
 import gradio as gr
+import numpy as np
 
 from src.gradio_helpers import (
     choice_to_person_click,
@@ -223,7 +224,7 @@ def _run_pipeline(
     render_scale: float,
     export: bool,
     progress=gr.Progress(),  # noqa: B008
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, np.ndarray | None]:
     """Run the full analysis pipeline.
 
     Args:
@@ -239,7 +240,7 @@ def _run_pipeline(
         progress: Gradio progress callback.
 
     Returns:
-        (output_video_path, poses_path, csv_path, status_text)
+        (output_video_path, poses_path, csv_path, status_text, poses_3d)
     """
     if not video_path:
         return None, None, None, "⚠️ Загрузите видео."
@@ -280,6 +281,7 @@ def _run_pipeline(
         )
 
         stats = result["stats"]
+        poses_3d = result.get("poses_3d")
         status = (
             f"✅ Анализ завершён!\n"
             f"   Разрешение: {stats['resolution']}\n"
@@ -293,10 +295,48 @@ def _run_pipeline(
             result["poses_path"],
             result["csv_path"],
             status,
+            poses_3d,
         )
 
     except Exception as e:
         return None, None, None, f"❌ Ошибка обработки: {e}"
+
+
+def _on_frame_change(
+    frame_idx: int,
+    poses_3d_state: np.ndarray | None,
+) -> tuple[str | None, str]:
+    """Update 3D model when frame slider changes.
+
+    Args:
+        frame_idx: Frame index from slider.
+        poses_3d_state: Stored (N, 17, 3) 3D poses array.
+
+    Returns:
+        (glb_path, angle_info_text)
+    """
+    if poses_3d_state is None:
+        return None, "Обработайте видео для просмотра 3D"
+
+    frame_idx = int(frame_idx)
+    n = len(poses_3d_state)
+    if frame_idx >= n:
+        frame_idx = n - 1
+
+    from src.analysis.angles import compute_joint_angles
+    from src.visualization.export_3d import poses_to_glb
+
+    glb_path = poses_to_glb(poses_3d_state, frame_idx)
+
+    # Show key angles for this frame
+    angles = compute_joint_angles(poses_3d_state[frame_idx])
+    parts = []
+    for name, val in angles.items():
+        if not np.isnan(val) and "Knee" in name:
+            parts.append(f"{name}: {val:.0f}°")
+    angle_info = " | ".join(parts) if parts else f"Кадр {frame_idx}/{n - 1}"
+
+    return glb_path, angle_info
 
 
 def build_app() -> gr.Blocks:
@@ -308,6 +348,7 @@ def build_app() -> gr.Blocks:
         # State
         persons_state = gr.State()
         person_click_state = gr.State(None)
+        poses_3d_state = gr.State(None)
 
         with gr.Row():
             # Left column: Controls
@@ -389,10 +430,34 @@ def build_app() -> gr.Blocks:
 
             # Right column: Outputs
             with gr.Column(scale=1):
-                output_video = gr.Video(
-                    label="Результат анализа",
-                    autoplay=True,
-                )
+                with gr.Tabs():
+                    with gr.Tab("Видео"):
+                        output_video = gr.Video(
+                            label="Результат анализа",
+                            autoplay=True,
+                        )
+
+                    with gr.Tab("3D Скелет"):
+                        model_3d = gr.Model3D(
+                            label="3D модель (крутите мышкой, зум колёсиком)",
+                            height=500,
+                            clear_color=[0.1, 0.1, 0.15, 1],
+                            camera_position=(45, 45, 3),
+                            zoom_speed=1.5,
+                        )
+                        frame_slider = gr.Slider(
+                            label="Кадр",
+                            minimum=0,
+                            maximum=100,
+                            step=1,
+                            value=0,
+                            info="Переключайте кадры для 3D просмотра",
+                        )
+                        frame_info = gr.Textbox(
+                            label="Угол",
+                            interactive=False,
+                            lines=1,
+                        )
 
                 poses_download = gr.File(
                     label="Скачать позы (.npy)",
@@ -444,7 +509,14 @@ def build_app() -> gr.Blocks:
                 render_scale_slider,
                 export_checkbox,
             ],
-            outputs=[output_video, poses_download, csv_download, output_status],
+            outputs=[output_video, poses_download, csv_download, output_status, poses_3d_state],
+        )
+
+        # Frame slider → update 3D model
+        frame_slider.change(
+            fn=_on_frame_change,
+            inputs=[frame_slider, poses_3d_state],
+            outputs=[model_3d, frame_info],
         )
 
     return app

@@ -190,6 +190,13 @@ def process_video_pipeline(
         estimator = Biomechanics3DEstimator()
         poses_3d = estimator.estimate_3d(poses_viz)
 
+    # Always estimate 3D poses for 3D viewer (lightweight Biomechanics3DEstimator)
+    if poses_3d is None:
+        from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
+
+        estimator = Biomechanics3DEstimator()
+        poses_3d = estimator.estimate_3d(poses_viz)
+
     if progress_cb:
         progress_cb(0.3, "Poses extracted. Rendering...")
 
@@ -340,6 +347,7 @@ def process_video_pipeline(
         "video_path": str(output_path),
         "poses_path": str(poses_path) if poses_path else None,
         "csv_path": str(csv_path) if csv_path else None,
+        "poses_3d": poses_3d,
         "stats": {
             "total_frames": total,
             "valid_frames": n_valid,

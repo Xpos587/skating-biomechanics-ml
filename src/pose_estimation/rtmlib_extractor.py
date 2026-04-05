@@ -108,6 +108,7 @@ class RTMPoseExtractor:
             # Create a local tracker variable with proper type
             from rtmlib import BodyWithFeet as RTMBodyWithFeet
             from rtmlib import PoseTracker as RTMPoseTracker
+
             self._tracker = RTMPoseTracker(
                 RTMBodyWithFeet,
                 det_frequency=self._det_frequency,
@@ -433,7 +434,11 @@ class RTMPoseExtractor:
                                         foot_kps_list[p],
                                     )
 
-                            if best_new_tid is not None and best_dist < 1.5 and best_new_data is not None:
+                            if (
+                                best_new_tid is not None
+                                and best_dist < 1.5
+                                and best_new_data is not None
+                            ):
                                 target_track_id = best_new_tid
                                 all_poses[frame_idx] = best_new_data[0]
                                 all_feet[frame_idx] = best_new_data[1]
