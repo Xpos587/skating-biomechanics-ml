@@ -23,7 +23,7 @@ from tqdm import tqdm
 
 from src.detection.blade_edge_detector_3d import BladeEdgeDetector3D
 from src.detection.spatial_reference import SpatialReferenceDetector
-from src.pose_estimation import H36Key, H36MExtractor
+from src.pose_estimation import H36Key
 from src.types import BladeState3D
 from src.utils.geometry import detect_visible_side, estimate_floor_angle
 from src.utils.subtitles import SubtitleParser
@@ -168,135 +168,116 @@ def main() -> int:
     meta = get_video_meta(args.video)
     cap = cv2.VideoCapture(str(args.video))
 
-    # Load or extract poses
-    raw_foot_kps = None
-    confs: np.ndarray | None = None
-    if args.poses and args.poses.exists():
-        print(f"Loading poses from: {args.poses}")
-        poses_data = np.load(args.poses)
-        poses = poses_data["poses"]
-        poses_viz = poses[:, :, :2] if poses.shape[2] == 3 else poses
-    else:
-        backend_label = (
-            "rtmlib BodyWithFeet" if args.pose_backend == "rtmlib" else "YOLO26-Pose + OC-SORT"
-        )
-        print(f"Extracting poses with tracking ({backend_label})...")
-        if args.pose_backend == "rtmlib":
-            from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
+    # --- Person selection (before pose extraction) ---
+    from src.types import PersonClick as _PersonClick
 
-            extractor = RTMPoseExtractor(
-                output_format="normalized",
-                conf_threshold=0.3,
-                det_frequency=1,  # detect every frame — GPU is fast enough
-                device="cuda",
-                tracking_mode=args.tracking,
+    person_click = None
+    if args.poses and args.poses.exists():
+        pass  # Legacy path below — no person selection needed
+    elif args.person_click:
+        person_click = _PersonClick(x=args.person_click[0], y=args.person_click[1])
+        print(f"Using click point: ({person_click.x}, {person_click.y})")
+    elif args.select_person:
+        # Need an extractor just for the preview
+        from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
+
+        _preview_extractor = RTMPoseExtractor(
+            output_format="normalized",
+            conf_threshold=0.3,
+            det_frequency=1,
+            device="cuda",
+            tracking_mode=args.tracking,
+        )
+        persons, preview_path = _preview_extractor.preview_persons(args.video)
+        if not persons:
+            print("No persons detected in the first seconds.")
+            return 1
+        if len(persons) == 1:
+            print(f"Only 1 person detected (track #{persons[0]['track_id']}). Auto-selecting.")
+            mid_hip = persons[0]["mid_hip"]
+            person_click = _PersonClick(
+                x=int(mid_hip[0] * meta.width),
+                y=int(mid_hip[1] * meta.height),
             )
         else:
-            extractor = H36MExtractor(
-                model_size="s",  # small model — better accuracy for distant/small skaters
-                conf_threshold=0.1,  # low threshold — detect distant skaters
-                output_format="normalized",
-                crop_enhance=False,  # ROI crop — enable when CUDA available (slow on CPU)
-            )
+            if preview_path:
+                import subprocess as _sp
 
-        # Person selection
-        from src.types import PersonClick as _PersonClick
+                _sp.run(["xdg-open", preview_path], check=False)
 
-        person_click = None
-        if args.person_click:
-            person_click = _PersonClick(x=args.person_click[0], y=args.person_click[1])
-            print(f"Using click point: ({person_click.x}, {person_click.y})")
-        elif args.select_person:
-            persons, preview_path = extractor.preview_persons(args.video)
-            if not persons:
-                print("No persons detected in the first seconds.")
+            print(f"\nОбнаружено {len(persons)} человек:")
+            for i, p in enumerate(persons):
+                print(f"  #{i + 1}: track_id={p['track_id']}, hits={p['hits']}")
+            if preview_path:
+                print(f"  Превью: {preview_path}")
+            print()
+            try:
+                choice = int(input(f"Select person [1-{len(persons)}]: "))
+            except (ValueError, EOFError):
+                print("Cancelled.")
                 return 1
-            if len(persons) == 1:
-                print(f"Only 1 person detected (track #{persons[0]['track_id']}). Auto-selecting.")
-                mid_hip = persons[0]["mid_hip"]
-                person_click = _PersonClick(
-                    x=int(mid_hip[0] * meta.width),
-                    y=int(mid_hip[1] * meta.height),
-                )
-            else:
-                # Show visual preview if available
-                if preview_path:
-                    import subprocess as _sp
+            if choice < 1 or choice > len(persons):
+                print(f"Invalid choice: {choice}")
+                return 1
+            mid_hip = persons[choice - 1]["mid_hip"]
+            person_click = _PersonClick(
+                x=int(mid_hip[0] * meta.width),
+                y=int(mid_hip[1] * meta.height),
+            )
+            print(f"Selected person #{choice} (track_id={persons[choice - 1]['track_id']})")
 
-                    _sp.run(["xdg-open", preview_path], check=False)
-
-                print(f"\nОбнаружено {len(persons)} человек. Смотри превью.")
-                if preview_path:
-                    print(f"  {preview_path}")
-                print()
-                try:
-                    choice = int(input(f"Select person [1-{len(persons)}]: "))
-                except (ValueError, EOFError):
-                    print("Cancelled.")
-                    return 1
-                if choice < 1 or choice > len(persons):
-                    print(f"Invalid choice: {choice}")
-                    return 1
-                mid_hip = persons[choice - 1]["mid_hip"]
-                person_click = _PersonClick(
-                    x=int(mid_hip[0] * meta.width),
-                    y=int(mid_hip[1] * meta.height),
-                )
-                print(f"Selected person #{choice} (track_id={persons[choice - 1]['track_id']})")
-
-        extraction = extractor.extract_video_tracked(args.video, person_click=person_click)
-
-        raw_poses = extraction.poses  # (N, 17, 3) — 1:1 with video frames
-        raw_foot_kps = extraction.foot_keypoints  # (N, 6, 3) normalized
-        n_valid = int(extraction.valid_mask().sum())
-        print(f"Raw: {n_valid}/{len(raw_poses)} valid frames")
-
-        poses_norm = raw_poses[:, :, :2].copy()
-        confs = raw_poses[:, :, 2].copy()
-
-        poses_viz = poses_norm
+    # --- Unified pose preparation ---
+    if args.poses and args.poses.exists():
+        # Legacy path: load pre-computed poses from .npz
+        print(f"Loading poses from: {args.poses}")
+        poses_data = np.load(args.poses)
+        raw_poses = poses_data["poses"]
+        poses_viz = raw_poses[:, :, :2] if raw_poses.shape[2] == 3 else raw_poses
         poses = raw_poses.copy()
         poses[:, :, 0] *= meta.width
         poses[:, :, 1] *= meta.height
+        poses_3d = None
+        raw_foot_kps = None
+        confs = np.ones_like(poses_viz[:, :, 0])
+        prepared = None
+    else:
+        from src.visualization.pipeline import prepare_poses
 
-        print(f"Poses ready: {len(poses)} frames")
+        model_3d = args.model_3d
+        if model_3d is None:
+            default_model = Path("data/models/motionagformer-s-ap3d.onnx")
+            if default_model.exists():
+                model_3d = default_model
+            else:
+                print("Warning: 3D model not found.")
+                model_3d = None
+
+        prepared = prepare_poses(
+            args.video,
+            person_click=person_click,
+            frame_skip=1,
+            tracking=args.tracking,
+            use_corrective_lens=True,
+            model_3d_path=model_3d,
+            blend_threshold=args.blend_threshold,
+            smooth=True,
+            device="auto",
+        )
+
+        poses_viz = prepared.poses_norm
+        poses = prepared.poses_px
+        poses_3d = prepared.poses_3d
+        raw_foot_kps = prepared.foot_kps
+        confs = prepared.confs
+        meta = prepared.meta
+
+    print(f"Poses ready: {len(poses_viz)} frames")
+    if poses_3d is not None:
+        print(f"3D poses: {poses_3d.shape}")
 
     # Initialize blade states
     blade_states_left = [None] * len(poses_viz)
     blade_states_right = [None] * len(poses_viz)
-
-    # Initialize 3D pose extraction if requested
-    poses_3d = None
-    if not (args.model_3d and args.model_3d.exists()):
-        default_model = Path("data/models/motionagformer-s-ap3d.onnx")
-        if default_model.exists():
-            args.model_3d = default_model
-        else:
-            print("Error: 3D model not found. Download motionagformer-s-ap3d to data/models/")
-            return 1
-
-    print(f"Loading 3D model: {args.model_3d}")
-    from src.pose_3d import AthletePose3DExtractor
-
-    extractor = AthletePose3DExtractor(model_path=args.model_3d, model_type="motionagformer-s")
-    poses_3d = extractor.extract_sequence(poses_viz)
-    print(f"3D poses extracted: {poses_3d.shape}")
-
-    # 3D corrective lens: lift → constrain → project → blend (always on)
-    from src.pose_3d import CorrectiveLens
-
-    lens = CorrectiveLens(model_path=args.model_3d)
-    poses_viz_corrected, _ = lens.correct_sequence(
-        poses_2d_norm=poses_viz,
-        fps=meta.fps,
-        width=meta.width,
-        height=meta.height,
-        confidences=confs,
-        blend_threshold=args.blend_threshold,
-    )
-    # Clip to valid range
-    poses_viz_corrected = np.clip(poses_viz_corrected, 0.0, 1.0)
-    print(f"3D-corrected poses: {poses_viz_corrected.shape}")
 
     # Initialize 3D blade detector if requested
     blade_detector_3d = None
@@ -343,6 +324,7 @@ def main() -> int:
         foot_kps=raw_foot_kps,
         poses_3d=poses_3d,
         layer=args.layer,
+        confs=confs,
     )
 
     # Load segments
