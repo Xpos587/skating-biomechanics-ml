@@ -9,6 +9,7 @@ import csv as _csv
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import av
 import cv2
 import numpy as np
 
@@ -194,8 +195,12 @@ def process_video_pipeline(
 
     out_w = int(meta.width * render_scale)
     out_h = int(meta.height * render_scale)
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, meta.fps, (out_w, out_h))
+    container = av.open(str(output_path), "w")
+    stream = container.add_stream("libx264", rate=meta.fps)
+    stream.width = out_w
+    stream.height = out_h
+    stream.pix_fmt = "yuv420p"
+    stream.options = {"preset": "fast", "crf": "23"}
 
     layers: list = []
     if layer >= 1:
@@ -286,14 +291,21 @@ def process_video_pipeline(
             export_joint_angles.append(ja)
             export_poses_list.append(poses[current_pose_idx].copy())
 
-        writer.write(frame)
+        # BGR -> RGB for PyAV, then encode
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        av_frame = av.VideoFrame.from_ndarray(frame_rgb, format="rgb24")
+        for packet in stream.encode(av_frame):
+            container.mux(packet)
         frame_idx += 1
 
         if progress_cb and frame_idx % 50 == 0:
             progress_cb(0.3 + 0.65 * frame_idx / total, f"Rendering frame {frame_idx}/{total}")
 
     cap.release()
-    writer.release()
+    # Flush remaining packets and close
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
 
     if progress_cb:
         progress_cb(0.95, "Saving exports...")
