@@ -39,6 +39,9 @@ ENV/
 *.swo
 *~
 
+# Claude Code (local memory — per-machine, not shared)
+.claude/
+
 # Testing
 .pytest_cache/
 .coverage
