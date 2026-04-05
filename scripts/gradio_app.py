@@ -224,7 +224,7 @@ def _run_pipeline(
     render_scale: float,
     export: bool,
     progress=gr.Progress(),  # noqa: B008
-) -> tuple[str, str, str, str, np.ndarray | None]:
+) -> tuple[str, str, str, str, np.ndarray | None, int]:
     """Run the full analysis pipeline.
 
     Args:
@@ -243,7 +243,7 @@ def _run_pipeline(
         (output_video_path, poses_path, csv_path, status_text, poses_3d)
     """
     if not video_path:
-        return None, None, None, "⚠️ Загрузите видео."
+        return None, None, None, "⚠️ Загрузите видео.", None, 0
 
     # Resolve PersonClick (prefer image click, fallback to radio)
     person_click = person_click_state
@@ -257,6 +257,8 @@ def _run_pipeline(
             None,
             None,
             "⚠️ Выберите человека (нажмите на изображение или выберите из списка).",
+            None,
+            0,
         )
 
     # Generate output path
@@ -296,10 +298,11 @@ def _run_pipeline(
             result["csv_path"],
             status,
             poses_3d,
+            stats["total_frames"],
         )
 
     except Exception as e:
-        return None, None, None, f"❌ Ошибка обработки: {e}"
+        return None, None, None, f"❌ Ошибка обработки: {e}", None, 0
 
 
 def _on_frame_change(
@@ -349,6 +352,7 @@ def build_app() -> gr.Blocks:
         persons_state = gr.State()
         person_click_state = gr.State(None)
         poses_3d_state = gr.State(None)
+        total_frames_state = gr.State(0)
 
         with gr.Row():
             # Left column: Controls
@@ -509,7 +513,14 @@ def build_app() -> gr.Blocks:
                 render_scale_slider,
                 export_checkbox,
             ],
-            outputs=[output_video, poses_download, csv_download, output_status, poses_3d_state],
+            outputs=[
+                output_video,
+                poses_download,
+                csv_download,
+                output_status,
+                poses_3d_state,
+                total_frames_state,
+            ],
         )
 
         # Frame slider → update 3D model
@@ -517,6 +528,18 @@ def build_app() -> gr.Blocks:
             fn=_on_frame_change,
             inputs=[frame_slider, poses_3d_state],
             outputs=[model_3d, frame_info],
+        )
+
+        # After pipeline completes, update frame slider range
+        def _update_slider_range(total_frames):
+            if total_frames > 0:
+                return gr.update(maximum=total_frames - 1, value=0)
+            return gr.update()
+
+        total_frames_state.change(
+            fn=_update_slider_range,
+            inputs=[total_frames_state],
+            outputs=[frame_slider],
         )
 
     return app
