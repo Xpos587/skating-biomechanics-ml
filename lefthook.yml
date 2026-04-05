@@ -1,4 +1,5 @@
 # $schema: https://raw.githubusercontent.com/evilmartians/lefthook/master/schema.json
+# Lefthook configuration for skating-biomechanics-ml
 assert_lefthook_installed: true
 colors: true
 
@@ -13,6 +14,16 @@ pre-commit:
           echo "Please use a feature/hotfix/release branch."
           exit 1
         fi
+
+    gitleaks:
+      run: |
+        if ! command -v gitleaks &> /dev/null; then
+          exit 0
+        fi
+        if [ -f ".gitleaks-skip" ]; then
+          exit 0
+        fi
+        gitleaks protect --staged --redact --no-banner
 
     ruff-check:
       glob: "*.py"
@@ -55,7 +66,7 @@ pre-push:
         REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null | sed 's|/.*||')
         REMOTE_BRANCH=${REMOTE_BRANCH:-origin}
         DEFAULT_BRANCH=$(git remote show $REMOTE_BRANCH 2>/dev/null | grep 'HEAD branch' | cut -d' ' -f5)
-        DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
+        DEFAULT_BRANCH=${DEFAULT_BRANCH:-master}
 
         CHANGED_FILES=$(git diff --stat $DEFAULT_BRANCH...HEAD 2>/dev/null | tail -n1 | awk '{print $1}')
         ADDED_LINES=$(git diff $DEFAULT_BRANCH...HEAD --numstat 2>/dev/null | awk '{add+=$1} END {print add}')
@@ -99,8 +110,18 @@ pre-push:
 
         echo "📊 PR Size: $EMOJI $SIZE (~$TOTAL_LINES lines, $CHANGED_FILES files)"
 
+# Manual groups
 format:
   commands:
     ruff-format:
-      glob: "*.py"
-      run: uv run ruff format {staged_files}
+      run: uv run ruff check src/ tests/ scripts/ --fix && uv run ruff format src/ tests/ scripts/
+
+test:
+  commands:
+    pytest:
+      run: uv run pytest tests/ -v -m "not slow" --tb=short
+
+typecheck:
+  commands:
+    basedpyright:
+      run: uv run basedpyright --level error src/
