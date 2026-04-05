@@ -8,6 +8,7 @@ import numpy as np
 
 from src.pose_estimation import H36MExtractor
 from src.utils.video import extract_frames, get_video_meta
+from src.utils.video_writer import H264Writer
 
 # COCO 17 keypoints skeleton edges (pairs of indices)
 SKELETON_EDGES = [
@@ -123,8 +124,7 @@ def create_skeleton_video(
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     # Setup output writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+    out = H264Writer(output_path, width, height, fps)
 
     frame_count = 0
     processed = 0
@@ -148,7 +148,7 @@ def create_skeleton_video(
             break
 
     cap.release()
-    out.release()
+    out.close()
 
     print(f"  Processed {processed} frames")
     print(f"  Output: {output_path}")

@@ -6,7 +6,7 @@ with configurable overlay layers (axis, angles, timer, skeleton, etc.).
 Based on Kinovea-style sports video analysis workflow.
 
 Optimizations:
-- FFmpeg libx264 pipe for fast encoding
+- PyAV libx264 encoding
 - Pre-allocated output buffers (no np.hstack per frame)
 - Cached sorted layers and reused LayerContext
 - Streaming decode (constant memory)
@@ -15,7 +15,6 @@ Optimizations:
 from __future__ import annotations
 
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -26,6 +25,7 @@ import numpy as np
 from src.pose_estimation import RTMPoseExtractor
 from src.utils.smoothing import PoseSmoother, get_skating_optimized_config
 from src.utils.video import get_video_meta
+from src.utils.video_writer import H264Writer
 from src.visualization import draw_skeleton
 from src.visualization.config import COLOR_MAGENTA
 from src.visualization.layers.base import LayerContext
@@ -281,15 +281,16 @@ class ComparisonRenderer:
         print(f"Rendering {render_frames} frames...", flush=True)
 
         # Stage 3: Render (streaming) -- re-open captures for frame decoding
-        encoder = self._create_encoder(str(output_path), out_w, out_h, fps)
+        writer = H264Writer(
+            str(output_path), out_w, out_h, fps, preset="ultrafast", crf=self.config.crf
+        )
 
         cap_a = cv2.VideoCapture(str(athlete_video))
         cap_r = cv2.VideoCapture(str(reference_video))
 
         if cap_a is None or not cap_a.isOpened():
             print(f"ERROR: Cannot open athlete video: {athlete_video}", flush=True)
-            encoder.stdin.close()
-            encoder.wait()
+            writer.close()
             return
         if cap_r is None or not cap_r.isOpened():
             print(
@@ -297,8 +298,7 @@ class ComparisonRenderer:
                 flush=True,
             )
             cap_a.release()
-            encoder.stdin.close()
-            encoder.wait()
+            writer.close()
             return
 
         # Seek to start frame
@@ -402,54 +402,22 @@ class ComparisonRenderer:
                 else:
                     out_buf[:, target_w + self.config.divider_width :] = frame_r
 
-                encoder.stdin.write(out_buf.data)
+                writer.write(out_buf)
             else:
                 # Overlay mode: blend reference skeleton onto athlete frame
                 overlay = frame_a.copy()
                 if pose_r is not None:
                     draw_skeleton(overlay, pose_r, a_h, target_w)
                 frame_a = cv2.addWeighted(overlay, self.config.reference_alpha, frame_a, 1.0, 0)
-                encoder.stdin.write(frame_a.data)
+                writer.write(frame_a)
 
             if frame_idx % 200 == 0:
                 print(f"  Frame {frame_idx}/{render_frames}", flush=True)
 
         cap_a.release()
         cap_r.release()
-        encoder.stdin.close()
-        encoder.wait()
+        writer.close()
         print(f"Done! Output: {output_path}", flush=True)
-
-    def _create_encoder(
-        self, output_path: str, width: int, height: int, fps: float
-    ) -> subprocess.Popen:
-        """Create FFmpeg encoder process (libx264 ultrafast)."""
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "rawvideo",
-            "-vcodec",
-            "rawvideo",
-            "-s",
-            f"{width}x{height}",
-            "-pix_fmt",
-            "bgr24",
-            "-r",
-            str(fps),
-            "-i",
-            "-",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-            "-crf",
-            str(self.config.crf),
-            "-pix_fmt",
-            "yuv420p",
-            str(output_path),
-        ]
-        return subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
     def _extract_poses_streaming(
         self,

@@ -6,6 +6,8 @@ from pathlib import Path
 
 import cv2
 
+from src.utils.video_writer import H264Writer
+
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize element segmentation on video")
@@ -67,8 +69,7 @@ def main():
 
     # Setup output video
     output_path = args.output or args.video.parent / f"{args.video.stem}_segmented.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+    writer = H264Writer(output_path, width, height, fps)
 
     frame_idx = 0
     while cap.isOpened():
@@ -141,7 +142,7 @@ def main():
         frame_idx += 1
 
     cap.release()
-    writer.release()
+    writer.close()
 
     print(f"Saved annotated video to: {output_path}")
 

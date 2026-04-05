@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 from src.pose_estimation import H36M_SKELETON_EDGES, H36Key
 from src.types import PersonClick
 from src.utils.geometry import angle_3pt
+from src.utils.video_writer import H264Writer
 from src.visualization.skeleton.drawer import draw_skeleton
 
 if TYPE_CHECKING:
@@ -604,13 +605,12 @@ def _run(args: argparse.Namespace) -> int:
         first_ext = all_extractions[backends[0]]
         fps = first_ext.fps
 
-        fourcc = cv2.VideoWriter_fourcc(*("mp4v" if output_path.endswith(".mp4") else "XVID"))
-        writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+        writer = H264Writer(output_path, w, h, fps)
 
         for frame in tqdm(combined, desc="Writing video", unit="frame", ncols=100):
             writer.write(frame)
 
-        writer.release()
+        writer.close()
         print(f"Video saved to: {output_path}")
 
     return 0
