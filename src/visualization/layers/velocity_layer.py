@@ -160,8 +160,8 @@ class VelocityLayer(Layer):
             )
             vel_px = normalized_to_pixel(velocities, context.frame_width, context.frame_height)
         else:
-            pose_px = context.pose_2d.astype(np.int32)
-            vel_px = velocities.astype(np.int32)
+            pose_px = context.pose_2d.round().astype(np.int32)
+            vel_px = velocities.round().astype(np.int32)
 
         # Draw vectors
         for joint_idx in self.joints:
@@ -180,12 +180,12 @@ class VelocityLayer(Layer):
             if length > self.max_length:
                 vector = vector / length * self.max_length
 
-            start = tuple(pose_px[joint_idx])
-            end = tuple((pose_px[joint_idx] + vector).astype(int))
+            start = tuple(np.asarray(pose_px[joint_idx]))
+            end = tuple(np.asarray(pose_px[joint_idx] + vector).round().astype(int))
 
             # Get color
             if self.color_mode == "heatmap":
-                speed = min(length / self.max_length, 1.0)
+                speed = min(float(length) / self.max_length, 1.0)
                 color = get_heatmap_color(speed, 0.0, 1.0, "jet")
             else:
                 color = (0, 200, 0)  # Green
@@ -243,7 +243,7 @@ class VelocityLayer(Layer):
 
         # Draw vectors
         for joint_idx in self.joints:
-            start = tuple(pose_2d[joint_idx].astype(int))
+            start = tuple(np.asarray(pose_2d[joint_idx]).round().astype(int))
 
             # Clamp vector length
             vector = vel_2d[joint_idx]
@@ -251,7 +251,7 @@ class VelocityLayer(Layer):
             if length > self.max_length:
                 vector = vector / length * self.max_length
 
-            end = tuple((pose_2d[joint_idx] + vector).astype(int))
+            end = tuple(np.asarray(pose_2d[joint_idx] + vector).round().astype(int))
 
             # Get color based on depth or speed
             if self.color_mode == "depth":
@@ -260,7 +260,7 @@ class VelocityLayer(Layer):
                 depth = context.pose_3d[joint_idx, 2]
                 color = get_depth_color(depth, 0.0, 2.0)
             elif self.color_mode == "heatmap":
-                speed = length / self.max_length
+                speed = float(length) / self.max_length
                 color = get_heatmap_color(speed, 0.0, 1.0, "jet")
             else:
                 color = (0, 200, 0)  # Green

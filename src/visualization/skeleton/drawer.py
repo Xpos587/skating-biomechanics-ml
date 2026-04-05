@@ -86,7 +86,7 @@ def draw_skeleton(
         pose_px = normalized_to_pixel(pose, width, height)
     else:
         # Already in pixel coordinates
-        pose_px = pose.astype(np.int32)
+        pose_px = pose.round().astype(np.int32)
 
     # Draw skeleton edges (bones)
     for joint_a, joint_b in H36M_SKELETON_EDGES:
@@ -97,8 +97,8 @@ def draw_skeleton(
             if confidences[joint_b] < confidence_threshold:
                 continue
 
-        pt_a = tuple(pose_px[joint_a].astype(int))
-        pt_b = tuple(pose_px[joint_b].astype(int))
+        pt_a = tuple(np.asarray(pose_px[joint_a]).round().astype(int))
+        pt_b = tuple(np.asarray(pose_px[joint_b]).round().astype(int))
 
         # Check if points are within frame
         if not (_is_valid_point(pt_a, width, height) and _is_valid_point(pt_b, width, height)):
@@ -115,7 +115,7 @@ def draw_skeleton(
         if confidences is not None and confidences[joint_idx] < confidence_threshold:
             continue
 
-        pt = tuple(pose_px[joint_idx].astype(int))
+        pt = tuple(np.asarray(pose_px[joint_idx]).round().astype(int))
 
         # Check if point is within frame
         if not _is_valid_point(pt, width, height):
@@ -237,8 +237,8 @@ def draw_skeleton_3d(
 
     # Draw skeleton edges
     for joint_a, joint_b in H36M_SKELETON_EDGES:
-        pt_a = tuple(pose_2d[joint_a].astype(int))
-        pt_b = tuple(pose_2d[joint_b].astype(int))
+        pt_a = tuple(np.asarray(pose_2d[joint_a]).round().astype(int))
+        pt_b = tuple(np.asarray(pose_2d[joint_b]).round().astype(int))
 
         # Check if points are within frame
         if not (_is_valid_point(pt_a, width, height) and _is_valid_point(pt_b, width, height)):
@@ -255,7 +255,7 @@ def draw_skeleton_3d(
 
     # Draw joints
     for joint_idx in range(len(pose_2d)):
-        pt = tuple(pose_2d[joint_idx].astype(int))
+        pt = tuple(np.asarray(pose_2d[joint_idx]).round().astype(int))
 
         # Check if point is within frame
         if not _is_valid_point(pt, width, height):
@@ -351,8 +351,8 @@ def draw_skeleton_3d_pip(
 
     # Draw skeleton edges in PIP
     for joint_a, joint_b in H36M_SKELETON_EDGES:
-        pt_a = tuple(pose_pip[joint_a].astype(int))
-        pt_b = tuple(pose_pip[joint_b].astype(int))
+        pt_a = tuple(np.asarray(pose_pip[joint_a]).round().astype(int))
+        pt_b = tuple(np.asarray(pose_pip[joint_b]).round().astype(int))
 
         # Get color based on depth (Z coordinate)
         avg_depth = (pose_3d[joint_a, 2] + pose_3d[joint_b, 2]) / 2
@@ -362,7 +362,7 @@ def draw_skeleton_3d_pip(
 
     # Draw joints in PIP
     for joint_idx in range(len(pose_pip)):
-        pt = tuple(pose_pip[joint_idx].astype(int))
+        pt = tuple(np.asarray(pose_pip[joint_idx]).round().astype(int))
 
         depth = pose_3d[joint_idx, 2]
         color = get_depth_color(depth, depth_min, depth_max)
