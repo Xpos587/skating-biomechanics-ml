@@ -9,14 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
-import numpy as np
 
-from src.device import DeviceConfig
 from src.types import PersonClick
-from src.utils.video import get_video_meta
 from src.utils.video_writer import H264Writer
 
 if TYPE_CHECKING:
+    import numpy as np
     from numpy.typing import NDArray
 
 
@@ -128,106 +126,37 @@ def process_video_pipeline(
     progress_cb=None,
 ) -> dict:
     """Run the full visualization pipeline (mirrors visualize_with_skeleton.py)."""
-    from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
-    from src.utils.smoothing import PoseSmoother, get_skating_optimized_config
+    from src.visualization.pipeline import VizPipeline, prepare_poses
 
     video_path = Path(video_path) if isinstance(video_path, str) else video_path
     output_path = Path(output_path) if isinstance(output_path, str) else output_path
 
-    meta = get_video_meta(video_path)
-    cap = cv2.VideoCapture(str(video_path))
-
-    if progress_cb:
-        progress_cb(0.0, "Extracting poses...")
-
-    extractor = RTMPoseExtractor(
-        output_format="normalized",
-        conf_threshold=0.3,
-        det_frequency=frame_skip,
+    # --- Unified pose preparation ---
+    prepared = prepare_poses(
+        video_path,
+        person_click=person_click,
         frame_skip=frame_skip,
-        device=DeviceConfig.default().device,
-        tracking_mode=tracking,
+        tracking=tracking,
+        progress_cb=progress_cb,
     )
-    extraction = extractor.extract_video_tracked(
-        str(video_path), person_click=person_click, progress_cb=progress_cb
-    )
-
-    raw_poses = extraction.poses
-    raw_foot_kps = extraction.foot_keypoints
-
-    # Interpolate NaN frames in-place (frame_skip leaves gaps)
-    # Must keep array length = num_frames for 1:1 frame mapping
-    nan_mask = np.isnan(raw_poses[:, 0, 0])
-    if nan_mask.any() and (~nan_mask).sum() >= 2:
-        valid_indices = np.where(~nan_mask)[0]
-        for kp in range(raw_poses.shape[1]):
-            for dim in range(raw_poses.shape[2]):
-                raw_poses[:, kp, dim] = np.interp(
-                    np.arange(len(raw_poses)),
-                    valid_indices,
-                    raw_poses[valid_indices, kp, dim],
-                )
-        if raw_foot_kps is not None:
-            foot_nan = np.isnan(raw_foot_kps[:, 0, 0])
-            if foot_nan.any() and (~foot_nan).sum() >= 2:
-                foot_valid = np.where(~foot_nan)[0]
-                for kp in range(raw_foot_kps.shape[1]):
-                    for dim in range(raw_foot_kps.shape[2]):
-                        raw_foot_kps[:, kp, dim] = np.interp(
-                            np.arange(len(raw_foot_kps)),
-                            foot_valid,
-                            raw_foot_kps[foot_valid, kp, dim],
-                        )
-
-    # All frames are now filled — frame indices map 1:1
-    n_poses = len(raw_poses)
-    pose_frame_indices = extraction.frame_indices
-    n_valid = int((~nan_mask).sum())
-
-    poses_norm = raw_poses[:, :, :2].copy()
-    confs = raw_poses[:, :, 2].copy()
-    poses = raw_poses.copy()
-    poses[:, :, 0] *= meta.width
-    poses[:, :, 1] *= meta.height
-
-    if len(poses_norm) > 2:
-        smooth_config = get_skating_optimized_config(meta.fps)
-        smoother = PoseSmoother(smooth_config, freq=meta.fps)
-        poses_norm = smoother.smooth(poses_norm)
-
-    poses_viz = poses_norm
-
-    from src.pose_3d.onnx_extractor import ONNXPoseExtractor
-
-    onnx_model = (
-        Path(__file__).resolve().parent.parent / "data" / "models" / "motionagformer-s-ap3d.onnx"
-    )
-    if not onnx_model.exists():
-        raise FileNotFoundError(
-            f"ONNX model not found: {onnx_model}. "
-            "Download motionagformer-s-ap3d.onnx to data/models/"
-        )
-    cfg = DeviceConfig.default()
-    extractor = ONNXPoseExtractor(onnx_model, device=cfg.device)
-    poses_3d = extractor.estimate_3d(poses_viz)
 
     if progress_cb:
-        progress_cb(0.3, "Poses extracted. Rendering...")
+        progress_cb(0.6, "Rendering...")
 
-    # --- Build pipeline ---
-    from src.visualization.pipeline import VizPipeline
-
+    # --- Build rendering pipeline ---
     pipe = VizPipeline(
-        meta=meta,
-        poses_norm=poses_norm,
-        poses_px=poses,
-        foot_kps=raw_foot_kps,
-        poses_3d=poses_3d,
+        meta=prepared.meta,
+        poses_norm=prepared.poses_norm,
+        poses_px=prepared.poses_px,
+        foot_kps=prepared.foot_kps,
+        poses_3d=prepared.poses_3d,
         layer=layer,
-        confs=confs,
-        frame_indices=pose_frame_indices,
+        confs=prepared.confs,
+        frame_indices=prepared.frame_indices,
     )
 
+    meta = prepared.meta
+    cap = cv2.VideoCapture(str(video_path))
     writer = H264Writer(output_path, meta.width, meta.height, meta.fps)
 
     # --- Render loop ---
@@ -252,7 +181,7 @@ def process_video_pipeline(
         frame_idx += 1
 
         if progress_cb and frame_idx % 50 == 0:
-            progress_cb(0.3 + 0.65 * frame_idx / total, f"Rendering frame {frame_idx}/{total}")
+            progress_cb(0.6 + 0.3 * frame_idx / total, f"Rendering frame {frame_idx}/{total}")
 
     cap.release()
     writer.close()
@@ -266,20 +195,20 @@ def process_video_pipeline(
 
     # Generate animated GLB for 3D viewer
     glb_path = None
-    if poses_3d is not None:
+    if prepared.poses_3d is not None:
         from src.visualization.export_3d_animated import poses_to_animated_glb
 
-        glb_path = poses_to_animated_glb(poses_3d, fps=meta.fps)
+        glb_path = poses_to_animated_glb(prepared.poses_3d, fps=meta.fps)
 
     return {
         "video_path": str(output_path),
         "poses_path": export_result["poses_path"],
         "csv_path": export_result["csv_path"],
         "glb_path": glb_path,
-        "poses_3d": poses_3d,
+        "poses_3d": prepared.poses_3d,
         "stats": {
             "total_frames": total,
-            "valid_frames": n_valid,
+            "valid_frames": prepared.n_valid,
             "fps": meta.fps,
             "resolution": f"{meta.width}x{meta.height}",
         },
