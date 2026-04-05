@@ -188,10 +188,13 @@ fi
 # --- Deploy (git pull + restart) ---
 log "Deploying to instance..."
 
-remote bash << 'DEPLOY_EOF'
-cd /workspace/project
-PATH=/root/.local/bin:$PATH
-source /root/project-env/bin/activate
+remote bash << DEPLOY_EOF
+cd $PROJECT_DIR_REMOTE
+export PATH=/root/.local/bin:\$PATH
+source $VENV_REMOTE/bin/activate
+
+# Stash any local changes before pulling
+git stash --quiet 2>/dev/null || true
 
 # Pull latest code
 git pull origin master
@@ -203,23 +206,22 @@ uv pip install -e . --no-deps 2>/dev/null
 uv pip install av opencv-python-headless onnxruntime-gpu --no-deps --force-reinstall 2>/dev/null
 
 # Kill old Gradio
-ps aux | grep gradio | grep -v grep | awk '{print $2}' | xargs kill 2>/dev/null
+pkill -f gradio_app.py 2>/dev/null || true
 sleep 1
 
 # Start new Gradio
 nohup python3 scripts/gradio_app.py > /tmp/gradio.log 2>&1 &
-echo "Gradio PID: $!"
+echo "Gradio PID: \$!"
 
 # Wait and verify
-sleep 6
-PATH=/root/.local/bin:$PATH source $VENV_REMOTE/bin/activate 2>/dev/null
+sleep 8
 python3 -c "
-import urllib.request
-try:
-    r = urllib.request.urlopen('http://localhost:7860/', timeout=5)
-    print(f'HTTP {r.status}')
-except Exception as e:
-    print(f'DOWN ({e})')
+import socket
+s = socket.socket()
+s.settimeout(5)
+r = s.connect_ex(('127.0.0.1', 7860))
+print(f'HTTP {200 if r == 0 else \"DOWN\"}')
+s.close()
 "
 DEPLOY_EOF
 
