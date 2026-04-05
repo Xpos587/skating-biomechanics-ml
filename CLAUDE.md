@@ -199,6 +199,54 @@ Current working thresholds (tested on VOLODYA.MOV):
 4. **Foot keypoints on skates**: RTMPose foot keypoints (HALPE26 indices 17-22) are unreliable on ice skates. Validate by distance to ankle before using for blade edge detection.
 5. **Multi-bbox per person**: RTMPose sometimes produces multiple bounding boxes for the same person, especially during rotations and limb occlusions. Each bbox gets a separate track ID from Sports2D. NMS deduplication may be needed at rtmlib detection level or as a post-Sports2D pass.
 
+## Git & GitHub Workflow
+
+### Branches
+
+- **Format**: `feature/<short-name>` (e.g., `feature/onnx-export`)
+- **Main branch**: `master`
+- **Before push**: `git fetch origin && git merge origin/master`
+
+### Commits
+
+- **Format**: `<type>(<scope>): <description>`
+- **Types**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `ci`
+- **Scopes**: `pose`, `viz`, `tracking`, `analysis`, `pipeline`, `cli`, `models`, `repo`
+
+**Examples**:
+```
+feat(pose): add MotionAGFormer integration
+fix(aligner): correct DTW window calculation
+refactor(viz): extract skeleton layer from monolithic renderer
+chore(repo): upgrade ruff to v0.14
+docs(analysis): update physics engine API docs
+```
+
+### Pull Requests
+
+| Field | Value |
+|-------|-------|
+| Base branch | `master` |
+| Title | Same format as commit (e.g., `feat(pose): add ONNX export`) |
+| Description | Must include "Что сделано" and "Как проверить" sections |
+
+**PR Template**:
+```markdown
+## Что сделано
+- Bullet list of changes
+
+## Как проверить
+1. Step-by-step verification
+2. Include commands/screenshots if needed
+```
+
+## Before Committing
+
+1. **Tests**: `lefthook run test`
+2. **Type check**: `lefthook run typecheck`
+3. **Lint**: `lefthook run format`
+4. All checks must pass. Lefthook pre-commit hooks run automatically.
+
 ## References
 
 - @ROADMAP.md — project status (SINGLE SOURCE OF TRUTH)
