@@ -123,7 +123,6 @@ def process_video_pipeline(
     layer: int,
     tracking: str,
     use_3d: bool,
-    render_scale: float,
     blade_3d: bool,
     export: bool,
     output_path: str | Path,
@@ -201,17 +200,23 @@ def process_video_pipeline(
 
     poses_3d = None
     if use_3d:
-        from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
+        from src.pose_3d.onnx_extractor import ONNXPoseExtractor
 
-        estimator = Biomechanics3DEstimator()
-        poses_3d = estimator.estimate_3d(poses_viz)
+        onnx_model = (
+            Path(__file__).resolve().parent.parent
+            / "data"
+            / "models"
+            / "motionagformer-s-ap3d.onnx"
+        )
+        if onnx_model.exists():
+            cfg = DeviceConfig.default()
+            extractor = ONNXPoseExtractor(onnx_model, device=cfg.device)
+            poses_3d = extractor.estimate_3d(poses_viz)
+        else:
+            from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
 
-    # Always estimate 3D poses for 3D viewer (lightweight Biomechanics3DEstimator)
-    if poses_3d is None:
-        from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
-
-        estimator = Biomechanics3DEstimator()
-        poses_3d = estimator.estimate_3d(poses_viz)
+            estimator = Biomechanics3DEstimator()
+            poses_3d = estimator.estimate_3d(poses_viz)
 
     if progress_cb:
         progress_cb(0.3, "Poses extracted. Rendering...")
@@ -230,9 +235,7 @@ def process_video_pipeline(
         frame_indices=pose_frame_indices,
     )
 
-    out_w = int(meta.width * render_scale)
-    out_h = int(meta.height * render_scale)
-    writer = H264Writer(output_path, out_w, out_h, meta.fps)
+    writer = H264Writer(output_path, meta.width, meta.height, meta.fps)
 
     # --- Render loop ---
     frame_idx = 0
@@ -243,9 +246,6 @@ def process_video_pipeline(
         ret, frame = cap.read()
         if not ret:
             break
-
-        if render_scale != 1.0:
-            frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
 
         current_pose_idx, pose_idx = pipe.find_pose_idx(frame_idx, pose_idx)
         frame, _ = pipe.render_frame(frame, frame_idx, current_pose_idx)

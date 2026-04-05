@@ -264,7 +264,6 @@ def _run_pipeline(
             layer=layer,
             tracking=tracking,
             use_3d=use_3d,
-            render_scale=1.0,
             blade_3d=False,  # Disabled for now
             export=export,
             output_path=str(output_path),
@@ -427,7 +426,7 @@ def build_app() -> gr.Blocks:
 
                     with gr.Tab("3D Скелет"):
                         model_3d = gr.Model3D(
-                            label="3D модель (крутите мышкой, зум колёсиком)",
+                            label="3D модель (включите «3D-коррекция позы» в настройках)",
                             height=500,
                             clear_color=[0.1, 0.1, 0.15, 1],
                             camera_position=(45, 45, 3),
