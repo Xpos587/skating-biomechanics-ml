@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from dtw import dtw
+from dtw import dtw  # type: ignore[import-untyped]
 
 from ..types import ElementPhase, NormalizedPose
 
@@ -303,10 +303,14 @@ class MotionDTWAligner:
         alignment = self._compute_dtw(user_flat, ref_flat, phase_window)
 
         # Build warp path
-        warp_path = np.column_stack([alignment.index1, alignment.index2])
+        warp_path = np.column_stack(
+            [alignment.index1, alignment.index2]  # type: ignore[attr-defined]
+        )
 
         # Normalize distance by path length
-        distance = float(alignment.distance / max(len(user_segment), len(ref_segment)))
+        distance = float(
+            alignment.distance / max(len(user_segment), len(ref_segment))  # type: ignore[attr-defined]
+        )
 
         return distance, warp_path
 
@@ -331,7 +335,15 @@ class MotionDTWAligner:
         elif self._window_type == "itakura":
             window_args = {"window_type": "itakura"}
 
-        return dtw(x, y, **window_args)
+        return dtw(
+            x,
+            y,
+            keep_internals=True,
+            distance_only=False,
+            open_end=False,
+            open_begin=False,
+            **window_args,
+        )
 
     def _combine_phase_paths(self, phase_paths: list[np.ndarray]) -> np.ndarray:
         """Combine phase warp paths into a single path.

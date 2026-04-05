@@ -7,7 +7,7 @@ for fair comparison between user and reference performances.
 from typing import TYPE_CHECKING
 
 import numpy as np
-from dtw import dtw
+from dtw import dtw  # type: ignore[import-untyped]
 
 from ..types import ElementPhase, NormalizedPose
 
@@ -58,10 +58,16 @@ class MotionAligner:
         alignment = self._compute_dtw(user_flat, ref_flat)
 
         # Warp user sequence to reference timeline
-        aligned_user = self._warp_sequence(user, alignment.index1, alignment.index2)
+        aligned_user = self._warp_sequence(
+            user,
+            alignment.index1,
+            alignment.index2,  # type: ignore[attr-defined]
+        )
 
         # Build warp path as array
-        warp_path = np.column_stack([alignment.index1, alignment.index2])
+        warp_path = np.column_stack(
+            [alignment.index1, alignment.index2]  # type: ignore[attr-defined]
+        )
 
         return aligned_user, warp_path
 
@@ -92,7 +98,9 @@ class MotionAligner:
         alignment = self._compute_dtw(user_flat, ref_flat)
 
         # Normalize distance by path length
-        return float(alignment.distance / max(len(user), len(reference)))
+        return float(
+            alignment.distance / max(len(user), len(reference))  # type: ignore[attr-defined]
+        )
 
     def align_phases(
         self,
@@ -182,7 +190,15 @@ class MotionAligner:
             window_args = {"window_type": "itakura"}
 
         # Compute DTW
-        return dtw(x, y, **window_args)
+        return dtw(
+            x,
+            y,
+            keep_internals=True,
+            distance_only=False,
+            open_end=False,
+            open_begin=False,
+            **window_args,
+        )
 
     def _warp_sequence(
         self,
