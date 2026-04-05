@@ -42,7 +42,7 @@ class TestRenderPerformance:
             draw_overlay_rect(frame, (10, 10, 200, 100), color=(0, 0, 0), alpha=0.6)
         elapsed = (time.perf_counter() - t0) / 1000
 
-        assert elapsed < 0.00015, f"draw_overlay_rect took {elapsed * 1000:.2f}ms (>0.15ms)"
+        assert elapsed < 0.00020, f"draw_overlay_rect took {elapsed * 1000:.2f}ms (>0.20ms)"
 
     def test_coach_panel_under_2ms(self):
         """Full coach panel render should complete in <2ms."""

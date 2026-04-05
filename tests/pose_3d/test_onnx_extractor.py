@@ -10,6 +10,10 @@ def onnx_model_path():
     p = Path("data/models/motionagformer-s-ap3d.onnx")
     if not p.exists():
         pytest.skip("ONNX model not exported yet")
+    # External data file required by ONNX Runtime (large, may be excluded from CI)
+    data_file = p.with_name("motionagformer-s-ap3d.onnx.data")
+    if not data_file.exists():
+        pytest.skip("ONNX external data file not available")
     return p
 
 
