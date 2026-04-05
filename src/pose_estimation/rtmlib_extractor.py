@@ -22,16 +22,20 @@ References:
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 from tqdm import tqdm
 
-try:
+if TYPE_CHECKING:
     from rtmlib import BodyWithFeet, PoseTracker
-except ImportError:
-    PoseTracker = None  # type: ignore[assignment]
-    BodyWithFeet = None  # type: ignore[assignment]
+else:
+    try:
+        from rtmlib import BodyWithFeet, PoseTracker
+    except ImportError:
+        PoseTracker = None  # type: ignore[assignment]
+        BodyWithFeet = None  # type: ignore[assignment]
 
 from ..detection.pose_tracker import PoseTracker as CustomPoseTracker
 from ..pose_estimation.h36m_extractor import _biometric_distance
@@ -96,11 +100,16 @@ class RTMPoseExtractor:
         self._tracker: PoseTracker | None = None
 
     @property
-    def tracker(self) -> "PoseTracker":
+    def tracker(self):
         """Lazy-initialise rtmlib PoseTracker on first access."""
         if self._tracker is None:
-            self._tracker = PoseTracker(
-                BodyWithFeet,
+            if BodyWithFeet is None:
+                raise ImportError("rtmlib BodyWithFeet model not available")
+            # Create a local tracker variable with proper type
+            from rtmlib import BodyWithFeet as RTMBodyWithFeet
+            from rtmlib import PoseTracker as RTMPoseTracker
+            self._tracker = RTMPoseTracker(
+                RTMBodyWithFeet,
                 det_frequency=self._det_frequency,
                 tracking=True,
                 tracking_thr=0.3,
@@ -199,15 +208,17 @@ class RTMPoseExtractor:
         if not cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
 
+        # Initialize pbar before try block to avoid "possibly unbound" error
+        pbar = tqdm(
+            total=num_frames,
+            desc="Extracting poses",
+            unit="frame",
+            ncols=100,
+            disable=progress_cb is not None,
+        )
+
         try:
             frame_idx = 0
-            pbar = tqdm(
-                total=num_frames,
-                desc="Extracting poses",
-                unit="frame",
-                ncols=100,
-                disable=progress_cb is not None,
-            )
             while cap.isOpened() and frame_idx < num_frames:
                 if self._frame_skip > 1 and frame_idx % self._frame_skip != 0:
                     # Skip this frame — just advance the video
@@ -237,7 +248,21 @@ class RTMPoseExtractor:
                     frame_ds = frame
 
                 # Run rtmlib
-                keypoints, scores = self.tracker(frame_ds)
+                tracker = self.tracker
+                if tracker is None:
+                    # Update progress bar
+                    if frame_idx % self._frame_skip == 0:
+                        pbar.update(1)
+                    frame_idx += 1
+                    continue
+                tracker_result = tracker(frame_ds)
+                if not isinstance(tracker_result, tuple) or len(tracker_result) != 2:
+                    # Update progress bar
+                    if frame_idx % self._frame_skip == 0:
+                        pbar.update(1)
+                    frame_idx += 1
+                    continue
+                keypoints, scores = tracker_result
                 # keypoints: (P, 26, 2) pixel coords, scores: (P, 26)
 
                 # Rescale keypoints back to original resolution
@@ -247,6 +272,9 @@ class RTMPoseExtractor:
                 if keypoints is None or len(keypoints) == 0:
                     if custom_tracker is not None:
                         custom_tracker.update(np.empty((0, 17, 2), dtype=np.float32))
+                    frame_idx += 1
+                    if frame_idx % self._frame_skip == 0:
+                        pbar.update(1)
                     continue
 
                 n_persons = len(keypoints)
@@ -293,7 +321,7 @@ class RTMPoseExtractor:
                         frame_width=w,
                         frame_height=h,
                     )
-                elif self._tracking_backend == "custom":
+                elif self._tracking_backend == "custom" and custom_tracker is not None:
                     track_ids = custom_tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
                 else:
                     track_ids = self._assign_track_ids(h36m_poses, rtmlib_id_map, next_internal_id)
@@ -405,7 +433,7 @@ class RTMPoseExtractor:
                                         foot_kps_list[p],
                                     )
 
-                            if best_new_tid is not None and best_dist < 1.5:
+                            if best_new_tid is not None and best_dist < 1.5 and best_new_data is not None:
                                 target_track_id = best_new_tid
                                 all_poses[frame_idx] = best_new_data[0]
                                 all_feet[frame_idx] = best_new_data[1]
@@ -654,9 +682,9 @@ class RTMPoseExtractor:
         video_meta = get_video_meta(video_path)
 
         if self._tracking_backend == "custom":
-            tracker = CustomPoseTracker(max_disappeared=30, min_hits=2, fps=video_meta.fps)
+            custom_tracker = CustomPoseTracker(max_disappeared=30, min_hits=2, fps=video_meta.fps)
         else:
-            tracker = None  # type: ignore[assignment]
+            custom_tracker = None  # type: ignore[assignment]
 
         # Новый трекинг (Sports2D / DeepSORT)
         resolved_mode = self._resolve_tracking_mode()
@@ -692,11 +720,17 @@ class RTMPoseExtractor:
                 h, w = frame.shape[:2]
                 if best_frame is None:
                     best_frame = frame.copy()
-                keypoints, scores = self.tracker(frame)
+                tracker = self.tracker
+                if tracker is None:
+                    continue
+                tracker_result = tracker(frame)
+                if not isinstance(tracker_result, tuple) or len(tracker_result) != 2:
+                    continue
+                keypoints, scores = tracker_result
 
                 if keypoints is None or len(keypoints) == 0:
-                    if tracker is not None:
-                        tracker.update(np.empty((0, 17, 2), dtype=np.float32))
+                    if custom_tracker is not None:
+                        custom_tracker.update(np.empty((0, 17, 2), dtype=np.float32))
                     continue
 
                 n_persons = len(keypoints)
@@ -725,8 +759,8 @@ class RTMPoseExtractor:
                         frame_width=w,
                         frame_height=h,
                     )
-                elif tracker is not None:
-                    track_ids = tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
+                elif custom_tracker is not None:
+                    track_ids = custom_tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
                 else:
                     track_ids = self._assign_track_ids(h36m_poses, rtmlib_id_map, next_internal_id)
                     next_internal_id = max(rtmlib_id_map.values(), default=-1) + 1
@@ -812,7 +846,7 @@ class RTMPoseExtractor:
                 }
             )
 
-        return output, preview_path_out
+        return output  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     # Internal helpers

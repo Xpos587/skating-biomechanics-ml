@@ -11,13 +11,17 @@ The conversion is geometric (not learned) and happens on-the-fly during extracti
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-try:
-    from ultralytics import YOLO  # type: ignore[import-untyped]
-except ImportError:
-    YOLO = None  # type: ignore[assignment]
+if TYPE_CHECKING:
+    from ultralytics.models.yolo.model import YOLO
+else:
+    try:
+        from ultralytics.models.yolo.model import YOLO  # type: ignore[import-untyped]
+    except ImportError:
+        YOLO = None  # type: ignore[assignment]
 
 from ..detection.pose_tracker import PoseTracker
 from ..types import PersonClick, TrackedExtraction
@@ -323,16 +327,18 @@ class H36MExtractor:
         self._model: YOLO | None = None
 
     @property
-    def model(self) -> "YOLO":
+    def model(self) -> YOLO:
         """Lazy-load YOLO model on first access."""
         if self._model is None:
+            if YOLO is None:
+                raise ImportError("Ultralytics not installed. Install with: uv add ultralytics")
             if self._model_path is not None:
                 self._model = YOLO(str(self._model_path))
             else:
                 # YOLO26-Pose (NMS-free, better occlusion handling)
                 model_name = f"yolo26{self.model_size}-pose.pt"
                 self._model = YOLO(model_name)
-        return self._model
+        return self._model  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     # ROI crop-enhancement
@@ -385,7 +391,11 @@ class H36MExtractor:
         except (AttributeError, RuntimeError):
             return kps_all, confs_all
 
-        h, w = result.orig_shape
+        # Access orig_shape with type ignore since result is object
+        orig_shape = getattr(result, "orig_shape", None)
+        if orig_shape is None:
+            return kps_all, confs_all
+        h, w = orig_shape  # type: ignore[misc]
         enhanced_kps = kps_all.copy()
         enhanced_confs = confs_all.copy()
 
@@ -422,9 +432,9 @@ class H36MExtractor:
                 continue
 
             # Use the best detection (highest mean confidence)
-            crop_confs = crop_res.keypoints.conf.cpu().numpy()  # (C, 17)
+            crop_confs = crop_res.keypoints.conf.cpu().numpy()  # type: ignore[attr-defined]
             best_p = int(np.argmax(crop_confs.mean(axis=1)))
-            crop_kp = crop_res.keypoints.xy[best_p].cpu().numpy()  # (17, 2)
+            crop_kp = crop_res.keypoints.xy[best_p].cpu().numpy()  # type: ignore[attr-defined]
             crop_conf = crop_confs[best_p]  # (17,)
 
             # Map crop keypoints back to full-frame pixel coordinates
@@ -601,7 +611,11 @@ class H36MExtractor:
                                 best_new_pose = h36m_poses[p]
 
                         # Accept migration if biometric distance is tight enough
-                        if best_new_tid is not None and best_dist < 0.08:
+                        if (
+                            best_new_tid is not None
+                            and best_dist < 0.08
+                            and best_new_pose is not None
+                        ):
                             target_track_id = best_new_tid
                             all_poses[frame_idx] = best_new_pose
                             last_target_pose = best_new_pose.copy()

@@ -98,7 +98,8 @@ def select_persons_interactive(
     n_persons = len(bboxes)
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    fig.canvas.manager.set_window_title("Select persons to track")
+    if fig.canvas.manager is not None:
+        fig.canvas.manager.set_window_title("Select persons to track")
 
     ax.imshow(frame_rgb)
     ax.set_title("Click on persons to select, then press Enter", fontsize=12)
