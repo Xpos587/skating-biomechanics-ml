@@ -26,6 +26,9 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+# Suppress onnxruntime "Some nodes not assigned to preferred EP" warnings
+os.environ.setdefault("ORT_LOGGING_LEVEL", "3")  # 3 = ORT_LOGGING_LEVEL_ERROR
+
 if TYPE_CHECKING:
     import torch as torch_module
 

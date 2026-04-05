@@ -181,7 +181,7 @@ def project_3d_to_2d(
         y_2d = height // 2 + y * scale
 
         # Stack results
-        result = np.stack([x_2d, y_2d], axis=-1).astype(np.int32)
+        result = np.nan_to_num(np.stack([x_2d, y_2d], axis=-1), nan=0).astype(np.int32)
 
         # Reshape to original shape (with 2 instead of 3)
         new_shape = (*original_shape[:-1], 2)

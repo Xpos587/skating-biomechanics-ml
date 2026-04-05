@@ -86,7 +86,7 @@ def draw_skeleton(
         pose_px = normalized_to_pixel(pose, width, height)
     else:
         # Already in pixel coordinates
-        pose_px = pose.round().astype(np.int32)
+        pose_px = np.nan_to_num(pose.round(), nan=0).astype(np.int32)
 
     # Draw skeleton edges (bones)
     for joint_a, joint_b in H36M_SKELETON_EDGES:

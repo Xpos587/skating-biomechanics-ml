@@ -310,7 +310,8 @@ class JointAngleLayer(Layer):
         src = np.column_stack([a_local, c_local])  # 2×2
         dst = np.column_stack([a_2d - v_2d, c_2d - v_2d])  # 2×2
 
-        if abs(np.linalg.det(src)) < 1e-6:
+        det = np.linalg.det(src)
+        if np.isnan(det) or abs(det) < 1e-6:
             return None
 
         M = dst @ np.linalg.inv(src)
@@ -327,7 +328,7 @@ class JointAngleLayer(Layer):
         thickness: int = 2,
     ) -> None:
         """Draw a projected 3D arc as an anti-aliased polyline."""
-        pts = points.astype(np.int32).reshape(-1, 1, 2)
+        pts = np.nan_to_num(points, nan=0).astype(np.int32).reshape(-1, 1, 2)
         cv2.polylines(frame, [pts], False, color, thickness, cv2.LINE_AA)
 
     # ------------------------------------------------------------------
