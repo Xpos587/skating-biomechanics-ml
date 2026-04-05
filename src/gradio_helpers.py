@@ -9,12 +9,12 @@ import csv as _csv
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import av
 import cv2
 import numpy as np
 
 from src.types import PersonClick
 from src.utils.video import get_video_meta
+from src.utils.video_writer import H264Writer
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -195,12 +195,7 @@ def process_video_pipeline(
 
     out_w = int(meta.width * render_scale)
     out_h = int(meta.height * render_scale)
-    container = av.open(str(output_path), "w")
-    stream = container.add_stream("libx264", rate=meta.fps)
-    stream.width = out_w
-    stream.height = out_h
-    stream.pix_fmt = "yuv420p"
-    stream.options = {"preset": "fast", "crf": "23"}
+    writer = H264Writer(output_path, out_w, out_h, meta.fps)
 
     layers: list = []
     if layer >= 1:
@@ -291,21 +286,14 @@ def process_video_pipeline(
             export_joint_angles.append(ja)
             export_poses_list.append(poses[current_pose_idx].copy())
 
-        # BGR -> RGB for PyAV, then encode
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        av_frame = av.VideoFrame.from_ndarray(frame_rgb, format="rgb24")
-        for packet in stream.encode(av_frame):
-            container.mux(packet)
+        writer.write(frame)
         frame_idx += 1
 
         if progress_cb and frame_idx % 50 == 0:
             progress_cb(0.3 + 0.65 * frame_idx / total, f"Rendering frame {frame_idx}/{total}")
 
     cap.release()
-    # Flush remaining packets and close
-    for packet in stream.encode():
-        container.mux(packet)
-    container.close()
+    writer.close()
 
     if progress_cb:
         progress_cb(0.95, "Saving exports...")

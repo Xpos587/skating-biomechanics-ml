@@ -13,7 +13,6 @@ Usage:
 """
 
 import argparse
-import contextlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -30,6 +29,7 @@ from src.types import BladeState3D
 from src.utils.geometry import detect_visible_side, estimate_floor_angle
 from src.utils.subtitles import SubtitleParser
 from src.utils.video import get_video_meta
+from src.utils.video_writer import H264Writer
 from src.visualization import (
     JointAngleLayer,
     LayerContext,
@@ -395,44 +395,11 @@ def main() -> int:
     if render_scale != 1.0:
         print(f"Render scale: {render_scale} ({out_w}x{out_h})")
 
-    if args.compress:
-        import subprocess
-
-        compress_cmd = [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "rawvideo",
-            "-vcodec",
-            "rawvideo",
-            "-s",
-            f"{out_w}x{out_h}",
-            "-pix_fmt",
-            "bgr24",
-            "-r",
-            str(meta.fps),
-            "-i",
-            "-",
-            "-c:v",
-            "libx265",
-            "-crf",
-            str(args.crf),
-            "-preset",
-            "medium",
-            "-tune",
-            "animation",
-            "-pix_fmt",
-            "yuv420p",
-            str(output_path),
-        ]
-        writer = subprocess.Popen(
-            compress_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        print(f"Writing directly to H265 (CRF={args.crf})...")
-    else:
-        write_path = output_path
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(str(write_path), fourcc, meta.fps, (out_w, out_h))
+    codec = "libx265" if args.compress else "libx264"
+    preset = "medium" if args.compress else "fast"
+    writer = H264Writer(
+        output_path, out_w, out_h, meta.fps, codec=codec, preset=preset, crf=args.crf
+    )
 
     # Build layers based on requested level
     layers: list = []
@@ -634,13 +601,7 @@ def main() -> int:
 
         _t_write = _time.perf_counter() if args.profile else _t0
 
-        if args.compress:
-            try:
-                writer.stdin.write(frame.tobytes())
-            except (BrokenPipeError, ValueError):
-                break
-        else:
-            writer.write(frame)
+        writer.write(frame)
 
         if args.profile and _t0:
             _t1 = _time.perf_counter()
@@ -666,18 +627,8 @@ def main() -> int:
         total = sum(_pt.values())
         print(f"  {'TOTAL':20s}: {total / _pc * 1000:.1f} ms")
     cap.release()
-
-    if args.compress:
-        with contextlib.suppress(BrokenPipeError, OSError):
-            writer.stdin.close()
-        writer.wait()
-        if writer.returncode != 0:
-            print(f"FFmpeg error: {writer.stderr.read().decode()}")
-            return 1
-        print(f"Saved to: {output_path}")
-    else:
-        writer.release()
-        print(f"\nSaved to: {output_path}")
+    writer.close()
+    print(f"\nSaved to: {output_path}")
 
     # Export NPY + CSV
     if args.export and export_poses:
