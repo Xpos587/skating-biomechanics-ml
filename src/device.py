@@ -2,6 +2,7 @@
 """Unified device configuration for GPU/CPU management.
 
 Single source of truth for device resolution across all pipeline components.
+Uses onnxruntime for CUDA detection (no torch dependency).
 Default: CUDA when available, CPU otherwise.
 
 Usage:
@@ -23,28 +24,22 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    import torch as torch_module
 
 logger = logging.getLogger(__name__)
 
 DeviceName = Literal["cuda", "cpu"]
 
-# Try importing torch — graceful fallback when not installed
-try:
-    import torch
-
-    _HAS_TORCH = True
-except ImportError:
-    torch = None  # type: ignore[assignment]
-    _HAS_TORCH = False
-
 
 def _cuda_available() -> bool:
-    """Check if CUDA is available (works even without torch installed)."""
-    if not _HAS_TORCH:
-        return False
+    """Check if CUDA is available via onnxruntime providers."""
     try:
-        return torch.cuda.is_available()  # type: ignore[union-attr]
+        import onnxruntime as ort
+
+        return "CUDAExecutionProvider" in ort.get_available_providers()
     except Exception:
         return False
 
@@ -139,11 +134,11 @@ class DeviceConfig:
         return ["CPUExecutionProvider"]
 
     @property
-    def torch_device(self):
-        """torch.device object for PyTorch models."""
-        import torch as _torch
+    def torch_device(self) -> torch_module.device:
+        """torch.device object for PyTorch models (requires torch extra)."""
+        import torch
 
-        return _torch.device(self.device)
+        return torch.device(self.device)
 
     def __repr__(self) -> str:
         return f"DeviceConfig(device={self.device!r})"
