@@ -9,6 +9,16 @@ import pytest
 DATA_ROOT = "data/datasets/athletepose3d"
 
 
+def _dataset_available() -> bool:
+    return Path(f"{DATA_ROOT}/cam_param.json").exists()
+
+
+requires_dataset = pytest.mark.skipif(
+    not _dataset_available(),
+    reason="AthletePose3D dataset not available",
+)
+
+
 @pytest.fixture
 def cam_params():
     with Path(f"{DATA_ROOT}/cam_param.json").open() as f:
@@ -25,6 +35,7 @@ def sample_coco():
     return np.load(f"{DATA_ROOT}/videos/train_set/S1/Axel_10_cam_1_coco.npy")
 
 
+@requires_dataset
 class TestFootProjection:
     def test_project_foot_point_in_frame(self, cam_params, sample_3d):
         """Projected LHEL should be within video bounds (1920x1088)."""
@@ -94,6 +105,7 @@ class TestFootProjection:
         assert np.isnan(y)
 
 
+@requires_dataset
 class TestWeakPerspectiveProjection:
     """Tests for localized weak-perspective foot projection."""
 
