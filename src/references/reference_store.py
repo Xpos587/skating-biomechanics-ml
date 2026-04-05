@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .reference_builder import ReferenceBuilder
-    from .types import ReferenceData
+    from .reference_builder import ReferenceBuilder  # type: ignore[import-untyped]
+    from .types import ReferenceData  # type: ignore[import-untyped]
 
 
 class ReferenceStore:

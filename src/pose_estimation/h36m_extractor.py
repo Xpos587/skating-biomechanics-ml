@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 try:
-    from ultralytics import YOLO
+    from ultralytics import YOLO  # type: ignore[import-untyped]
 except ImportError:
     YOLO = None  # type: ignore[assignment]
 

@@ -15,7 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    from .video import VideoMeta
+    from .video import VideoMeta  # type: ignore[import-untyped]
 
 
 class H36Key(IntEnum):

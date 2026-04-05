@@ -7,7 +7,7 @@ Uses Ultralytics library for model loading and inference.
 from pathlib import Path
 
 import numpy as np
-from ultralytics import YOLO
+from ultralytics import YOLO  # type: ignore[import-untyped]
 
 from ..types import BoundingBox
 from ..utils.video import extract_frames

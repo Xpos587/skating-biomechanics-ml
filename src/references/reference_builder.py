@@ -17,12 +17,12 @@ from ..types import (
     ElementPhase,
     ReferenceData,
     VideoMeta,
-)
+)  # type: ignore[import-untyped]
 from ..utils.video import get_video_meta
 
 if TYPE_CHECKING:
-    from .normalizer import PoseNormalizer
-    from .pose_estimation import H36MExtractor as PoseExtractor
+    from .normalizer import PoseNormalizer  # type: ignore[import-untyped]
+    from .pose_estimation import H36MExtractor as PoseExtractor  # type: ignore[import-untyped]
 
 
 class ReferenceBuilder:
