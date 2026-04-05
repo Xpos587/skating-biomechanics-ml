@@ -73,7 +73,7 @@ class TestAnalysisPipeline:
 
         report = AnalysisReport(
             element_type="test_element",
-            phases=[phases],
+            phases=phases,
             metrics=metrics,
             recommendations=["Test recommendation"],
             overall_score=7.5,
