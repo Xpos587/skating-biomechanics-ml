@@ -27,6 +27,9 @@
         "useExhaustiveDependencies": "warn",
         "useHookAtTopLevel": "error"
       },
+      "style": {
+        "noNonNullAssertion": "warn"
+      },
       "suspicious": {
         "noExplicitAny": "warn",
         "noArrayIndexKey": "warn"
@@ -75,6 +78,16 @@
         "rules": {
           "complexity": {
             "noForEach": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/ui/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noArrayIndexKey": "off"
           }
         }
       }

@@ -44,7 +44,7 @@ tasks:
   fe-typecheck:
     desc: Run TypeScript type checker
     dir: src/frontend
-    cmd: "{{.BUNX}} tsc --noEmit"
+    cmd: "{{.BUNX}} tsc -p tsconfig.app.json"
 
   fe-build:
     desc: Build frontend for production
@@ -79,7 +79,7 @@ tasks:
   dev-backend:
     desc: Start Python backend dev server
     dir: .
-    cmd: "{{.UV_RUN}} gradio src/gradio_app.py"
+    cmd: "{{.UV_RUN}} uvicorn src.backend.main:app --reload --port 8000"
 
   dev-frontend:
     desc: Start frontend dev server

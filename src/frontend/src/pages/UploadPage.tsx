@@ -79,17 +79,16 @@ export default function UploadPage() {
     [handleFile],
   )
 
-  const pickPerson = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+  const pickPersonAt = useCallback(
+    (clientX: number, clientY: number) => {
       if (!detectResult || !imgRef.current) return
 
       const rect = imgRef.current.getBoundingClientRect()
       const scaleX = imgRef.current.naturalWidth / rect.width
       const scaleY = imgRef.current.naturalHeight / rect.height
-      const px = Math.round((e.clientX - rect.left) * scaleX)
-      const py = Math.round((e.clientY - rect.top) * scaleY)
+      const px = Math.round((clientX - rect.left) * scaleX)
+      const py = Math.round((clientY - rect.top) * scaleY)
 
-      // Find closest person by mid_hip distance
       let bestDist = Infinity
       let bestId = 0
       const natW = imgRef.current.naturalWidth
@@ -108,6 +107,13 @@ export default function UploadPage() {
       setSelectedPerson(bestId)
     },
     [detectResult],
+  )
+
+  const pickPerson = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      pickPersonAt(e.clientX, e.clientY)
+    },
+    [pickPersonAt],
   )
 
   const selectFromList = useCallback(
@@ -153,10 +159,16 @@ export default function UploadPage() {
     <div className="mx-auto max-w-5xl p-6">
       {/* Upload zone */}
       {status === "idle" && (
+        /* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop */
         <div
+          role="button"
+          tabIndex={0}
           onDragOver={e => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileRef.current?.click()}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") fileRef.current?.click()
+          }}
           className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 transition-colors hover:border-primary"
         >
           <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
@@ -204,7 +216,19 @@ export default function UploadPage() {
                 {selectedPerson !== null && <CheckCircle className="h-4 w-4 text-green-500" />}
                 <span className="text-sm">{detectResult.status}</span>
               </div>
-              <div onClick={pickPerson} className="relative w-full cursor-crosshair">
+              {/* biome-ignore lint/a11y/useSemanticElements: div needed as positioned container */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={pickPerson}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    const rect = imgRef.current?.getBoundingClientRect()
+                    if (rect) pickPersonAt(rect.left + rect.width / 2, rect.top + rect.height / 2)
+                  }
+                }}
+                className="relative w-full cursor-crosshair"
+              >
                 <img
                   ref={imgRef}
                   src={previewSrc}
@@ -235,6 +259,7 @@ export default function UploadPage() {
                   <div className="flex flex-col gap-1">
                     {detectResult.persons.map(p => (
                       <button
+                        type="button"
                         key={p.track_id}
                         onClick={() => selectFromList(p.track_id)}
                         className={`rounded px-3 py-1.5 text-left text-sm transition-colors ${
@@ -257,9 +282,9 @@ export default function UploadPage() {
                 <h3 className="text-sm font-medium">Настройки</h3>
 
                 <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">
+                  <span className="mb-1 block text-xs text-muted-foreground">
                     Frame skip: {frameSkip}
-                  </label>
+                  </span>
                   <Slider
                     value={[frameSkip]}
                     onValueChange={([v]) => setFrameSkip(v)}
@@ -270,9 +295,9 @@ export default function UploadPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">
+                  <span className="mb-1 block text-xs text-muted-foreground">
                     HUD Layer: {layer}
-                  </label>
+                  </span>
                   <Slider
                     value={[layer]}
                     onValueChange={([v]) => setLayer(v)}
@@ -283,7 +308,7 @@ export default function UploadPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">Трекинг</label>
+                  <span className="mb-1 block text-xs text-muted-foreground">Трекинг</span>
                   <Select value={tracking} onValueChange={setTracking}>
                     <SelectTrigger>
                       <SelectValue />

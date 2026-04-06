@@ -36,8 +36,8 @@ pre-commit:
       stage_fixed: true
 
     biome-check:
-      glob: "*.{ts,tsx,js,jsx,json,css}"
-      run: cd src/frontend && bunx biome check --write {staged_files}
+      glob: "src/frontend/**/*.{ts,tsx,js,jsx,json,css}"
+      run: cd src/frontend && bunx biome check --write --staged
       stage_fixed: true
 
 commit-msg:
@@ -135,7 +135,7 @@ typecheck:
     basedpyright:
       run: uv run basedpyright --level error src/
     fe-typecheck:
-      run: cd src/frontend && bunx tsc --noEmit
+      run: cd src/frontend && bunx tsc -p tsconfig.app.json
 
 post-push:
   commands:

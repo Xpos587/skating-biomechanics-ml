@@ -30,7 +30,7 @@ export const handlers = [
 
   // POST /api/process (SSE - mock the initial request)
   http.post("/api/process", async ({ request }) => {
-    const body = await request.json()
+    const body = (await request.json()) as Record<string, unknown>
 
     if (!body.video_path || !body.person_click) {
       return HttpResponse.json({ detail: "Missing required fields" }, { status: 400 })

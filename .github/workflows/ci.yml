@@ -131,7 +131,7 @@ jobs:
 
       - name: Type check
         working-directory: src/frontend
-        run: bunx tsc --noEmit
+        run: bunx tsc -p tsconfig.app.json
 
   fe-test:
     name: Tests (Vitest)

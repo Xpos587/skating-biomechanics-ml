@@ -1,5 +1,5 @@
 import { AlertCircle, ArrowLeft, CheckCircle, Download, Loader2 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,10 +21,13 @@ export default function AnalyzePage() {
 
   const videoPath = params.get("video_path") || ""
   const clickParts = (params.get("person_click") || "0,0").split(",")
-  const personClick: PersonClick = {
-    x: Number(clickParts[0]),
-    y: Number(clickParts[1]),
-  }
+  const personClick: PersonClick = useMemo(
+    () => ({
+      x: Number(clickParts[0]),
+      y: Number(clickParts[1]),
+    }),
+    [clickParts],
+  )
   const frameSkip = Number(params.get("frame_skip") || 1)
   const layer = Number(params.get("layer") || 3)
   const tracking = params.get("tracking") || "auto"
@@ -109,6 +112,7 @@ export default function AnalyzePage() {
 
           <Card>
             <CardContent className="p-4">
+              {/* biome-ignore lint/a11y/useMediaCaption: analysis output, not media */}
               <video src={videoUrl} controls className="w-full rounded border border-border" />
             </CardContent>
           </Card>
