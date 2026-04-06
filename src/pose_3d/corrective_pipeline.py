@@ -20,21 +20,24 @@ class CorrectiveLens:
     """
 
     def __init__(self, model_path: Path | str | None = None, device: str = "auto"):
-        """Initialize with optional MotionAGFormer model path.
+        """Initialize with MotionAGFormer or ONNX model path.
 
-        Falls back to Biomechanics3DEstimator if no model provided.
+        Raises:
+            FileNotFoundError: If no model path provided or file doesn't exist.
         """
         from .athletepose_extractor import AthletePose3DExtractor
-        from .biomechanics_estimator import Biomechanics3DEstimator
 
-        if model_path is not None and Path(model_path).exists():
-            self.extractor: AthletePose3DExtractor | Biomechanics3DEstimator = (
-                AthletePose3DExtractor(model_path=model_path, device=device)
+        if model_path is None:
+            raise FileNotFoundError(
+                "CorrectiveLens requires a 3D model path. "
+                "Pass model_path= to enable 3D-corrected overlay."
             )
-            self._uses_ml = True
-        else:
-            self.extractor = Biomechanics3DEstimator()
-            self._uses_ml = False
+        model_path = Path(model_path)
+        if not model_path.exists():
+            raise FileNotFoundError(f"3D model not found: {model_path}")
+
+        self.extractor = AthletePose3DExtractor(model_path=model_path, device=device)
+        self._uses_ml = True
 
     def correct_sequence(
         self,
@@ -52,10 +55,7 @@ class CorrectiveLens:
             poses_3d: (N, 17, 3) intermediate 3D poses in meters
         """
         # Step 1: Lift to 3D
-        if self._uses_ml:
-            poses_3d = self.extractor.extract_sequence(poses_2d_norm)  # type: ignore[union-attr]
-        else:
-            poses_3d = self.extractor.estimate_3d(poses_2d_norm)  # type: ignore[union-attr]
+        poses_3d = self.extractor.extract_sequence(poses_2d_norm)
 
         # Step 2: Apply kinematic constraints
         from .kinematic_constraints import apply_kinematic_constraints

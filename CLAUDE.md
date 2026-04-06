@@ -211,7 +211,7 @@ Current working thresholds (tested on VOLODYA.MOV):
 
 - **Format**: `<type>(<scope>): <description>`
 - **Types**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `ci`
-- **Scopes**: `pose`, `viz`, `tracking`, `analysis`, `pipeline`, `cli`, `models`, `repo`
+- **Scopes**: `pose`, `viz`, `tracking`, `analysis`, `pipeline`, `cli`, `models`, `repo`, `frontend`, `backend`, `dev`, `ci`
 
 **Examples**:
 ```

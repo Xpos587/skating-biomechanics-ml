@@ -1,5 +1,5 @@
 # <type>(<scope>): <summary>
 # types: feat|fix|refactor|chore|docs|test|ci
-# scopes: pose|viz|tracking|analysis|pipeline|cli|models|repo
+# scopes: pose|viz|tracking|analysis|pipeline|cli|models|repo|frontend|backend|dev|ci
 #
 # Body (optional): what/why, links, migration notes.

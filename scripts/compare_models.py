@@ -191,7 +191,7 @@ def _select_person_interactive(
 ) -> PersonClick | None:
     """Show detected persons and let user choose."""
     extractor = _create_extractor(backend)
-    persons = extractor.preview_persons(video_path, num_frames=30)
+    persons, _ = extractor.preview_persons(video_path, num_frames=30)
 
     if not persons:
         print(f"  [{backend}] No persons detected.")

@@ -1,6 +1,7 @@
 """Tests for corrective_pipeline module (CorrectiveLens end-to-end)."""
 
 import numpy as np
+import pytest
 
 from src.pose_3d.corrective_pipeline import CorrectiveLens
 
@@ -15,20 +16,22 @@ def make_2d_poses(n=10):
     return poses_2d.astype(np.float32)
 
 
-class TestCorrectiveLens:
-    def test_no_model_fallback(self):
-        """Without a model path, should use Biomechanics3DEstimator."""
-        lens = CorrectiveLens(model_path=None)
-        assert lens._uses_ml is False
+ONNX_MODEL = "data/models/motionagformer-s-ap3d.onnx"
 
-    def test_nonexistent_model_fallback(self):
-        """With a nonexistent model path, should fall back to Biomechanics3DEstimator."""
-        lens = CorrectiveLens(model_path="/nonexistent/model.pth")
-        assert lens._uses_ml is False
+
+@pytest.mark.skipif(
+    not __import__("pathlib").Path(ONNX_MODEL).exists(),
+    reason="ONNX model not found",
+)
+class TestCorrectiveLens:
+    def test_nonexistent_model_raises(self):
+        """Nonexistent model path should raise FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            CorrectiveLens(model_path="/nonexistent/model.pth")
 
     def test_correct_sequence_shape(self):
         """Output should have correct shape."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         n = 10
         poses_2d = make_2d_poses(n)
 
@@ -43,7 +46,7 @@ class TestCorrectiveLens:
 
     def test_correct_sequence_output_in_range(self):
         """Corrected poses should be in [0, 1]."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         n = 10
         poses_2d = make_2d_poses(n)
 
@@ -58,7 +61,7 @@ class TestCorrectiveLens:
 
     def test_with_confidence(self):
         """Should work with confidence blending."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         n = 10
         poses_2d = make_2d_poses(n)
         confidences = np.random.rand(n, 17).astype(np.float32)
@@ -77,7 +80,7 @@ class TestCorrectiveLens:
 
     def test_output_dtypes(self):
         """Output arrays should be float32."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         poses_2d = make_2d_poses(5)
 
         corrected, poses_3d = lens.correct_sequence(
@@ -91,7 +94,7 @@ class TestCorrectiveLens:
 
     def test_3d_poses_are_finite(self):
         """3D poses should not contain NaN or Inf."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         poses_2d = make_2d_poses(8)
 
         _, poses_3d = lens.correct_sequence(
@@ -104,7 +107,7 @@ class TestCorrectiveLens:
 
     def test_single_frame(self):
         """Should handle a single-frame sequence."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         poses_2d = make_2d_poses(1)
 
         corrected, poses_3d = lens.correct_sequence(
@@ -118,7 +121,7 @@ class TestCorrectiveLens:
 
     def test_low_confidence_biases_toward_corrected(self):
         """Low confidence joints should produce output closer to the corrected result."""
-        lens = CorrectiveLens(model_path=None)
+        lens = CorrectiveLens(model_path=ONNX_MODEL)
         n = 10
         poses_2d = make_2d_poses(n)
 

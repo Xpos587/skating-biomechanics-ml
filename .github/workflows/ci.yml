@@ -99,18 +99,92 @@ jobs:
       - name: Run tests
         run: uv run pytest tests/ -v -m "not slow" --tb=short
 
+  fe-lint:
+    name: Lint (Biome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        working-directory: src/frontend
+        run: bunx biome check .
+
+  fe-typecheck:
+    name: Type Check (tsc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        working-directory: src/frontend
+        run: bunx tsc -p tsconfig.app.json
+
+  fe-test:
+    name: Tests (Vitest)
+    runs-on: ubuntu-latest
+    needs: [fe-lint]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        working-directory: src/frontend
+        run: bun run test --run --coverage
+
+  fe-build:
+    name: Build (Vite)
+    runs-on: ubuntu-latest
+    needs: [fe-lint, fe-typecheck]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: src/frontend
+        run: bun run build
+
   ci-passed:
     name: CI Passed
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, gitleaks, test]
+    needs: [lint, typecheck, gitleaks, test, fe-lint, fe-typecheck, fe-test, fe-build]
     if: always()
     steps:
       - name: Check results
         run: |
-          if [[ "${{ needs.lint.result }}" != "success" ]] || \
-             [[ "${{ needs.typecheck.result }}" != "success" ]] || \
-             [[ "${{ needs.gitleaks.result }}" != "success" ]] || \
-             [[ "${{ needs.test.result }}" != "success" ]]; then
+          FAILED=0
+          for job in lint typecheck gitleaks test fe-lint fe-typecheck fe-test fe-build; do
+            if [[ "${{ needs.${job}.result }}" != "success" ]]; then
+              echo "::error::${job} failed"
+              FAILED=1
+            fi
+          done
+          if [[ "$FAILED" -eq 1 ]]; then
             echo "::error::CI failed"
             exit 1
           fi

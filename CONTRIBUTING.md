@@ -15,6 +15,7 @@
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) package manager
+- [bun](https://bun.sh/) JavaScript runtime (for frontend)
 - [lefthook](https://github.com/evilmartians/lefthook) git hooks manager
 - [gitleaks](https://github.com/gitleaks/gitleaks) secret scanner
 - CUDA-capable GPU (for inference)
@@ -25,8 +26,11 @@
 # Clone and enter project
 git clone <repo-url> && cd skating-biomechanics-ml
 
-# Install dependencies
+# Install Python dependencies
 uv sync
+
+# Install frontend dependencies
+cd src/frontend && bun install && cd ../..
 
 # Setup CUDA compatibility (required after uv sync)
 bash scripts/setup_cuda_compat.sh
@@ -41,9 +45,16 @@ git config commit.template .gitmessage
 ### Verify
 
 ```bash
+# Backend (Python)
 uv run pytest tests/ -v -m "not slow" --tb=short
 uv run ruff check src/ tests/ scripts/
 uv run basedpyright --level error src/
+
+# Frontend
+cd src/frontend && bunx biome check . && cd ../..
+
+# All checks (via Taskfile)
+task ci
 ```
 
 ---
@@ -72,7 +83,7 @@ Format: `type(scope): summary`
 | test | Tests |
 | ci | CI/CD |
 
-Scopes: `pose`, `viz`, `tracking`, `analysis`, `pipeline`, `cli`, `models`, `repo`
+Scopes: `pose`, `viz`, `tracking`, `analysis`, `pipeline`, `cli`, `models`, `repo`, `frontend`, `backend`, `dev`, `ci`
 
 Examples:
 ```
@@ -85,15 +96,16 @@ chore(repo): upgrade ruff to v0.14
 
 Lefthook runs automatically:
 
-- **pre-commit**: branch protection, gitleaks, ruff lint/format
+- **pre-commit**: branch protection, gitleaks, ruff lint/format, biome check
 - **commit-msg**: conventional commit format validation
 - **pre-push**: PR size warning
 
 Manual groups:
 ```bash
-lefthook run format    # Format all Python files
-lefthook run test      # Run test suite
-lefthook run typecheck # Run basedpyright
+lefthook run format      # Format all Python files
+lefthook run test        # Run test suite
+lefthook run typecheck   # Run basedpyright
+lefthook run biome-check # Run biome on frontend
 ```
 
 ---
@@ -135,6 +147,35 @@ uv run pytest tests/ --cov=src --cov-report=html  # With coverage
 - GPU-only inference: always `device='cuda'`
 - Russian text for UI output and recommendations
 - See `CLAUDE.md` for full architecture details
+
+### Taskfile
+
+Task runner for common development workflows:
+
+```bash
+task ci           # Run all quality checks (Python + frontend)
+task test         # Run Python test suite
+task lint         # Run ruff lint
+task format       # Run ruff format
+task typecheck    # Run basedpyright
+task biome-check  # Run biome on frontend
+task security     # Run bandit security scan
+```
+
+### Security
+
+Security scanning with [bandit](https://bandit.readthedocs.io/):
+
+```bash
+uv run bandit -r src/
+```
+
+### Logging
+
+Structured logging with [structlog](https://www.structlog.org/):
+
+- **Dev mode** (default): Human-readable colored output
+- **JSON mode**: Set `LOG_LEVEL=JSON` for machine-parseable logs (CI/CD)
 
 ---
 

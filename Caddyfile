@@ -1,0 +1,12 @@
+:3000 {
+    reverse_proxy /api/* localhost:8000
+    root * src/frontend/dist
+    file_server
+    try_files {path} /index.html
+
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websockets localhost:5173
+}

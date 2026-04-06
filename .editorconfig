@@ -46,8 +46,8 @@ end_of_line = lf
 indent_style = tab
 indent_size = 4
 
-# Dockerfiles
-[Dockerfile*]
+# Containerfiles
+[{Dockerfile,Containerfile}*]
 indent_size = 2
 
 # Git files

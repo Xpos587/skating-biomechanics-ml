@@ -9,8 +9,6 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .biomechanics_estimator import Biomechanics3DEstimator
-
 
 class TCPFormerExtractor:
     """3D pose lifting using TCPFormer (Memory-Induced Transformer).
@@ -28,17 +26,14 @@ class TCPFormerExtractor:
         self,
         model_path: Path | str = "data/models/TCPFormer_ap3d_81.pth.tr",
         device: str = "auto",
-        use_simple: bool = False,
     ):
         """Initialize TCPFormer 3D pose lifter.
 
         Args:
             model_path: Path to TCPFormer checkpoint (.pth.tr file).
             device: "cuda", "cpu", or "auto" (default).
-            use_simple: If True, use biomechanics estimator instead of ML model.
         """
         self.model_path = Path(model_path)
-        self.use_simple = use_simple or (not self.model_path.exists())
 
         # Set device
         from ..device import DeviceConfig
@@ -50,8 +45,7 @@ class TCPFormerExtractor:
         self.model: torch.nn.Module | None = None
         self._model_loaded = False
 
-        # Simple biomechanics estimator (fallback)
-        self._simple_estimator = Biomechanics3DEstimator() if self.use_simple else None
+        # Model loaded lazily on first use
 
     def _load_model(self) -> torch.nn.Module:
         """Load TCPFormer model from checkpoint."""
@@ -128,10 +122,6 @@ class TCPFormerExtractor:
         Returns:
             poses_3d: (N, 17, 3) array with x, y, z coordinates
         """
-        # Use simple estimator if enabled or no model
-        if self._simple_estimator is not None and self.use_simple:
-            return self._simple_estimator.estimate_3d(poses_2d)
-
         n_frames = poses_2d.shape[0]
 
         # Ensure (N, 17, 3) format with confidence

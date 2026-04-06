@@ -92,12 +92,10 @@ def identity_similarity(profile_a: np.ndarray, profile_b: np.ndarray) -> float:
 class SkeletalIdentityExtractor:
     """Extract 3D skeletal identity profiles from 2D pose sequences.
 
-    Uses MotionAGFormer-S for 2D→3D lifting when available,
-    falls back to Biomechanics3DEstimator.
+    Uses MotionAGFormer-S for 2D→3D lifting.
 
     Args:
-        model_path: Path to MotionAGFormer-S checkpoint (.pth.tr).
-            If None, uses Biomechanics3DEstimator fallback.
+        model_path: Path to MotionAGFormer-S checkpoint (.pth.tr or .onnx).
         device: Device for inference ("auto", "cuda", "cpu").
     """
 
@@ -156,23 +154,7 @@ class SkeletalIdentityExtractor:
                 return self._extractor.extract_sequence(poses_2d)
             except Exception as e:
                 logger.warning("3D lifting failed: %s", e)
-        return self._estimate_3d_simple(poses_2d)
-
-    def _estimate_3d_simple(
-        self,
-        poses_2d: np.ndarray,
-    ) -> np.ndarray | None:
-        """Fallback: biomechanics-based 3D estimation."""
-        try:
-            from src.pose_3d.biomechanics_estimator import (
-                Biomechanics3DEstimator,
-            )
-
-            estimator = Biomechanics3DEstimator()
-            return estimator.estimate_3d(poses_2d)
-        except Exception as e:
-            logger.warning("Biomechanics estimator failed: %s", e)
-            return None
+        return None
 
 
 def compute_2d_skeletal_ratios(pose: np.ndarray) -> np.ndarray:

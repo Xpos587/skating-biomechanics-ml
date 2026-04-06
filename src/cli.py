@@ -78,7 +78,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         extractor = _get_extractor(
             args.pose_backend, output_format="normalized", tracking_mode=args.tracking
         )
-        persons = extractor.preview_persons(args.video)
+        persons, _preview_path = extractor.preview_persons(args.video)
         if not persons:
             print("No persons detected in the first seconds of the video.")
             return 1

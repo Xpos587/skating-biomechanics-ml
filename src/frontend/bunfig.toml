@@ -1,0 +1,19 @@
+# Bun configuration for skating-biomechanics-ml frontend
+
+[install]
+# Allow semantic versioning (not exact versions)
+exact = false
+
+# Allow lockfile updates (for development)
+frozenLockfile = false
+
+[install.scopes]
+# Add scope-specific registry config if needed
+# "@my-org" = "https://registry.my-org.com"
+
+# Use system shell for scripts (more compatible)
+[shell]
+# Use system shell (zsh/bash) instead of bun's built-in
+# This ensures PATH is respected for system tools
+# Set to "bun" to use bun's built-in shell (faster but less compatible)
+shell = "system"

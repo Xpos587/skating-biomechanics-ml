@@ -93,3 +93,12 @@ vast-instances.json
 *.txt
 !requirements.txt
 !CLAUDE.md
+
+# Node / Frontend
+node_modules/
+
+# Frontend build output
+src/frontend/dist/
+
+# Coverage
+coverage/

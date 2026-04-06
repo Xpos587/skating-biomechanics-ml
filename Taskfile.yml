@@ -1,0 +1,92 @@
+# $schema: https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  UV_RUN: uv run
+  BUNX: bunx
+
+tasks:
+  # Python tasks
+  py-lint:
+    desc: Run ruff check and format on Python code
+    dir: .
+    cmd: "{{.UV_RUN}} ruff check src/ tests/ scripts/ --fix && {{.UV_RUN}} ruff format src/ tests/ scripts/"
+
+  py-test:
+    desc: Run pytest tests (excluding slow tests)
+    dir: .
+    cmd: "{{.UV_RUN}} pytest tests/ -v -m \"not slow\" --tb=short"
+
+  py-typecheck:
+    desc: Run basedpyright type checker on src/
+    dir: .
+    cmd: "{{.UV_RUN}} basedpyright --level error src/"
+
+  py-all:
+    desc: Run all Python quality checks (lint, test, typecheck)
+    dir: .
+    cmds:
+      - task: py-lint
+      - task: py-test
+      - task: py-typecheck
+
+  # Frontend tasks
+  fe-lint:
+    desc: Run Biome check and format on frontend code
+    dir: src/frontend
+    cmd: "{{.BUNX}} biome check --write ."
+
+  fe-test:
+    desc: Run vitest tests
+    dir: src/frontend
+    cmd: "bun test --run"
+
+  fe-typecheck:
+    desc: Run TypeScript type checker
+    dir: src/frontend
+    cmd: "{{.BUNX}} tsc -p tsconfig.app.json"
+
+  fe-build:
+    desc: Build frontend for production
+    dir: src/frontend
+    cmd: "bun run build"
+
+  fe-all:
+    desc: Run all frontend quality checks and build
+    dir: .
+    cmds:
+      - task: fe-lint
+      - task: fe-test
+      - task: fe-typecheck
+      - task: fe-build
+
+  # Unified tasks
+  ci:
+    desc: Run all CI checks (Python + Frontend)
+    dir: .
+    cmds:
+      - task: py-all
+      - task: fe-all
+
+  dev:
+    desc: Start backend and frontend dev servers in parallel
+    dir: .
+    cmds:
+      - task: dev-backend
+      - task: dev-frontend
+    parallel: true
+
+  dev-backend:
+    desc: Start Python backend dev server
+    dir: .
+    cmd: "{{.UV_RUN}} uvicorn src.backend.main:app --reload --port 8000"
+
+  dev-frontend:
+    desc: Start frontend dev server
+    dir: src/frontend
+    cmd: "bun run dev"
+
+  # Default task
+  default:
+    desc: Run all CI checks
+    cmd: task ci

@@ -15,7 +15,6 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .biomechanics_estimator import Biomechanics3DEstimator
 from .onnx_extractor import ONNXPoseExtractor
 
 
@@ -39,19 +38,20 @@ class AthletePose3DExtractor:
         model_path: Path | str | None = None,
         device: str = "auto",
         model_type: str = "motionagformer-s",
-        use_simple: bool = False,
     ):
         """Initialize the 3D pose estimator.
 
         Args:
-            model_path: Path to model checkpoint (.pth.tr file), or None for simple mode
-            device: "cuda", "cpu", or "auto" (default)
-            model_type: Model architecture type ("motionagformer-s", "motionagformer-b", "tcpformer")
-            use_simple: If True, use biomechanics estimator instead of ML model
+            model_path: Path to model checkpoint (.pth.tr file) or ONNX (.onnx).
+            device: "cuda", "cpu", or "auto" (default).
+            model_type: Model architecture type ("motionagformer-s", "motionagformer-b", "tcpformer").
         """
-        self.model_path = Path(model_path) if model_path else None
+        if model_path is None:
+            raise FileNotFoundError(
+                "AthletePose3DExtractor requires a model_path. Pass a .pth.tr or .onnx model file."
+            )
+        self.model_path = Path(model_path)
         self.model_type = model_type.lower()
-        self.use_simple = use_simple or (model_path is None)
 
         # Auto-detect ONNX model — skip PyTorch entirely when available
         self._onnx = None
@@ -79,8 +79,7 @@ class AthletePose3DExtractor:
         self.model: torch.nn.Module | None = None
         self._model_loaded = False
 
-        # Simple biomechanics estimator (fallback)
-        self._simple_estimator = Biomechanics3DEstimator() if self.use_simple else None
+        # Simple biomechanics estimator removed — use ML model only
 
     def _load_model(self) -> torch.nn.Module:
         """Load the 3D pose model (MotionAGFormer or TCPFormer)."""
@@ -226,10 +225,6 @@ class AthletePose3DExtractor:
         # ONNX path — no PyTorch needed
         if self._onnx_mode and self._onnx is not None:
             return self._onnx.estimate_3d(poses_2d[:, :, :2])
-
-        # Use simple estimator if enabled or no model
-        if self._simple_estimator is not None and self.use_simple:
-            return self._simple_estimator.estimate_3d(poses_2d)
 
         n_frames = poses_2d.shape[0]
 

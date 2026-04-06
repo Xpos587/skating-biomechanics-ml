@@ -857,7 +857,7 @@ class RTMPoseExtractor:
                 }
             )
 
-        return output  # type: ignore[return-value]
+        return output, preview_path_out  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     # Internal helpers

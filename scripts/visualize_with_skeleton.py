@@ -21,26 +21,18 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from src.analysis.angles import compute_joint_angles
 from src.detection.blade_edge_detector_3d import BladeEdgeDetector3D
 from src.detection.spatial_reference import SpatialReferenceDetector
-from src.pose_estimation import H36Key, H36MExtractor
+from src.pose_estimation import H36Key
 from src.types import BladeState3D
 from src.utils.geometry import detect_visible_side, estimate_floor_angle
 from src.utils.subtitles import SubtitleParser
 from src.utils.video import get_video_meta
 from src.utils.video_writer import H264Writer
 from src.visualization import (
-    JointAngleLayer,
-    LayerContext,
-    TrailLayer,
-    VelocityLayer,
-    VerticalAxisLayer,
     draw_blade_indicator_hud,
-    draw_skeleton,
     project_3d_to_2d,
     put_text,
-    render_layers,
 )
 from src.visualization.core.text import draw_text_box, draw_text_outlined
 
@@ -153,12 +145,6 @@ def main() -> int:
         help="Tracking mode: auto (rtmlib built-in), sports2d (rtmlib Sports2D), deepsort (external DeepSORT)",
     )
     parser.add_argument(
-        "--render-scale",
-        type=float,
-        default=1.0,
-        help="Downscale factor for rendering (0.5 = half resolution, 4x faster). Default: 1.0",
-    )
-    parser.add_argument(
         "--no-render",
         action="store_true",
         help="Skip video rendering entirely (pose extraction only)",
@@ -182,146 +168,115 @@ def main() -> int:
     meta = get_video_meta(args.video)
     cap = cv2.VideoCapture(str(args.video))
 
-    # Load or extract poses
-    raw_foot_kps = None
-    confs: np.ndarray | None = None
-    if args.poses and args.poses.exists():
-        print(f"Loading poses from: {args.poses}")
-        poses_data = np.load(args.poses)
-        poses = poses_data["poses"]
-        pose_frame_indices = np.arange(len(poses))
-        poses_viz = poses[:, :, :2] if poses.shape[2] == 3 else poses
-    else:
-        backend_label = (
-            "rtmlib BodyWithFeet" if args.pose_backend == "rtmlib" else "YOLO26-Pose + OC-SORT"
-        )
-        print(f"Extracting poses with tracking ({backend_label})...")
-        if args.pose_backend == "rtmlib":
-            from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
+    # --- Person selection (before pose extraction) ---
+    from src.types import PersonClick as _PersonClick
 
-            extractor = RTMPoseExtractor(
-                output_format="normalized",
-                conf_threshold=0.3,
-                det_frequency=1,  # detect every frame — GPU is fast enough
-                device="cuda",
-                tracking_mode=args.tracking,
+    person_click = None
+    if args.poses and args.poses.exists():
+        pass  # Legacy path below — no person selection needed
+    elif args.person_click:
+        person_click = _PersonClick(x=args.person_click[0], y=args.person_click[1])
+        print(f"Using click point: ({person_click.x}, {person_click.y})")
+    elif args.select_person:
+        # Need an extractor just for the preview
+        from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
+
+        _preview_extractor = RTMPoseExtractor(
+            output_format="normalized",
+            conf_threshold=0.3,
+            det_frequency=1,
+            device="cuda",
+            tracking_mode=args.tracking,
+        )
+        persons, preview_path = _preview_extractor.preview_persons(args.video)
+        if not persons:
+            print("No persons detected in the first seconds.")
+            return 1
+        if len(persons) == 1:
+            print(f"Only 1 person detected (track #{persons[0]['track_id']}). Auto-selecting.")
+            mid_hip = persons[0]["mid_hip"]
+            person_click = _PersonClick(
+                x=int(mid_hip[0] * meta.width),
+                y=int(mid_hip[1] * meta.height),
             )
         else:
-            extractor = H36MExtractor(
-                model_size="s",  # small model — better accuracy for distant/small skaters
-                conf_threshold=0.1,  # low threshold — detect distant skaters
-                output_format="normalized",
-                crop_enhance=False,  # ROI crop — enable when CUDA available (slow on CPU)
-            )
+            if preview_path:
+                import subprocess as _sp
 
-        # Person selection
-        from src.types import PersonClick as _PersonClick
+                _sp.run(["xdg-open", preview_path], check=False)
 
-        person_click = None
-        if args.person_click:
-            person_click = _PersonClick(x=args.person_click[0], y=args.person_click[1])
-            print(f"Using click point: ({person_click.x}, {person_click.y})")
-        elif args.select_person:
-            persons, preview_path = extractor.preview_persons(args.video)
-            if not persons:
-                print("No persons detected in the first seconds.")
+            print(f"\nОбнаружено {len(persons)} человек:")
+            for i, p in enumerate(persons):
+                print(f"  #{i + 1}: track_id={p['track_id']}, hits={p['hits']}")
+            if preview_path:
+                print(f"  Превью: {preview_path}")
+            print()
+            try:
+                choice = int(input(f"Select person [1-{len(persons)}]: "))
+            except (ValueError, EOFError):
+                print("Cancelled.")
                 return 1
-            if len(persons) == 1:
-                print(f"Only 1 person detected (track #{persons[0]['track_id']}). Auto-selecting.")
-                mid_hip = persons[0]["mid_hip"]
-                person_click = _PersonClick(
-                    x=int(mid_hip[0] * meta.width),
-                    y=int(mid_hip[1] * meta.height),
-                )
-            else:
-                # Show visual preview if available
-                if preview_path:
-                    import subprocess as _sp
+            if choice < 1 or choice > len(persons):
+                print(f"Invalid choice: {choice}")
+                return 1
+            mid_hip = persons[choice - 1]["mid_hip"]
+            person_click = _PersonClick(
+                x=int(mid_hip[0] * meta.width),
+                y=int(mid_hip[1] * meta.height),
+            )
+            print(f"Selected person #{choice} (track_id={persons[choice - 1]['track_id']})")
 
-                    _sp.run(["xdg-open", preview_path], check=False)
-
-                print(f"\nОбнаружено {len(persons)} человек. Смотри превью.")
-                if preview_path:
-                    print(f"  {preview_path}")
-                print()
-                try:
-                    choice = int(input(f"Select person [1-{len(persons)}]: "))
-                except (ValueError, EOFError):
-                    print("Cancelled.")
-                    return 1
-                if choice < 1 or choice > len(persons):
-                    print(f"Invalid choice: {choice}")
-                    return 1
-                mid_hip = persons[choice - 1]["mid_hip"]
-                person_click = _PersonClick(
-                    x=int(mid_hip[0] * meta.width),
-                    y=int(mid_hip[1] * meta.height),
-                )
-                print(f"Selected person #{choice} (track_id={persons[choice - 1]['track_id']})")
-
-        extraction = extractor.extract_video_tracked(args.video, person_click=person_click)
-
-        raw_poses = extraction.poses  # (N, 17, 3) — 1:1 with video frames
-        raw_foot_kps = extraction.foot_keypoints  # (N, 6, 3) normalized
-        n_valid = int(extraction.valid_mask().sum())
-        print(f"Raw: {n_valid}/{len(raw_poses)} valid frames")
-
-        poses_norm = raw_poses[:, :, :2].copy()
-        confs = raw_poses[:, :, 2].copy()
-
-        poses_viz = poses_norm
+    # --- Unified pose preparation ---
+    if args.poses and args.poses.exists():
+        # Legacy path: load pre-computed poses from .npz
+        print(f"Loading poses from: {args.poses}")
+        poses_data = np.load(args.poses)
+        raw_poses = poses_data["poses"]
+        poses_viz = raw_poses[:, :, :2] if raw_poses.shape[2] == 3 else raw_poses
         poses = raw_poses.copy()
         poses[:, :, 0] *= meta.width
         poses[:, :, 1] *= meta.height
+        poses_3d = None
+        raw_foot_kps = None
+        confs = np.ones_like(poses_viz[:, :, 0])
+        prepared = None
+    else:
+        from src.visualization.pipeline import prepare_poses
 
-        pose_frame_indices = np.arange(len(poses))
-        print(f"Poses ready: {len(poses)} frames")
+        model_3d = args.model_3d
+        if model_3d is None:
+            default_model = Path("data/models/motionagformer-s-ap3d.onnx")
+            if default_model.exists():
+                model_3d = default_model
+            else:
+                print("Warning: 3D model not found.")
+                model_3d = None
+
+        prepared = prepare_poses(
+            args.video,
+            person_click=person_click,
+            frame_skip=1,
+            tracking=args.tracking,
+            use_corrective_lens=True,
+            model_3d_path=model_3d,
+            blend_threshold=args.blend_threshold,
+            device="auto",
+        )
+
+        poses_viz = prepared.poses_norm
+        poses = prepared.poses_px
+        poses_3d = prepared.poses_3d
+        raw_foot_kps = prepared.foot_kps
+        confs = prepared.confs
+        meta = prepared.meta
+
+    print(f"Poses ready: {len(poses_viz)} frames")
+    if poses_3d is not None:
+        print(f"3D poses: {poses_3d.shape}")
 
     # Initialize blade states
     blade_states_left = [None] * len(poses_viz)
     blade_states_right = [None] * len(poses_viz)
-
-    # Initialize 3D pose extraction if requested
-    poses_3d = None
-    if args.blade_3d and not args.use_3d:
-        print("Note: --blade-3d requires 3D poses, auto-enabling --3d")
-        args.use_3d = True
-
-    if args.use_3d:
-        if args.model_3d and args.model_3d.exists():
-            print(f"Loading 3D model: {args.model_3d}")
-            from src.pose_3d import AthletePose3DExtractor
-
-            extractor = AthletePose3DExtractor(
-                model_path=args.model_3d, model_type="motionagformer-s"
-            )
-            poses_3d = extractor.extract_sequence(poses_viz)
-            print(f"3D poses extracted: {poses_3d.shape}")
-        else:
-            print("Using biomechanics-based 3D estimation...")
-            from src.pose_3d.biomechanics_estimator import Biomechanics3DEstimator
-
-            estimator = Biomechanics3DEstimator()
-            poses_3d = estimator.estimate_3d(poses_viz)
-            print(f"3D poses estimated: {poses_3d.shape}")
-
-    # 3D corrective lens: lift → constrain → project → blend
-    poses_viz_corrected = None
-    if args.use_3d and poses_3d is not None:
-        from src.pose_3d import CorrectiveLens
-
-        lens = CorrectiveLens(model_path=args.model_3d if args.model_3d else None)
-        poses_viz_corrected, _ = lens.correct_sequence(
-            poses_2d_norm=poses_viz,
-            fps=meta.fps,
-            width=meta.width,
-            height=meta.height,
-            confidences=confs,
-            blend_threshold=args.blend_threshold,
-        )
-        # Clip to valid range
-        poses_viz_corrected = np.clip(poses_viz_corrected, 0.0, 1.0)
-        print(f"3D-corrected poses: {poses_viz_corrected.shape}")
 
     # Initialize 3D blade detector if requested
     blade_detector_3d = None
@@ -358,6 +313,19 @@ def main() -> int:
         hough_max_line_gap=10,
     )
 
+    # Construct visualization pipeline
+    from src.visualization.pipeline import VizPipeline
+
+    pipe = VizPipeline(
+        meta=meta,
+        poses_norm=poses_viz,
+        poses_px=poses,
+        foot_kps=raw_foot_kps,
+        poses_3d=poses_3d,
+        layer=args.layer,
+        confs=confs,
+    )
+
     # Load segments
     segments = []
     if args.segments and args.segments.exists():
@@ -377,45 +345,17 @@ def main() -> int:
     # Setup output
     output_path = args.output or args.video.parent / f"{args.video.stem}_layer{args.layer}.mp4"
 
-    # Data export buffers
-    export_frames: list[int] = []
-    export_timestamps: list[float] = []
-    export_floor_angles: list[float] = []
-    export_joint_angles: list[dict[str, float]] = []
-    export_poses: list[np.ndarray] = []
-
     if args.no_render:
         print("Pose extraction complete. Skipping rendering (--no-render).")
         return 0
 
-    # Apply render scale for faster processing
-    render_scale = args.render_scale
-    out_w = int(meta.width * render_scale)
-    out_h = int(meta.height * render_scale)
-    if render_scale != 1.0:
-        print(f"Render scale: {render_scale} ({out_w}x{out_h})")
+    out_w, out_h = meta.width, meta.height
 
     codec = "libx265" if args.compress else "libx264"
     preset = "medium" if args.compress else "fast"
     writer = H264Writer(
         output_path, out_w, out_h, meta.fps, codec=codec, preset=preset, crf=args.crf
     )
-
-    # Build layers based on requested level
-    layers: list = []
-    if args.layer >= 1:
-        layers.append(VelocityLayer(scale=3.0, max_length=30, color_mode="solid"))
-        layers.append(
-            TrailLayer(length=args.trail_length, joint=H36Key.LFOOT, width=1, color=(200, 80, 80))
-        )
-        # Joint angles with degree labels at layer 1
-        from src.visualization.layers.joint_angle_layer import DEFAULT_JOINT_SPECS
-
-        layers.append(
-            JointAngleLayer(joints=DEFAULT_JOINT_SPECS, show_degree_labels=True, arc_scale=0.30)
-        )
-    if args.layer >= 2:
-        layers.append(VerticalAxisLayer())
 
     # Pre-create PhysicsEngine for CoM trajectory (avoid per-frame allocation)
     physics_engine = None
@@ -439,77 +379,31 @@ def main() -> int:
 
         _t0 = _time.perf_counter() if args.profile else 0.0
 
-        # Downscale for rendering if requested
-        if render_scale != 1.0:
-            frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
-            draw_h, draw_w = out_h, out_w
-        else:
-            draw_h, draw_w = meta.height, meta.width
+        draw_h, draw_w = meta.height, meta.width
 
         # Find the pose that corresponds to this frame
-        current_pose_idx = None
-        while pose_idx < len(pose_frame_indices):
-            if pose_frame_indices[pose_idx] == frame_idx:
-                current_pose_idx = pose_idx
-                pose_idx += 1
-                break
-            elif pose_frame_indices[pose_idx] < frame_idx:
-                pose_idx += 1
-            else:
-                break
-
-        # Build layer context (use original dimensions for normalized coords)
-        context = LayerContext(
-            frame_width=draw_w,
-            frame_height=draw_h,
-            fps=meta.fps,
-            frame_idx=frame_idx,
-            total_frames=meta.num_frames,
-            normalized=True,
-        )
+        current_pose_idx, pose_idx = pipe.find_pose_idx(frame_idx, pose_idx)
 
         _t_skel = _time.perf_counter() if args.profile else _t0
 
-        # Layer 0: Skeleton — always use raw rtmlib (no 3D jitter)
-        if args.layer >= 0 and current_pose_idx is not None:
-            foot_kp = raw_foot_kps[current_pose_idx] if raw_foot_kps is not None else None
-            skel_pose = poses[current_pose_idx].copy()
-            skel_foot_kp = foot_kp.copy() if foot_kp is not None else None
-            if render_scale != 1.0:
-                skel_pose[:, :2] *= render_scale  # only x,y, NOT confidence
-                if skel_foot_kp is not None:
-                    skel_foot_kp[:, :2] *= render_scale
-            frame = draw_skeleton(
-                frame,
-                skel_pose,
-                draw_h,
-                draw_w,
-                line_width=1,
-                joint_radius=3,
-                foot_keypoints=skel_foot_kp,
-            )
-            context.pose_2d = poses_viz[current_pose_idx]
-            if poses_3d is not None and current_pose_idx < len(poses_3d):
-                context.pose_3d = poses_3d[current_pose_idx]
+        # Render skeleton + layers via VizPipeline
+        frame, _context = pipe.render_frame(frame, frame_idx, current_pose_idx)
 
         _t_layers = _time.perf_counter() if args.profile else _t0
 
-        # Layers 1+: velocity, trails (rendered via layer system)
-        if args.layer >= 1 and current_pose_idx is not None:
-            frame = render_layers(frame, layers, context)
+        # Draw 3D CoM trajectory if enabled (CLI-specific feature)
+        if (
+            physics_engine is not None
+            and poses_3d is not None
+            and current_pose_idx is not None
+            and current_pose_idx < len(poses_3d)
+        ):
+            com_trajectory = physics_engine.calculate_center_of_mass(
+                poses_3d[: current_pose_idx + 1]
+            )
 
-            # Draw 3D CoM trajectory if enabled
-            if (
-                physics_engine is not None
-                and poses_3d is not None
-                and current_pose_idx < len(poses_3d)
-            ):
-                com_trajectory = physics_engine.calculate_center_of_mass(
-                    poses_3d[: current_pose_idx + 1]
-                )
-
-                if len(com_trajectory) > 1:
-                    frame = _draw_3d_trajectory(frame, com_trajectory, draw_h, draw_w, camera_z=3.0)
+            if len(com_trajectory) > 1:
+                frame = _draw_3d_trajectory(frame, com_trajectory, draw_h, draw_w, camera_z=3.0)
 
         # Spatial reference detection (every 30 frames — camera doesn't change fast)
         if args.layer >= 1 and frame_idx % 30 == 0:
@@ -557,14 +451,9 @@ def main() -> int:
             except (ValueError, IndexError):
                 pass
 
-            # Export data collection
-            if args.export and current_pose_idx is not None:
-                export_frames.append(frame_idx)
-                export_timestamps.append(round(frame_idx / meta.fps, 3))
-                export_floor_angles.append(round(floor_angle, 2))
-                ja = compute_joint_angles(poses_viz[current_pose_idx])
-                export_joint_angles.append(ja)
-                export_poses.append(poses[current_pose_idx].copy())
+            # Export data collection via VizPipeline
+            if args.export:
+                pipe.collect_export_data(frame_idx, current_pose_idx, floor_angle=floor_angle)
 
             # Detect visible side from HALPE26 foot keypoints
             if raw_foot_kps is not None and current_pose_idx < len(raw_foot_kps):
@@ -583,9 +472,6 @@ def main() -> int:
         frame = _draw_hud(
             frame,
             active_segment,
-            frame_idx,
-            meta.num_frames,
-            meta.fps,
             draw_h,
             draw_w,
             blade_state_left=blade_left,
@@ -593,6 +479,9 @@ def main() -> int:
             visible_side=visible_side,
             floor_angle=floor_angle,
         )
+
+        # Draw frame counter via VizPipeline
+        frame = pipe.draw_frame_counter(frame, frame_idx)
 
         _t_write = _time.perf_counter() if args.profile else _t0
 
@@ -625,48 +514,13 @@ def main() -> int:
     writer.close()
     print(f"\nSaved to: {output_path}")
 
-    # Export NPY + CSV
-    if args.export and export_poses:
-        import csv as _csv
-
-        out_dir = output_path.parent
-        stem = output_path.stem
-
-        # NPY: (N, 17, 3) raw poses
-        npy_path = out_dir / f"{stem}_poses.npy"
-        np.save(str(npy_path), np.array(export_poses))
-        print(f"Poses saved: {npy_path}")
-
-        # CSV: frame, timestamp, floor_angle, 12 joint angles
-        csv_path = out_dir / f"{stem}_biomechanics.csv"
-        angle_keys = [
-            "R Ankle",
-            "L Ankle",
-            "R Knee",
-            "L Knee",
-            "R Hip",
-            "L Hip",
-            "R Shoulder",
-            "L Shoulder",
-            "R Elbow",
-            "L Elbow",
-            "R Wrist",
-            "L Wrist",
-        ]
-        header = [*["frame", "timestamp_s", "floor_angle_deg"], *angle_keys]
-        with Path(csv_path).open("w", newline="") as f:
-            writer = _csv.writer(f)
-            writer.writerow(header)
-            for idx in range(len(export_frames)):
-                ja = export_joint_angles[idx]
-                row = [
-                    export_frames[idx],
-                    export_timestamps[idx],
-                    export_floor_angles[idx],
-                ]
-                row += [round(ja.get(k, float("nan")), 1) for k in angle_keys]
-                writer.writerow(row)
-        print(f"Biomechanics saved: {csv_path}")
+    # Export NPY + CSV via VizPipeline
+    if args.export:
+        export_result = pipe.save_exports(output_path)
+        if export_result["poses_path"]:
+            print(f"Poses saved: {export_result['poses_path']}")
+        if export_result["csv_path"]:
+            print(f"Biomechanics saved: {export_result['csv_path']}")
 
     return 0
 
@@ -707,9 +561,6 @@ def _get_active_segment(segments: list, frame_idx: int) -> dict:
 def _draw_hud(
     frame: np.ndarray,
     element_info: dict,
-    frame_idx: int,
-    total_frames: int,
-    fps: float,
     height: int,
     width: int,
     blade_state_left: BladeState3D | None = None,
@@ -723,7 +574,9 @@ def _draw_hud(
     - Top-left: Element info (name, boundaries, confidence)
     - Top-left (below element): Blade edge indicators
     - Bottom-left: Visible side + floor angle
-    - Top-right: Frame counter, timestamp
+    - Bottom-left: Frame counter (drawn by VizPipeline.draw_frame_counter)
+
+    Note: Frame counter is now handled by VizPipeline.draw_frame_counter().
     """
     # Top-left: Element info
     if element_info:
@@ -734,27 +587,19 @@ def _draw_hud(
         elem_text = f"{elem_type} [{start}:{end}] conf={conf:.2f}"
         draw_text_box(frame, elem_text, (10, 30))
 
-    # Top-right: Frame counter + timestamp
-    time_sec = frame_idx / fps
-    minutes = int(time_sec) // 60
-    seconds = time_sec % 60
-    ms = int((seconds % 1) * 100)
-    frame_text = f"{frame_idx}/{total_frames}  {minutes:02d}:{int(seconds):02d}.{ms:02d}"
-    (fw, _fh), _ = cv2.getTextSize(frame_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-    draw_text_box(frame, frame_text, (width - fw - 20, 10), font_scale=0.5)
-
     # Blade edge indicators (below element info)
     if blade_state_left is not None:
         draw_blade_indicator_hud(frame, blade_state_left, position=(10, 55))
     if blade_state_right is not None:
         draw_blade_indicator_hud(frame, blade_state_right, position=(80, 55))
 
-    # Bottom-left: Visible side + floor angle (Task 6)
-    info_y = height - 40
+    # Bottom-left: Visible side + floor angle (frame counter drawn by VizPipeline)
     side_str = visible_side or "N/A"
+    bottom_line = f"Side: {side_str}  Floor: {floor_angle:.1f} deg"
+    info_y = height - 40
     draw_text_outlined(
         frame,
-        f"Side: {side_str}  Floor: {floor_angle:.1f} deg",
+        bottom_line,
         (10, info_y),
         font_scale=0.45,
         thickness=1,
