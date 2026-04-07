@@ -1,4 +1,6 @@
-# ONNX model weights (large binary files, re-export with scripts/export_models_to_onnx.py)
+# ONNX model weights (large binary files)
+# Pose models: re-export with scripts/export_models_to_onnx.py
+# ML models: download via scripts/download_ml_models.py
 *.onnx
 *.onnx.data
 

@@ -145,6 +145,16 @@ def main() -> int:
         help="Tracking mode: auto (rtmlib built-in), sports2d (rtmlib Sports2D), deepsort (external DeepSORT)",
     )
     parser.add_argument(
+        "--depth",
+        action="store_true",
+        help="Enable depth estimation (Depth Anything V2)",
+    )
+    parser.add_argument(
+        "--optical-flow",
+        action="store_true",
+        help="Enable optical flow (NeuFlowV2)",
+    )
+    parser.add_argument(
         "--no-render",
         action="store_true",
         help="Skip video rendering entirely (pose extraction only)",
