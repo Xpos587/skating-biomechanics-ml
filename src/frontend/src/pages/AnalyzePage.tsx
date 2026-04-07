@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { cancelProcessing, processVideo } from "@/lib/api"
+import { cancelQueuedProcess, enqueueProcess, pollTaskStatus } from "@/lib/api"
 import type { PersonClick, ProcessResponse } from "@/types"
 
 type Phase = "processing" | "done" | "error" | "cancelled"
@@ -21,7 +21,7 @@ export default function AnalyzePage() {
 
   // Guard: prevent double-call in StrictMode
   const startedRef = useRef(false)
-  const abortRef = useRef<AbortController | null>(null)
+  const taskIdRef = useRef<string | null>(null)
 
   const videoPath = params.get("video_path") || ""
   const clickParts = (params.get("person_click") || "0,0").split(",")
@@ -76,13 +76,15 @@ export default function AnalyzePage() {
   )
 
   const handleCancel = useCallback(async () => {
-    abortRef.current?.abort()
     try {
-      await cancelProcessing()
+      if (taskIdRef.current) {
+        await cancelQueuedProcess(taskIdRef.current)
+      }
     } catch {
-      // ignore — pipeline will stop on its own
+      // ignore
     }
     setPhase("cancelled")
+    startedRef.current = false
   }, [])
 
   // Only the request object matters — callback identity doesn't affect behavior
@@ -93,26 +95,48 @@ export default function AnalyzePage() {
 
     setPhase("processing")
     setProgress(0)
-    setMessage("Подготовка конвейера...")
+    setMessage("Queuing analysis...")
 
-    const abort = new AbortController()
-    abortRef.current = abort
+    const cancelled = false
 
-    processVideo(processRequest, {
-      onProgress(p, msg) {
-        setProgress(Math.round(p * 100))
-        setMessage(msg)
-      },
-      onResult(r) {
-        setResult(r as ProcessResponse)
-        setPhase("done")
-      },
-      onError(err) {
-        setError(err)
+    enqueueProcess(processRequest)
+      .then(res => {
+        taskIdRef.current = res.task_id
+        setMessage("Waiting for worker...")
+        const poll = setInterval(async () => {
+          if (cancelled) {
+            clearInterval(poll)
+            return
+          }
+          try {
+            const status = await pollTaskStatus(res.task_id)
+            setProgress(Math.round(status.progress * 100))
+            setMessage(status.message)
+
+            if (status.status === "completed" && status.result) {
+              clearInterval(poll)
+              setResult(status.result)
+              setPhase("done")
+            } else if (status.status === "failed") {
+              clearInterval(poll)
+              setError(status.error || "Unknown error")
+              setPhase("error")
+              startedRef.current = false
+            } else if (status.status === "cancelled") {
+              clearInterval(poll)
+              setPhase("cancelled")
+              startedRef.current = false
+            }
+          } catch {
+            // Network error — keep polling
+          }
+        }, 1000)
+      })
+      .catch(err => {
+        setError(err.message)
         setPhase("error")
         startedRef.current = false
-      },
-    })
+      })
   }, [processRequest])
 
   useEffect(() => {

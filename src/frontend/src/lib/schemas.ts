@@ -60,6 +60,15 @@ export const ProcessResponseSchema = z.object({
   status: z.string(),
 })
 
+export const TaskStatusResponseSchema = z.object({
+  task_id: z.string().min(1),
+  status: z.enum(["pending", "running", "completed", "failed", "cancelled"]),
+  progress: z.number().min(0).max(1),
+  message: z.string(),
+  result: ProcessResponseSchema.nullable(),
+  error: z.string().nullable(),
+})
+
 // Type inference
 export type PersonInfo = z.infer<typeof PersonInfoSchema>
 export type PersonClick = z.infer<typeof PersonClickSchema>

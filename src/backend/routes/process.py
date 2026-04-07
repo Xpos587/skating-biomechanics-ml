@@ -6,13 +6,29 @@ import asyncio
 import json
 import logging
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 
-from src.backend.schemas import ProcessRequest, ProcessResponse, ProcessStats
+from src.backend.schemas import (
+    ProcessRequest,
+    ProcessResponse,
+    ProcessStats,
+    QueueProcessResponse,
+    TaskStatusResponse,
+)
+from src.config import get_settings
+from src.task_manager import (
+    create_task_state,
+    get_task_state,
+    get_valkey_client,
+    set_cancel_signal,
+)
 from src.types import PersonClick
 from src.web_helpers import PipelineCancelled, process_video_pipeline
 
@@ -137,3 +153,81 @@ async def cancel_processing():
     """Cancel the currently running pipeline."""
     _cancel_event.set()
     return {"status": "cancelled"}
+
+
+@router.post("/api/process/queue", response_model=QueueProcessResponse)
+async def enqueue_process(req: ProcessRequest):
+    """Enqueue video processing job and return task_id immediately."""
+    settings = get_settings()
+    task_id = f"proc_{uuid.uuid4().hex[:12]}"
+
+    valkey = await get_valkey_client()
+    try:
+        await create_task_state(task_id, video_path=req.video_path, valkey=valkey)
+    finally:
+        await valkey.close()
+
+    arq_pool = await create_pool(
+        RedisSettings(
+            host=settings.valkey_host,
+            port=settings.valkey_port,
+            database=settings.valkey_db,
+            password=settings.valkey_password,
+        )
+    )
+    try:
+        await arq_pool.enqueue_job(
+            "process_video_task",
+            task_id=task_id,
+            video_path=req.video_path,
+            person_click={"x": req.person_click.x, "y": req.person_click.y},
+            frame_skip=req.frame_skip,
+            layer=req.layer,
+            tracking=req.tracking,
+            export=req.export,
+            depth=req.depth,
+            optical_flow=req.optical_flow,
+            segment=req.segment,
+            foot_track=req.foot_track,
+            matting=req.matting,
+            inpainting=req.inpainting,
+        )
+    finally:
+        await arq_pool.close()
+
+    return QueueProcessResponse(task_id=task_id)
+
+
+@router.get("/api/process/{task_id}/status", response_model=TaskStatusResponse)
+async def get_process_status(task_id: str):
+    """Poll task status."""
+    valkey = await get_valkey_client()
+    try:
+        state = await get_task_state(task_id, valkey=valkey)
+    finally:
+        await valkey.close()
+
+    if state is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    result = None
+    if state.get("result"):
+        result = ProcessResponse(**state["result"])
+
+    return TaskStatusResponse(
+        task_id=task_id,
+        status=state["status"],
+        progress=state["progress"],
+        message=state.get("message", ""),
+        result=result,
+        error=state.get("error"),
+    )
+
+
+@router.post("/api/process/{task_id}/cancel")
+async def cancel_queued_process(task_id: str):
+    """Cancel a queued or running task via Valkey signal."""
+    await set_cancel_signal(task_id)
+    return {"status": "cancel_requested", "task_id": task_id}

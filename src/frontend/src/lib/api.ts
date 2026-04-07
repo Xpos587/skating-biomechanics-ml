@@ -18,6 +18,42 @@ export async function cancelProcessing(): Promise<void> {
   await fetch(`${API_BASE}/process/cancel`, { method: "POST" })
 }
 
+export async function enqueueProcess(request: ProcessRequest): Promise<{ task_id: string }> {
+  const validated = ProcessRequestSchema.parse(request)
+  const res = await fetch(`${API_BASE}/process/queue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(validated),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text)
+  }
+  return res.json()
+}
+
+export interface TaskStatusResponse {
+  task_id: string
+  status: "pending" | "running" | "completed" | "failed" | "cancelled"
+  progress: number
+  message: string
+  result: ProcessResponse | null
+  error: string | null
+}
+
+export async function pollTaskStatus(taskId: string): Promise<TaskStatusResponse> {
+  const res = await fetch(`${API_BASE}/process/${taskId}/status`)
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text)
+  }
+  return res.json()
+}
+
+export async function cancelQueuedProcess(taskId: string): Promise<void> {
+  await fetch(`${API_BASE}/process/${taskId}/cancel`, { method: "POST" })
+}
+
 export async function detectPersons(
   file: File,
   tracking = "auto",
