@@ -24,13 +24,13 @@ class TCPFormerExtractor:
 
     def __init__(
         self,
-        model_path: Path | str = "data/models/TCPFormer_ap3d_81.pth.tr",
+        model_path: Path | str = "data/models/TCPFormer_ap3d_81.onnx",
         device: str = "auto",
     ):
         """Initialize TCPFormer 3D pose lifter.
 
         Args:
-            model_path: Path to TCPFormer checkpoint (.pth.tr file).
+            model_path: Path to TCPFormer model (.onnx file).
             device: "cuda", "cpu", or "auto" (default).
         """
         self.model_path = Path(model_path)

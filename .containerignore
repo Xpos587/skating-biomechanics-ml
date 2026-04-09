@@ -16,10 +16,11 @@ __pycache__
 .ruff_cache
 .pytest_cache
 
-# Docker
+# Containers
 Dockerfile
 Containerfile
-docker-compose*
+compose.yaml
+compose*.yaml
 
 # Data we don't need in the image
 data/raw/
@@ -35,6 +36,11 @@ data/models/.cache/
 
 # Frontend
 src/frontend/
+
+# PyTorch checkpoints (ONNX models are in data/models/)
+src/models/
+**/__pycache__
+**/*.pyc
 
 # Research/docs
 research/

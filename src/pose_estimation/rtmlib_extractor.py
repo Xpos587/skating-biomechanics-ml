@@ -482,7 +482,7 @@ class RTMPoseExtractor:
         # --- Post-hoc tracklet merging for occlusion recovery ---
         valid_mask_pre = ~np.isnan(all_poses[:, 0, 0])
         if not valid_mask_pre.all() and frame_track_data:
-            model_3d = Path("data/models/motionagformer-s-ap3d.pth.tr")
+            model_3d = Path("data/models/motionagformer-s-ap3d.onnx")
             identity_ext = None
             if model_3d.exists():
                 from ..tracking.skeletal_identity import (

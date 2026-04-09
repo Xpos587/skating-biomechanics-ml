@@ -400,7 +400,7 @@ class AnalysisPipeline:
         if self._pose_3d_extractor is None:
             from .pose_3d import AthletePose3DExtractor
 
-            model_path = "data/models/motionagformer-s-ap3d.pth.tr"
+            model_path = "data/models/motionagformer-s-ap3d.onnx"
             self._pose_3d_extractor = AthletePose3DExtractor(
                 model_path=Path(model_path) if Path(model_path).exists() else None,
                 device=self._device_config.device,

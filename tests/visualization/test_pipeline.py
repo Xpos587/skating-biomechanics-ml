@@ -143,6 +143,7 @@ class TestPreparePoses:
             mock.patch("src.visualization.pipeline.get_video_meta", return_value=_fake_meta()),
             mock.patch("src.visualization.pipeline.RTMPoseExtractor") as MockExt,
             mock.patch("src.visualization.pipeline.CorrectiveLens") as MockLens,
+            mock.patch("src.visualization.pipeline.ONNXPoseExtractor") as MockOnnx,
             mock.patch(
                 "src.visualization.pipeline._resolve_model_3d", return_value=Path("model.onnx")
             ),
@@ -151,6 +152,9 @@ class TestPreparePoses:
             MockLens.return_value.correct_sequence.return_value = (
                 np.random.rand(10, 17, 2).astype(np.float32) * 0.5 + 0.25,
                 np.random.rand(10, 17, 3).astype(np.float32),
+            )
+            MockOnnx.return_value.estimate_3d.return_value = np.random.rand(10, 17, 3).astype(
+                np.float32
             )
 
             result = prepare_poses(Path("test.mp4"))
@@ -219,6 +223,7 @@ class TestPreparePoses:
             ),
             mock.patch("src.visualization.pipeline.RTMPoseExtractor") as MockExt,
             mock.patch("src.visualization.pipeline.CorrectiveLens") as MockLens,
+            mock.patch("src.visualization.pipeline.ONNXPoseExtractor") as MockOnnx,
             mock.patch(
                 "src.visualization.pipeline._resolve_model_3d", return_value=Path("model.onnx")
             ),
@@ -227,6 +232,9 @@ class TestPreparePoses:
             MockLens.return_value.correct_sequence.return_value = (
                 np.random.rand(20, 17, 2).astype(np.float32) * 0.5 + 0.25,
                 np.random.rand(20, 17, 3).astype(np.float32),
+            )
+            MockOnnx.return_value.estimate_3d.return_value = np.random.rand(20, 17, 3).astype(
+                np.float32
             )
 
             result = prepare_poses(Path("test.mp4"), frame_skip=4)

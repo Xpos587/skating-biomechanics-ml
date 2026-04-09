@@ -247,9 +247,7 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_MODEL_3D_CANDIDATES = [
     _PROJECT_ROOT / "data" / "models" / "motionagformer-s-ap3d.onnx",
-    _PROJECT_ROOT / "data" / "models" / "motionagformer-s-ap3d.pth.tr",
     Path("data/models/motionagformer-s-ap3d.onnx"),
-    Path("data/models/motionagformer-s-ap3d.pth.tr"),
 ]
 
 # Module-level imports for testability (mock.patch targets module-level names).

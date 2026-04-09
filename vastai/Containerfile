@@ -1,93 +1,100 @@
 # Vast.ai Serverless GPU worker image
-# Build: podman build -f vastai/Containerfile -t ghcr.io/xpos587/skating-ml-gpu:latest .
+# Build: go-task vastai-build
+#
+# Uses python:3.11-slim instead of nvidia/cuda base image.
+# CUDA runtime comes from pip packages (nvidia-cudnn-cu12 etc.).
+# The NVIDIA driver is provided by the host via nvidia-container-toolkit.
 
 # Stage 1: Install Python deps into venv
-FROM docker.io/nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS builder
+FROM docker.io/python:3.11-slim AS builder
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common curl \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-venv python3.11-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
-
-RUN python3.11 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Install only runtime deps — no torch, no ultralytics, no dev tools
-# rtmlib pulls onnxruntime, opencv, numpy, etc.
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Core inference deps (onnxruntime-gpu pulls nvidia-* CUDA pip packages)
-RUN uv pip install --python /opt/venv/bin/python \
-    onnxruntime-gpu>=1.24.4 \
-    opencv-python-headless>=4.10.0 \
-    numpy>=2.0.0 \
-    scipy>=1.14.0 \
-    pillow>=12.1.1 \
-    av>=17.0.0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+RUN python -m venv /opt/venv
+
+# Core inference deps
+# Note: CUDA runtime libs come from host via nvidia-container-toolkit on Vast.ai
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-cache-dir \
+    onnxruntime-gpu==1.24.4 \
+    opencv-python-headless==4.10.0.84 \
+    numpy==2.4.3 \
+    scipy==1.17.1 \
+    pillow==12.1.1 \
+    av==17.0.0
 
 # Server deps
-RUN uv pip install --python /opt/venv/bin/python \
-    fastapi>=0.135.2 \
-    "uvicorn[standard]>=0.42.0" \
-    python-multipart>=0.0.22 \
-    structlog>=25.5.0 \
-    pydantic-settings>=2.0.0 \
-    boto3>=1.42.80 \
-    httpx>=0.28.0
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-cache-dir \
+    fastapi==0.135.2 \
+    "uvicorn[standard]==0.42.0" \
+    python-multipart==0.0.22 \
+    structlog==25.5.0 \
+    pydantic-settings==2.13.1 \
+    boto3==1.42.80 \
+    httpx==0.28.1
 
 # rtmlib with --no-deps to prevent torch/timm from being pulled in
-# rtmlib only needs: opencv, numpy, onnxruntime, scipy (already installed)
-RUN uv pip install --python /opt/venv/bin/python --no-deps \
-    rtmlib>=0.0.7
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-deps --no-cache-dir \
+    rtmlib==0.0.15
 
-# Strip bytecode and test files from venv to reduce layer size
+# Strip unnecessary files from venv
 RUN find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
     find /opt/venv -type f -name "*.pyc" -delete 2>/dev/null; \
     find /opt/venv -type f -name "*.pyo" -delete 2>/dev/null; \
     find /opt/venv -type d -name "tests" -exec rm -rf {} + 2>/dev/null; \
     find /opt/venv -type d -name "test" -exec rm -rf {} + 2>/dev/null; \
+    rm -rf /opt/venv/lib/python3.11/site-packages/pip \
+    /opt/venv/lib/python3.11/site-packages/setuptools \
+    /opt/venv/lib/python3.11/site-packages/sympy; \
+    # Strip debug symbols from all .so files
+    find /opt/venv -type f -name "*.so*" -exec strip --strip-debug {} + 2>/dev/null; \
     true
 
-# Stage 2: Runtime only
-FROM docker.io/nvidia/cuda:12.4.1-runtime-ubuntu22.04
+# Stage 2: Minimal runtime — python:3.11-slim, no CUDA base image
+FROM docker.io/python:3.11-slim
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common curl ffmpeg \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-venv \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/python3.11 /usr/bin/python3
+    libgomp1 libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy venv from builder (no torch, no triton, no nvidia cuda libs)
-COPY --from=builder /opt/venv /opt/venv
+# Non-root user
+RUN groupadd -r appuser -g 1000 && \
+    useradd -r -u 1000 -g appuser -m -d /home/appuser appuser
+
+# Copy venv from builder
+COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PROJECT_ROOT=/app \
     VIRTUAL_ENV=/opt/venv
 
-# Source code
-COPY src/ src/
+# ONNX models (~500MB) — rarely changes, separate layer for cache hits
+COPY --chown=appuser:appuser data/models/depth_anything_v2_small.onnx data/models/
+COPY --chown=appuser:appuser data/models/neuflowv2_mixed.onnx data/models/
+COPY --chown=appuser:appuser data/models/rvm_mobilenetv3.onnx data/models/
+COPY --chown=appuser:appuser data/models/lama_fp32.onnx data/models/
+COPY --chown=appuser:appuser data/models/sam2/ data/models/sam2/
 
-# ONNX models (~500MB)
-COPY data/models/depth_anything_v2_small.onnx data/models/
-COPY data/models/neuflowv2_mixed.onnx data/models/
-COPY data/models/rvm_mobilenetv3.onnx data/models/
-COPY data/models/lama_fp32.onnx data/models/
-COPY data/models/sam2/ data/models/sam2/
+# Source code — changes most often, top layer
+COPY --chown=appuser:appuser src/ src/
+COPY --chown=appuser:appuser vastai/server.py vastai/server.py
 
-# GPU worker server
-COPY vastai/server.py vastai/server.py
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 EXPOSE 8000
 

@@ -56,7 +56,7 @@ def main() -> int:
     parser.add_argument(
         "--model-3d",
         type=Path,
-        help="Path to 3D pose model (motionagformer-s-ap3d.pth.tr)",
+        help="Path to 3D pose model (motionagformer-s-ap3d.onnx)",
     )
     parser.add_argument(
         "--blade-3d",
