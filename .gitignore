@@ -63,6 +63,7 @@ data/dataset/
 *.pt
 *.pth
 *.onnx
+*.onnx_data
 *.weights
 *.pkl
 
