@@ -15,7 +15,15 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { detectPersons } from "@/lib/api"
+import { toastError, toastSuccess } from "@/lib/toast"
 import type { DetectResponse, PersonClick } from "@/types"
+
+const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
+const VALID_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"]
+
+function isValidVideoFile(file: File): boolean {
+  return VALID_VIDEO_TYPES.includes(file.type) && file.size <= MAX_FILE_SIZE
+}
 
 type Status = "idle" | "uploading" | "detecting" | "ready" | "error"
 
@@ -45,6 +53,10 @@ export default function UploadPage() {
 
   const handleFile = useCallback(
     async (f: File) => {
+      if (!isValidVideoFile(f)) {
+        toastError("Файл должен быть видео (MP4, MOV, WebM) до 500 МБ")
+        return
+      }
       setFile(f)
       setStatus("uploading")
       setError("")
@@ -68,6 +80,7 @@ export default function UploadPage() {
       }
 
       setStatus("ready")
+      toastSuccess(`Обнаружено людей: ${resp.persons.length}`)
     },
     [tracking],
   )
@@ -158,7 +171,7 @@ export default function UploadPage() {
     : undefined
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div>
       {/* Upload zone */}
       {status === "idle" && (
         /* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop */
