@@ -38,11 +38,11 @@ else:
         BodyWithFeet = None  # type: ignore[assignment]
 
 from ..detection.pose_tracker import PoseTracker as CustomPoseTracker
-from ..pose_estimation.h36m_extractor import _biometric_distance
 from ..tracking.skeletal_identity import compute_2d_skeletal_ratios
 from ..tracking.tracklet_merger import TrackletMerger, build_tracklets
 from ..types import PersonClick, TrackedExtraction
 from ..utils.video import get_video_meta
+from .h36m import _biometric_distance
 from .halpe26 import extract_foot_keypoints, halpe26_to_h36m
 
 logger = logging.getLogger(__name__)

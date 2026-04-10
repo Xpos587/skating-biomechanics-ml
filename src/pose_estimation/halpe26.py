@@ -14,7 +14,7 @@ from enum import IntEnum
 
 import numpy as np
 
-from .h36m_extractor import H36Key
+from .h36m import H36Key
 
 
 class HALPE26Key(IntEnum):
@@ -73,7 +73,7 @@ def halpe26_to_h36m(halpe26_pose: np.ndarray) -> np.ndarray:
     """Convert HALPE26 (26kp) to H3.6M (17kp) format.
 
     HALPE26 indices 0-16 are identical to COCO, so the mapping is the same
-    geometric computation as _coco_to_h36m_single() in h36m_extractor.py.
+    geometric computation as _coco_to_h36m_single() in h36m.py.
 
     Args:
         halpe26_pose: (26, 2) or (26, 3) array in HALPE26 format.

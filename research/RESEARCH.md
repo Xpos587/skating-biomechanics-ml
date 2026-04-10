@@ -2,11 +2,11 @@
 
 > Index of all research materials. Documents are kept for historical context — decisions made, alternatives evaluated, and dead ends explored.
 
-## Current System (2026-04-01)
+## Current System (2026-04-09)
 
 | Component | Chosen | Rejected |
 |-----------|--------|----------|
-| **2D Pose** | RTMPose via rtmlib (HALPE26, 26kp) | YOLO26-Pose (17kp), BlazePose (33kp, deprecated) |
+| **2D Pose** | RTMPose via rtmlib (HALPE26, 26kp) — sole backend | YOLO26-Pose (removed), BlazePose (33kp, deprecated) |
 | **3D Lifting** | MotionAGFormer-S (38.4mm MPJPE) | Pose3DM (code not released), VIBE (too heavy) |
 | **Tracking** | OC-SORT + anatomical biometrics | DeepSORT (color-based, fails on black clothing) |
 | **Jump Height** | CoM parabolic trajectory | Flight time (60% error for low jumps) |
@@ -66,6 +66,7 @@ These are the prompts given to Gemini Deep Research. The results informed implem
 | 2026-03-31 | YOLO26-Pose → RTMPose (rtmlib) | Better tracking, foot keypoints, ONNX (CPU+GPU) |
 | 2026-04-01 | PyTorch CUDA → onnxruntime-gpu | CUDA 13 incompatibility solved with standalone CUDA 12 libs |
 | 2026-04-01 | Raw 2D skeleton → CorrectiveLens 3D→2D | Kinematic constraints fix occlusion artifacts |
+| 2026-04-09 | Remove YOLO26-Pose backend entirely | RTMPose is sole backend; removed ultralytics dep, h36m_extractor.py, yolo_extractor.py, action segmentation code |
 
 ## Open Questions
 

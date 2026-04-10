@@ -58,6 +58,7 @@ data/references/*
 !data/references/.gitkeep
 data/datasets/
 data/dataset/
+data/uploads/
 
 # Models
 *.pt

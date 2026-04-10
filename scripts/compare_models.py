@@ -43,13 +43,9 @@ if TYPE_CHECKING:
 
 BACKEND_LABELS: dict[str, str] = {
     "rtmlib": "RTMPose (rtmlib, HALPE26 26kp)",
-    "yolo": "YOLO26-Pose (Ultralytics, H3.6M 17kp)",
 }
 
-BACKEND_CLI_CHOICES = {
-    "rtmlib": "rtmlib",
-    "yolo26": "yolo",
-}
+BACKEND_CLI_CHOICES: dict[str, str] = {}
 
 
 def _create_extractor(backend: str, conf_threshold: float = 0.3):
@@ -62,14 +58,6 @@ def _create_extractor(backend: str, conf_threshold: float = 0.3):
             conf_threshold=conf_threshold,
             det_frequency=1,
             device=DeviceConfig.default().device,
-        )
-    elif backend == "yolo":
-        from src.pose_estimation.h36m_extractor import H36MExtractor
-
-        return H36MExtractor(
-            model_size="s",
-            conf_threshold=conf_threshold,
-            output_format="normalized",
         )
     else:
         raise ValueError(f"Unknown backend: {backend}")
@@ -466,8 +454,8 @@ def main() -> int:
     parser.add_argument("video", help="Path to input video")
     parser.add_argument(
         "--backends",
-        default="rtmlib,yolo26",
-        help="Comma-separated backends: rtmlib (RTMPose HALPE26 26kp), yolo26 (YOLO26-Pose H3.6M 17kp). Default: rtmlib,yolo26",
+        default="rtmlib",
+        help="Comma-separated backends: rtmlib (RTMPose HALPE26 26kp). Default: rtmlib",
     )
     parser.add_argument("--output", help="Output video path (default: {stem}_compare.mp4)")
     parser.add_argument(

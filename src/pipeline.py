@@ -2,11 +2,11 @@
 
 H3.6M Architecture:
     This pipeline uses H3.6M 17-keypoint format as the primary format.
-    2D extraction: H36MExtractor (YOLO26-Pose backend)
+    2D extraction: RTMPoseExtractor (rtmlib BodyWithFeet)
     3D lifting: AthletePose3DExtractor (MotionAGFormer)
 
 Pipeline stages:
-    1. Extract & track: H36MExtractor.extract_video_tracked() + gap fill + spatial ref
+    1. Extract & track: RTMPoseExtractor.extract_video_tracked() + gap fill + spatial ref
     2. Normalization
     3. Temporal smoothing (One-Euro Filter)
     4. Phase detection
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from .analysis.recommender import Recommender
     from .detection import PersonDetector
     from .pose_3d import AthletePose3DExtractor
-    from .pose_estimation import H36MExtractor
     from .pose_estimation.normalizer import PoseNormalizer
     from .pose_estimation.rtmlib_extractor import RTMPoseExtractor
     from .references import ReferenceStore
@@ -42,9 +41,8 @@ class AnalysisPipeline:
     """Main pipeline for skating technique analysis.
 
     H3.6M Architecture:
-        - 2D poses: H36MExtractor (17 keypoints, normalized [0,1], YOLO26-Pose backend)
+        - 2D poses: RTMPoseExtractor (17 keypoints, normalized [0,1], rtmlib backend)
         - 3D poses: AthletePose3DExtractor (MotionAGFormer)
-        - No intermediate 33kp storage
     """
 
     def __init__(
@@ -55,7 +53,6 @@ class AnalysisPipeline:
         smoothing_config: "OneEuroFilterConfig | None" = None,  # type: ignore[valid-type]
         person_click: PersonClick | None = None,
         reestimate_camera: bool = False,
-        pose_backend: str = "rtmlib",
     ) -> None:
         """Initialize analysis pipeline.
 
@@ -67,23 +64,17 @@ class AnalysisPipeline:
             smoothing_config: Optional custom smoothing configuration.
             person_click: Optional click point to select target person in multi-person videos.
             reestimate_camera: Enable per-frame camera re-estimation for moving cameras.
-            pose_backend: 2D pose estimation backend — ``"rtmlib"`` (default)
-                or ``"yolo"`` (deprecated).
         """
-        if TYPE_CHECKING:
-            from .pose_estimation.rtmlib_extractor import RTMPoseExtractor
-
         self._reference_store = reference_store
         self._device_config = DeviceConfig(device) if isinstance(device, str) else device
         self._enable_smoothing = enable_smoothing
         self._smoothing_config = smoothing_config
         self._person_click = person_click
         self._reestimate_camera = reestimate_camera
-        self._pose_backend = pose_backend
 
         # Components will be lazy-loaded
         self._detector: PersonDetector | None = None  # type: ignore[valid-type]
-        self._pose_2d_extractor: RTMPoseExtractor | H36MExtractor | None = None  # type: ignore[valid-type]
+        self._pose_2d_extractor: RTMPoseExtractor | None = None  # type: ignore[valid-type]
         self._pose_3d_extractor: AthletePose3DExtractor | None = None  # type: ignore[valid-type]
         self._normalizer: PoseNormalizer | None = None  # type: ignore[valid-type]
         self._smoother: PoseSmoother | None = None  # type: ignore[valid-type]
@@ -376,35 +367,28 @@ class AnalysisPipeline:
             self._detector = PersonDetector(model_size="n", confidence=0.5)
         return self._detector
 
-    def _get_pose_2d_extractor(self) -> "RTMPoseExtractor | H36MExtractor":  # type: ignore[valid-type]
-        """Lazy-load 2D pose extractor based on configured backend."""
+    def _get_pose_2d_extractor(self) -> "RTMPoseExtractor":  # type: ignore[valid-type]
+        """Lazy-load RTMPoseExtractor (sole 2D pose backend)."""
         if self._pose_2d_extractor is None:
-            if self._pose_backend == "rtmlib":
-                from .pose_estimation.rtmlib_extractor import RTMPoseExtractor
+            from .pose_estimation.rtmlib_extractor import RTMPoseExtractor
 
-                self._pose_2d_extractor = RTMPoseExtractor(
-                    output_format="normalized",
-                    device=self._device_config.device,
-                )
-            else:
-                from .pose_estimation import H36MExtractor
-
-                self._pose_2d_extractor = H36MExtractor(
-                    output_format="normalized",
-                    device=self._device_config.device,
-                )
+            self._pose_2d_extractor = RTMPoseExtractor(
+                output_format="normalized",
+                device=self._device_config.device,
+            )
         return self._pose_2d_extractor  # type: ignore[return-value]
 
-    def _get_pose_3d_extractor(self) -> "AthletePose3DExtractor":  # type: ignore[valid-type]
-        """Lazy-load 3D pose lifter (MotionAGFormer)."""
+    def _get_pose_3d_extractor(self) -> "AthletePose3DExtractor | None":  # type: ignore[valid-type]
+        """Lazy-load 3D pose lifter (MotionAGFormer). Returns None if model not found."""
         if self._pose_3d_extractor is None:
+            model_path = Path("data/models/motionagformer-s-ap3d.onnx")
+            if not model_path.exists():
+                return None
             from .pose_3d import AthletePose3DExtractor
 
-            model_path = "data/models/motionagformer-s-ap3d.onnx"
             self._pose_3d_extractor = AthletePose3DExtractor(
-                model_path=Path(model_path) if Path(model_path).exists() else None,
+                model_path=model_path,
                 device=self._device_config.device,
-                use_simple=True,  # Fallback to biomechanics estimator
             )
         return self._pose_3d_extractor
 

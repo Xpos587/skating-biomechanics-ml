@@ -12,7 +12,7 @@ from pathlib import Path
 
 from skating_biomechanics_ml.references import ReferenceBuilder, ReferenceStore
 
-from src.pose_estimation import H36MExtractor
+from src.pose_estimation import RTMPoseExtractor
 from src.pose_estimation.normalizer import PoseNormalizer
 from src.types import ElementPhase
 from src.utils.video import get_video_meta
@@ -85,7 +85,7 @@ def main() -> None:
         return 1
 
     # Initialize components
-    pose_extractor = H36MExtractor(model_size="m")
+    pose_extractor = RTMPoseExtractor(mode="balanced")
     normalizer = PoseNormalizer(target_spine_length=0.4)
     builder = ReferenceBuilder(pose_extractor, normalizer)
 

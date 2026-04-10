@@ -24,13 +24,10 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 # Suppress onnxruntime "Some nodes not assigned to preferred EP" warnings
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")  # 3 = ORT_LOGGING_LEVEL_ERROR
-
-if TYPE_CHECKING:
-    import torch as torch_module
 
 logger = logging.getLogger(__name__)
 
@@ -135,13 +132,6 @@ class DeviceConfig:
         if self.is_cuda:
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
         return ["CPUExecutionProvider"]
-
-    @property
-    def torch_device(self) -> torch_module.device:
-        """torch.device object for PyTorch models (requires torch extra)."""
-        import torch
-
-        return torch.device(self.device)
 
     def __repr__(self) -> str:
         return f"DeviceConfig(device={self.device!r})"

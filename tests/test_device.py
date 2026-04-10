@@ -82,26 +82,6 @@ class TestDeviceConfig:
             cfg = DeviceConfig(device="cuda")
             assert cfg.onnx_providers == ["CUDAExecutionProvider", "CPUExecutionProvider"]
 
-    def test_torch_device_cuda(self):
-        """torch_device property returns correct torch device."""
-        from src.device import DeviceConfig
-
-        mock_torch = mock.MagicMock()
-        with mock.patch.dict("sys.modules", {"torch": mock_torch}):
-            cfg = DeviceConfig(device="cpu")
-            _ = cfg.torch_device
-            mock_torch.device.assert_called_with("cpu")
-
-    def test_torch_device_cpu(self):
-        """torch_device property returns cpu device."""
-        from src.device import DeviceConfig
-
-        mock_torch = mock.MagicMock()
-        with mock.patch.dict("sys.modules", {"torch": mock_torch}):
-            cfg = DeviceConfig(device="cpu")
-            _ = cfg.torch_device
-            mock_torch.device.assert_called_with("cpu")
-
     def test_default_class_method(self):
         """DeviceConfig.default() returns auto-resolved config."""
         from src.device import DeviceConfig

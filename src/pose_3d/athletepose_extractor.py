@@ -1,6 +1,7 @@
-"""AthletePose3D 3D pose estimator.
+"""AthletePose3D 3D pose estimator (ONNX Runtime).
 
-Monocular 3D pose estimation using fine-tuned AthletePose3D models.
+Monocular 3D pose estimation using fine-tuned AthletePose3D models
+via ONNX Runtime — no PyTorch dependency.
 
 Models:
 - MotionAgFormer-S: 59MB, fast, suitable for RTX 3050 Ti
@@ -9,20 +10,18 @@ Models:
 Reference: AthletePose3D: A Large-Scale 3D Sports Pose Dataset
 """
 
-from collections import deque
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from .onnx_extractor import ONNXPoseExtractor
 
 
 class AthletePose3DExtractor:
-    """Monocular 3D pose estimation using AthletePose3D.
+    """Monocular 3D pose estimation using AthletePose3D (ONNX Runtime).
 
     Processes 2D poses (H3.6M 17-keypoint format) and outputs 3D poses.
-    Supports MotionAGFormer and TCPFormer architectures.
+    Requires a .onnx model file (PyTorch .pth.tr is no longer supported).
 
     Model Types:
         - motionagformer-s: Small, fast (59MB)
@@ -30,7 +29,6 @@ class AthletePose3DExtractor:
         - tcpformer: High accuracy (422MB)
     """
 
-    # Temporal window size (frames)
     TEMPORAL_WINDOW = 81
 
     def __init__(
@@ -38,177 +36,22 @@ class AthletePose3DExtractor:
         model_path: Path | str | None = None,
         device: str = "auto",
         model_type: str = "motionagformer-s",
-    ):
+    ) -> None:
         """Initialize the 3D pose estimator.
 
         Args:
-            model_path: Path to model checkpoint (.pth.tr file) or ONNX (.onnx).
+            model_path: Path to .onnx model file.
             device: "cuda", "cpu", or "auto" (default).
-            model_type: Model architecture type ("motionagformer-s", "motionagformer-b", "tcpformer").
+            model_type: Model architecture type (informational only — ONNX is architecture-agnostic).
         """
         if model_path is None:
             raise FileNotFoundError(
-                "AthletePose3DExtractor requires a model_path. Pass a .pth.tr or .onnx model file."
+                "AthletePose3DExtractor requires a model_path. Pass a .onnx model file."
             )
+
         self.model_path = Path(model_path)
         self.model_type = model_type.lower()
-
-        # Auto-detect ONNX model — skip PyTorch entirely when available
-        self._onnx = None
-        self._onnx_mode = False
-        if model_path is not None:
-            onnx_path = Path(model_path).with_suffix(".onnx")
-            if onnx_path.exists():
-                self._onnx = ONNXPoseExtractor(onnx_path, device=device)
-                self._onnx_mode = True
-                import logging as _log
-
-                _log.info(f"Using ONNX model: {onnx_path.name} (no PyTorch needed)")
-                return
-
-        # PyTorch fallback (only if no ONNX)
-        from ..device import DeviceConfig
-
-        cfg = DeviceConfig(device=device)
-        self.device = torch.device(cfg.device)
-
-        # Temporal buffer for 81-frame window
-        self.temporal_buffer: deque[np.ndarray] = deque(maxlen=self.TEMPORAL_WINDOW)
-
-        # Load model (lazy loading on first use)
-        self.model: torch.nn.Module | None = None
-        self._model_loaded = False
-
-        # Simple biomechanics estimator removed — use ML model only
-
-    def _load_model(self) -> torch.nn.Module:
-        """Load the 3D pose model (MotionAGFormer or TCPFormer)."""
-        if self._model_loaded:
-            return self.model  # type: ignore
-
-        if not self.model_path or not self.model_path.exists():  # type: ignore[optional-attr]
-            raise FileNotFoundError(f"Model not found: {self.model_path}")
-
-        # Import models from our models directory
-        import sys
-        from pathlib import Path
-
-        # Add models directory to path
-        models_dir = Path(__file__).parent.parent / "models"
-        if str(models_dir) not in sys.path:
-            sys.path.insert(0, str(models_dir))
-
-        # Load checkpoint
-        checkpoint = torch.load(
-            self.model_path,  # type: ignore[arg-type]
-            map_location=self.device,
-            weights_only=False,
-        )
-
-        # Choose model class based on type
-        if self.model_type == "tcpformer":
-            from tcpformer import MemoryInducedTransformer  # type: ignore[import]
-
-            ModelClass = MemoryInducedTransformer
-            # TCPFormer uses 3 input channels (x, y, confidence)
-            dim_in = 3
-            # TCPFormer checkpoint has specific configuration
-            n_layers = 16
-            dim_feat = 128
-        else:
-            # Default to MotionAGFormer
-            from motionagformer import MotionAGFormer  # type: ignore[import]
-
-            ModelClass = MotionAGFormer
-            # MotionAGFormer also uses 3 input channels (x, y, confidence)
-            dim_in = 3
-
-            # Determine model configuration based on type
-            if self.model_type == "motionagformer-s":
-                n_layers = 4
-                dim_feat = 64
-            elif self.model_type == "motionagformer-b":
-                n_layers = 8
-                dim_feat = 128
-            else:
-                # Default to small config
-                n_layers = 4
-                dim_feat = 64
-
-        # Create model
-        self.model = ModelClass(
-            n_layers=n_layers,
-            dim_in=dim_in,
-            dim_feat=dim_feat,
-            dim_rep=512,
-            dim_out=3,  # 3D output (x, y, z)
-            num_heads=4,
-            num_joints=17,
-            n_frames=self.TEMPORAL_WINDOW,
-        )
-
-        # Extract state dict from checkpoint
-        if "model" in checkpoint:
-            # TCPFormer format
-            state_dict = checkpoint["model"]
-        elif "model_state_dict" in checkpoint:
-            state_dict = checkpoint["model_state_dict"]
-        elif "state_dict" in checkpoint:
-            state_dict = checkpoint["state_dict"]
-        else:
-            state_dict = checkpoint
-
-        # Strip 'module.' prefix (from DataParallel wrapper)
-        # AND move tensors to target device to avoid device mismatch
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            new_key = k[7:] if k.startswith("module.") else k
-            # Move tensor to target device
-            if isinstance(v, torch.Tensor):
-                new_state_dict[new_key] = v.to(self.device)
-            else:
-                new_state_dict[new_key] = v
-
-        # Load weights (handle different architectures)
-        if self.model is not None:
-            if self.model_type == "tcpformer":
-                # TCPFormer uses strict loading (architecture matches)
-                self.model.load_state_dict(new_state_dict, strict=True)
-            else:
-                # MotionAGFormer - use non-strict (checkpoint has only att branches)
-                self.model.load_state_dict(new_state_dict, strict=False)
-            self.model.to(self.device)
-            self.model.eval()
-            self._model_loaded = True
-
-        return self.model  # type: ignore[return-value]
-
-    def extract_frame(
-        self,
-        pose_2d: np.ndarray,
-    ) -> np.ndarray | None:
-        """Extract 3D pose from single 2D pose (with temporal context).
-
-        Args:
-            pose_2d: (17, 2) or (17, 3) array in H3.6M format
-                - If (17, 2): x, y coordinates
-                - If (17, 3): x, y, confidence
-
-        Returns:
-            pose_3d: (17, 3) array with x, y, z coordinates
-                Returns None if temporal buffer not full yet
-        """
-        # Add to temporal buffer
-        self.temporal_buffer.append(pose_2d)
-
-        # Need full window for inference
-        if len(self.temporal_buffer) < self.TEMPORAL_WINDOW:
-            return None
-
-        # Stack into temporal window
-        window = np.stack(list(self.temporal_buffer))  # (81, 17, 2 or 3)
-
-        return self._extract_window(window)
+        self._onnx = ONNXPoseExtractor(self.model_path, device=device)
 
     def extract_sequence(
         self,
@@ -222,74 +65,10 @@ class AthletePose3DExtractor:
         Returns:
             poses_3d: (N, 17, 3) array with x, y, z coordinates
         """
-        # ONNX path — no PyTorch needed
-        if self._onnx_mode and self._onnx is not None:
-            return self._onnx.estimate_3d(poses_2d[:, :, :2])
+        return self._onnx.estimate_3d(poses_2d[:, :, :2])
 
-        n_frames = poses_2d.shape[0]
-
-        # Ensure correct format (add confidence if needed)
-        if poses_2d.shape[2] == 2:
-            poses_with_conf = np.zeros((n_frames, 17, 3), dtype=np.float32)
-            poses_with_conf[:, :, :2] = poses_2d
-            poses_with_conf[:, :, 2] = 1.0
-            poses_2d = poses_with_conf
-
-        # Pad sequence to multiple of window size
-        pad_size = (self.TEMPORAL_WINDOW - (n_frames % self.TEMPORAL_WINDOW)) % self.TEMPORAL_WINDOW
-        if pad_size > 0:
-            padding = np.tile(poses_2d[-1:], (pad_size, 1, 1))
-            poses_2d_padded = np.vstack([poses_2d, padding])
-        else:
-            poses_2d_padded = poses_2d
-
-        # Process in windows with stride for overlap
-        stride = self.TEMPORAL_WINDOW // 4  # 25% overlap for smoother output
-        poses_3d_accum = np.zeros((len(poses_2d_padded), 17, 3), dtype=np.float32)
-        poses_3d_count = np.zeros(len(poses_2d_padded), dtype=np.int32)
-
-        for i in range(0, len(poses_2d_padded) - self.TEMPORAL_WINDOW + 1, stride):
-            window = poses_2d_padded[i : i + self.TEMPORAL_WINDOW]
-            poses_3d_window = self._extract_window(window)
-
-            # Accumulate poses from this window
-            end_idx = i + self.TEMPORAL_WINDOW
-            poses_3d_accum[i:end_idx] += poses_3d_window
-            poses_3d_count[i:end_idx] += 1
-
-        # Average overlapping regions
-        poses_3d = poses_3d_accum[:n_frames] / poses_3d_count[:n_frames, np.newaxis, np.newaxis]
-
-        return poses_3d
-
-    def _extract_window(self, window: np.ndarray) -> np.ndarray:
-        """Extract 3D pose from temporal window.
-
-        Args:
-            window: (81, 17, 2) or (81, 17, 3) array
-
-        Returns:
-            pose_3d: (81, 17, 3) array - all frames in window
-        """
-        # Convert to tensor
-        tensor = torch.from_numpy(window).float().to(self.device)
-
-        # Add batch dimension
-        tensor = tensor.unsqueeze(0)  # (1, 81, 17, 2 or 3)
-
-        # Run inference
-        with torch.no_grad():
-            model = self._load_model()
-            output = model(tensor)  # (1, 81, 17, 3)
-
-        # Extract all frames from output
-        pose_3d = output[0].cpu().numpy()  # (81, 17, 3)
-
-        return pose_3d
-
-    def reset(self):
-        """Reset temporal buffer."""
-        self.temporal_buffer.clear()
+    def reset(self) -> None:
+        """Reset internal state (ONNX extractor is stateless — no-op)."""
 
 
 # Standalone function for quick inference
@@ -305,8 +84,8 @@ def extract_3d_poses(
 
     Args:
         poses_2d: (N, 17, 2) array in H3.6M format
-        model_path: Path to model checkpoint
-        model_type: Model architecture type ("motionagformer-s", "tcpformer")
+        model_path: Path to .onnx model file
+        model_type: Model architecture type (informational only).
         device: "cuda", "cpu", or "auto"
 
     Returns:
@@ -315,13 +94,11 @@ def extract_3d_poses(
     Raises:
         ValueError: If poses_2d is not in H3.6M 17-keypoint format
     """
-    # Validate input format - must be H3.6M 17 keypoints
     if poses_2d.shape[1] != 17:
         raise ValueError(
             f"poses_2d must have 17 keypoints in H3.6M format, got {poses_2d.shape[1]}. "
-            f"Use H36MExtractor for new pose extraction."
+            f"Use RTMPoseExtractor for new pose extraction."
         )
 
-    # Create extractor and run
     extractor = AthletePose3DExtractor(model_path, device, model_type)
     return extractor.extract_sequence(poses_2d)

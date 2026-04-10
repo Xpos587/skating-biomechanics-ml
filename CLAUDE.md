@@ -15,8 +15,7 @@ ML-based AI coach for figure skating. Analyzes video, compares attempts to profe
 
 | Component | Technology |
 |-----------|-----------|
-| **2D Pose** | RTMPose via rtmlib (HALPE26, 26kp with feet) **default** |
-| **2D Pose (alt)** | YOLO26-Pose (H3.6M, 17kp) |
+| **2D Pose** | RTMPose via rtmlib (HALPE26, 26kp with feet) |
 | **3D Lifting** | MotionAGFormer-S / Biomechanics3DEstimator |
 | **3D Correction** | CorrectiveLens (kinematic constraints + anchor projection) |
 | **Tracking** | PoseTracker (OC-SORT + anatomical biometrics) |
@@ -37,7 +36,7 @@ Video → RTMPose (rtmlib, CUDA) → HALPE26 (26kp)
 ```
 
 **Key decisions:**
-- **rtmlib > YOLO-Pose**: better tracking, foot keypoints, ONNX (CPU+GPU)
+- **rtmlib**: sole pose estimation backend — HALPE26 (26kp), ONNX (CPU+GPU), foot keypoints
 - **HALPE26 (26kp)** as intermediate format, converted to H3.6M (17kp) for downstream
 - **CorrectiveLens**: 3D lifting as corrective layer for 2D skeleton (Kinovea-style angles)
 - **PoseTracker**: anatomical biometric Re-ID instead of color (solves black clothing on ice)
@@ -52,7 +51,7 @@ src/
 ├── cli.py                            # argparse CLI (analyze, build-ref, segment, compare)
 ├── pose_estimation/
 │   ├── rtmlib_extractor.py           # RTMPose via rtmlib (HALPE26, tracking, CUDA)
-│   ├── h36m_extractor.py             # YOLO26-Pose (H3.6M, tracked extraction)
+│   ├── h36m.py                       # H3.6M constants, skeleton edges, conversion functions
 │   ├── halpe26.py                    # HALPE26 constants + H3.6M mapping + foot angles
 │   └── normalizer.py                 # Root-centering + scale normalization
 ├── pose_3d/
@@ -91,12 +90,10 @@ src/
     └── reference_store.py            # Save/load .npz
 
 scripts/
-├── visualize_with_skeleton.py        # Main viz script (layered HUD, --3d, --pose-backend)
+├── visualize_with_skeleton.py        # Main viz script (layered HUD, --3d)
 ├── compare_models.py                 # Compare pose backends side-by-side
 ├── setup_cuda_compat.sh              # CUDA 12 compat for onnxruntime on CUDA 13.x
-├── check_all.py                      # Quality checks
-├── download_models.py                # Download model weights
-└── test_vastai_endpoint.py           # Smoke test for Vast.ai Serverless endpoint
+└── check_all.py                      # Quality checks
 
 vastai/
 ├── Containerfile                     # Multi-stage GPU worker image (4.9GB, no torch)
@@ -123,17 +120,15 @@ tests/
 ## CLI Usage
 
 ```bash
-uv run python -m src.cli analyze video.mp4 --element waltz_jump --pose-backend rtmlib
+uv run python -m src.cli analyze video.mp4 --element waltz_jump
 uv run python -m src.cli build-ref expert.mp4 --element waltz_jump
 uv run python -m src.cli compare attempt.mp4 reference.mp4 --overlays skeleton,angles,timer
 uv run python scripts/visualize_with_skeleton.py video.mp4 --layer 2 --3d --output out.mp4
-uv run python scripts/compare_models.py video.mp4 --backends rtmlib,yolo26 --conf-threshold 0.3
 ```
 
 ### Visualization Options
 
 ```
---pose-backend rtmlib|yolo   # Pose estimation backend
 --3d                         # Enable 3D-corrected 2D overlay (CorrectiveLens)
 --layer 0-3                  # HUD layer (0=skeleton, 3=full coaching HUD)
 --render-scale 0.5           # Downscale rendering for speed
@@ -165,6 +160,7 @@ System has CUDA 13.2, onnxruntime-gpu needs CUDA 12 compat libs in `.venv/cuda-c
 
 - `poses_norm` — Normalized [0,1], `poses_px` — Pixel coordinates. Validate with `assert_pose_format()`.
 - `halpe26_to_h36m()`: 26kp (COCO 17 + 6 foot + 3 face) → 17kp H3.6M. Foot keypoints preserved separately.
+- **RTMPose (rtmlib)** is the sole pose estimation backend. HALPE26 26kp extracted, converted to H3.6M 17kp for downstream analysis.
 - **CorrectiveLens**: 2D → MotionAGFormer 3D lift → kinematic constraints → anchor projection → blend.
 - **CUDA compat**: standalone CUDA 12 libs in `.venv/cuda-compat/` with patched RUNPATH.
 

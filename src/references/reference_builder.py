@@ -2,7 +2,7 @@
 
 H3.6M Migration:
     Uses H3.6M 17-keypoint format as the primary format.
-    2D extraction: H36MExtractor (BlazePose backend with integrated conversion)
+    2D extraction: RTMPoseExtractor (rtmlib BodyWithFeet)
 
 This module provides tools to create reference datasets from
 expert skating videos for comparison with user performances.
@@ -22,15 +22,14 @@ from ..utils.video import get_video_meta
 
 if TYPE_CHECKING:
     from .normalizer import PoseNormalizer  # type: ignore[import-untyped]
-    from .pose_estimation import H36MExtractor as PoseExtractor  # type: ignore[import-untyped]
+    from .pose_estimation import RTMPoseExtractor as PoseExtractor  # type: ignore[import-untyped]
 
 
 class ReferenceBuilder:
     """Build reference data from expert skating videos.
 
     H3.6M Architecture:
-        - 2D poses: H36MExtractor (17 keypoints, normalized [0,1])
-        - No intermediate 33kp storage
+        - 2D poses: RTMPoseExtractor (17 keypoints, normalized [0,1])
     """
 
     def __init__(
@@ -41,7 +40,7 @@ class ReferenceBuilder:
         """Initialize reference builder.
 
         Args:
-            pose_extractor: H36MExtractor instance.
+            pose_extractor: RTMPoseExtractor instance.
             normalizer: PoseNormalizer instance.
         """
         self._pose_extractor = pose_extractor
