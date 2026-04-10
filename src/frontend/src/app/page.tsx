@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, CheckCircle, Loader2, Upload } from "lucide-react"
+import { AlertCircle, CheckCircle, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Slider } from "@/components/ui/slider"
 import { detectPersons } from "@/lib/api"
 import { toastError, toastSuccess } from "@/lib/toast"
@@ -202,11 +203,31 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading — skeleton matching the ready-state layout */}
       {isAnalyzing && (
-        <div className="flex flex-col items-center justify-center gap-4 py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Обнаружение людей...</p>
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="aspect-video w-full rounded-md" />
+              <Skeleton className="h-3 w-48" />
+            </CardContent>
+          </Card>
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardContent className="space-y-3 p-4">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-full" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="space-y-3 p-4">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
