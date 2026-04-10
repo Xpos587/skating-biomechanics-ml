@@ -231,6 +231,7 @@ export default function UploadPage() {
                 }}
                 className="relative w-full cursor-crosshair"
               >
+                {/* biome-ignore lint/performance/noImgElement: base64 preview, not optimizable */}
                 <img
                   ref={imgRef}
                   src={previewSrc}

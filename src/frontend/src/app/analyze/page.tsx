@@ -2,7 +2,7 @@
 
 import { AlertCircle, ArrowLeft, CheckCircle, Download, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -11,7 +11,7 @@ import type { PersonClick, ProcessResponse } from "@/types"
 
 type Phase = "processing" | "done" | "error"
 
-export default function AnalyzePage() {
+function AnalyzeContent() {
   const params = useSearchParams()
   const router = useRouter()
 
@@ -162,5 +162,13 @@ export default function AnalyzePage() {
         </Card>
       )}
     </div>
+  )
+}
+
+export default function AnalyzePage() {
+  return (
+    <Suspense>
+      <AnalyzeContent />
+    </Suspense>
   )
 }
