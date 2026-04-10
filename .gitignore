@@ -107,3 +107,4 @@ src/frontend/dist/
 
 # Coverage
 coverage/
+package-lock.json

@@ -1,17 +1,23 @@
-import { AlertCircle, ArrowLeft, CheckCircle, Download, Loader2 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+"use client"
+
+import { AlertCircle, Loader2 } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { DownloadSection } from "@/components/dashboard/download-section"
+import { StatsCards } from "@/components/dashboard/stats-cards"
+import { VideoPlayer } from "@/components/dashboard/video-player"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { processVideo } from "@/lib/api"
+import { toastError, toastSuccess } from "@/lib/toast"
 import type { PersonClick, ProcessResponse } from "@/types"
 
 type Phase = "processing" | "done" | "error"
 
-export default function AnalyzePage() {
-  const [params] = useSearchParams()
-  const navigate = useNavigate()
+function AnalyzeContent() {
+  const params = useSearchParams()
+  const router = useRouter()
 
   const [phase, setPhase] = useState<Phase>("processing")
   const [progress, setProgress] = useState(0)
@@ -55,10 +61,12 @@ export default function AnalyzePage() {
         onResult(r) {
           setResult(r as ProcessResponse)
           setPhase("done")
+          toastSuccess("Анализ завершён")
         },
         onError(err) {
           setError(err)
           setPhase("error")
+          toastError(err)
         },
       },
     )
@@ -73,12 +81,7 @@ export default function AnalyzePage() {
   const csvUrl = result?.csv_path ? `/api/outputs/${result.csv_path}` : null
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <Button variant="ghost" onClick={() => navigate("/")} className="mb-4 gap-1">
-        <ArrowLeft className="h-4 w-4" />
-        Назад
-      </Button>
-
+    <div>
       {/* Processing */}
       {phase === "processing" && (
         <Card>
@@ -92,55 +95,12 @@ export default function AnalyzePage() {
         </Card>
       )}
 
-      {/* Done */}
+      {/* Done — dashboard */}
       {phase === "done" && result && (
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <h2 className="font-medium">{result.status}</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground sm:grid-cols-4">
-                <span>Кадров: {result.stats.total_frames}</span>
-                <span>Валидных: {result.stats.valid_frames}</span>
-                <span>FPS: {result.stats.fps}</span>
-                <span>{result.stats.resolution}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              {/* biome-ignore lint/a11y/useMediaCaption: analysis output, not media */}
-              <video src={videoUrl} controls className="w-full rounded border border-border" />
-            </CardContent>
-          </Card>
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <a href={videoUrl} download>
-                <Download className="mr-1 h-4 w-4" />
-                Видео
-              </a>
-            </Button>
-            {posesUrl && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={posesUrl} download>
-                  <Download className="mr-1 h-4 w-4" />
-                  Позы (.npy)
-                </a>
-              </Button>
-            )}
-            {csvUrl && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={csvUrl} download>
-                  <Download className="mr-1 h-4 w-4" />
-                  Биомеханика (.csv)
-                </a>
-              </Button>
-            )}
-          </div>
+        <div className="space-y-6">
+          <StatsCards stats={result.stats} />
+          <VideoPlayer src={videoUrl} />
+          <DownloadSection videoUrl={videoUrl} posesUrl={posesUrl} csvUrl={csvUrl} />
         </div>
       )}
 
@@ -152,7 +112,7 @@ export default function AnalyzePage() {
             <p className="text-destructive">{error}</p>
             <div className="flex gap-2">
               <Button onClick={startProcessing}>Повторить</Button>
-              <Button variant="outline" onClick={() => navigate("/")}>
+              <Button variant="outline" onClick={() => router.push("/")}>
                 Назад
               </Button>
             </div>
@@ -160,5 +120,13 @@ export default function AnalyzePage() {
         </Card>
       )}
     </div>
+  )
+}
+
+export default function AnalyzePage() {
+  return (
+    <Suspense>
+      <AnalyzeContent />
+    </Suspense>
   )
 }

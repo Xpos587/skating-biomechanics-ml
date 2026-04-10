@@ -1,6 +1,8 @@
-import { AlertCircle, CheckCircle, Loader2, Upload } from "lucide-react"
+"use client"
+
+import { AlertCircle, CheckCircle, Upload } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useCallback, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,14 +13,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Slider } from "@/components/ui/slider"
 import { detectPersons } from "@/lib/api"
+import { toastError, toastSuccess } from "@/lib/toast"
 import type { DetectResponse, PersonClick } from "@/types"
+
+const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
+const VALID_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"]
+
+function isValidVideoFile(file: File): boolean {
+  return VALID_VIDEO_TYPES.includes(file.type) && file.size <= MAX_FILE_SIZE
+}
 
 type Status = "idle" | "uploading" | "detecting" | "ready" | "error"
 
 export default function UploadPage() {
-  const navigate = useNavigate()
+  const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
 
@@ -43,6 +54,10 @@ export default function UploadPage() {
 
   const handleFile = useCallback(
     async (f: File) => {
+      if (!isValidVideoFile(f)) {
+        toastError("Файл должен быть видео (MP4, MOV, WebM) до 500 МБ")
+        return
+      }
       setFile(f)
       setStatus("uploading")
       setError("")
@@ -66,6 +81,7 @@ export default function UploadPage() {
       }
 
       setStatus("ready")
+      toastSuccess(`Обнаружено людей: ${resp.persons.length}`)
     },
     [tracking],
   )
@@ -139,7 +155,7 @@ export default function UploadPage() {
       tracking,
       export: String(doExport),
     })
-    navigate(`/analyze?${params.toString()}`)
+    router.push(`/analyze?${params.toString()}`)
   }
 
   const isAnalyzing = status === "uploading" || status === "detecting"
@@ -156,7 +172,7 @@ export default function UploadPage() {
     : undefined
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div>
       {/* Upload zone */}
       {status === "idle" && (
         /* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop */
@@ -187,11 +203,31 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading — skeleton matching the ready-state layout */}
       {isAnalyzing && (
-        <div className="flex flex-col items-center justify-center gap-4 py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Обнаружение людей...</p>
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="aspect-video w-full rounded-md" />
+              <Skeleton className="h-3 w-48" />
+            </CardContent>
+          </Card>
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardContent className="space-y-3 p-4">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-full" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="space-y-3 p-4">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -229,6 +265,7 @@ export default function UploadPage() {
                 }}
                 className="relative w-full cursor-crosshair"
               >
+                {/* biome-ignore lint/performance/noImgElement: base64 preview, not optimizable */}
                 <img
                   ref={imgRef}
                   src={previewSrc}

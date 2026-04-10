@@ -1,3 +1,4 @@
+import type { ProcessRequest, ProcessResponse } from "@/lib/schemas"
 import { DetectResponseSchema, ProcessRequestSchema } from "@/lib/schemas"
 
 const API_BASE = "/api"

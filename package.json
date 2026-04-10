@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "next": "^16.2.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "happy-dom": "^20.8.9"
+  }
+}

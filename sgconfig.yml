@@ -1,0 +1,7 @@
+rule_dirs:
+  - ast-grep
+test_dirs:
+  - ast-grep/__tests__
+util_dirs: []
+language_globs:
+  tsx: "src/frontend/**/*.{ts,tsx}"

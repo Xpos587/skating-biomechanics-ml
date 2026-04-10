@@ -1,0 +1,22 @@
+id: no-use-effect-import
+language: tsx
+message: |
+  Don't import useEffect directly. Use useMountEffect from "@/lib/useMountEffect" for mount-only effects.
+  See: no-use-effect skill — Rules 1-5 cover all useEffect replacements.
+
+  | Instead of useEffect for...         | Use                          |
+  |-------------------------------------|------------------------------|
+  | Deriving state from state/props     | Inline computation (Rule 1)  |
+  | Fetching data                       | useQuery / data lib (Rule 2) |
+  | Responding to user actions          | Event handlers (Rule 3)      |
+  | One-time external sync on mount     | useMountEffect (Rule 4)      |
+  | Resetting state when prop changes   | key prop on parent (Rule 5)  |
+severity: error
+note: Only useMountEffect.tsx may import useEffect (it wraps useEffect with empty deps).
+rule:
+  kind: import_statement
+  has:
+    kind: import_specifier
+    has:
+      pattern: useEffect
+    stopBy: end
