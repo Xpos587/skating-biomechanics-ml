@@ -13,7 +13,7 @@ from src.backend.database import get_db
 from src.backend.models.user import User
 from src.config import get_settings
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 settings = get_settings()
 

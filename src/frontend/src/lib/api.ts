@@ -2,7 +2,7 @@ import { authHeaders } from "@/lib/auth"
 import type { ProcessRequest, ProcessResponse } from "@/lib/schemas"
 import { DetectResponseSchema, ProcessRequestSchema } from "@/lib/schemas"
 
-const API_BASE = "/api"
+const API_BASE = "/api/v1"
 
 export interface ModelStatus {
   id: string

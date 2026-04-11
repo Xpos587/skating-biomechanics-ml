@@ -11,10 +11,11 @@ from src.backend.models import User
 @pytest.fixture
 def app():
     from fastapi import FastAPI
+
     from src.backend.routes.users import router
 
     app = FastAPI()
-    app.include_router(router, prefix="/api/users")
+    app.include_router(router, prefix="/api/v1/users")
     return app
 
 
@@ -56,7 +57,7 @@ def auth_headers(authed_user):
 @pytest.mark.asyncio
 async def test_get_me(client: AsyncClient, auth_headers):
     """Test GET /api/users/me returns current user."""
-    response = await client.get("/api/users/me", headers=auth_headers)
+    response = await client.get("/api/v1/users/me", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "user@example.com"
@@ -69,7 +70,7 @@ async def test_get_me(client: AsyncClient, auth_headers):
 @pytest.mark.asyncio
 async def test_get_me_unauthorized(client: AsyncClient):
     """Test GET /api/users/me without auth returns 401."""
-    response = await client.get("/api/users/me")
+    response = await client.get("/api/v1/users/me")
     assert response.status_code == 401
 
 
@@ -77,7 +78,7 @@ async def test_get_me_unauthorized(client: AsyncClient):
 async def test_update_profile(client: AsyncClient, auth_headers):
     """Test PATCH /api/users/me updates profile fields."""
     response = await client.patch(
-        "/api/users/me",
+        "/api/v1/users/me",
         json={"display_name": "New Name", "bio": "Updated bio", "height_cm": 180},
         headers=auth_headers,
     )
@@ -92,7 +93,7 @@ async def test_update_profile(client: AsyncClient, auth_headers):
 async def test_update_settings(client: AsyncClient, auth_headers):
     """Test PATCH /api/users/me/settings updates preferences."""
     response = await client.patch(
-        "/api/users/me/settings",
+        "/api/v1/users/me/settings",
         json={"language": "en", "theme": "dark"},
         headers=auth_headers,
     )

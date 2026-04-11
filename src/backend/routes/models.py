@@ -27,7 +27,7 @@ class ModelStatus(BaseModel):
     size_mb: float | None = None
 
 
-@router.get("/api/models", response_model=list[ModelStatus])
+@router.get("/models", response_model=list[ModelStatus])
 async def list_models() -> list[ModelStatus]:
     results = []
     for model_id, filename in _MODEL_FILES.items():

@@ -40,7 +40,7 @@ def _encode_frame_bgr(frame: np.ndarray) -> str:
     return base64.b64encode(buf).decode("ascii")
 
 
-@router.post("/api/detect", response_model=DetectResponse)
+@router.post("/detect", response_model=DetectResponse)
 async def detect_persons(
     video: UploadFile,
     tracking: str = "auto",

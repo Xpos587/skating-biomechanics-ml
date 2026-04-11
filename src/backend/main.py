@@ -25,11 +25,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(detect.router)
-app.include_router(models.router)
-app.include_router(process.router)
+app.include_router(auth.router, prefix="/api/v1/auth")
+app.include_router(users.router, prefix="/api/v1/users")
+app.include_router(detect.router, prefix="/api/v1")
+app.include_router(models.router, prefix="/api/v1")
+app.include_router(process.router, prefix="/api/v1")
 
 # Serve output files (videos, NPY, CSV)
 OUTPUTS_DIR = Path("data/uploads")

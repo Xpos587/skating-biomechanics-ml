@@ -1,7 +1,7 @@
 import type { LoginRequest, RegisterRequest, TokenResponse, UserResponse } from "@/lib/auth-schemas"
 import { TokenResponseSchema, UserResponseSchema } from "@/lib/auth-schemas"
 
-const API_BASE = "/api"
+const API_BASE = "/api/v1"
 
 const TOKEN_KEY = "access_token"
 const REFRESH_KEY = "refresh_token"

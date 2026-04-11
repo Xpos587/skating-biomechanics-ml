@@ -46,7 +46,7 @@ _executor = ThreadPoolExecutor(max_workers=1)
 _cancel_event = threading.Event()
 
 
-@router.post("/api/process")
+@router.post("/process")
 async def process_video(req: ProcessRequest) -> EventSourceResponse:
     """Run the visualization pipeline and stream progress via SSE."""
 
@@ -149,14 +149,14 @@ async def process_video(req: ProcessRequest) -> EventSourceResponse:
     return EventSourceResponse(event_generator())
 
 
-@router.post("/api/process/cancel")
+@router.post("/process/cancel")
 async def cancel_processing():
     """Cancel the currently running pipeline."""
     _cancel_event.set()
     return {"status": "cancelled"}
 
 
-@router.post("/api/process/queue", response_model=QueueProcessResponse)
+@router.post("/process/queue", response_model=QueueProcessResponse)
 async def enqueue_process(req: ProcessRequest):
     """Enqueue video processing job and return task_id immediately."""
     settings = get_settings()
@@ -203,7 +203,7 @@ async def enqueue_process(req: ProcessRequest):
     return QueueProcessResponse(task_id=task_id)
 
 
-@router.get("/api/process/{task_id}/status", response_model=TaskStatusResponse)
+@router.get("/process/{task_id}/status", response_model=TaskStatusResponse)
 async def get_process_status(task_id: str):
     """Poll task status."""
     valkey = await get_valkey_client()
@@ -229,7 +229,7 @@ async def get_process_status(task_id: str):
     )
 
 
-@router.post("/api/process/{task_id}/cancel")
+@router.post("/process/{task_id}/cancel")
 async def cancel_queued_process(task_id: str):
     """Cancel a queued or running task via Valkey signal."""
     await set_cancel_signal(task_id)

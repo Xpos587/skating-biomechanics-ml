@@ -16,7 +16,7 @@ def app():
     from src.backend.routes.auth import router
 
     app = FastAPI()
-    app.include_router(router, prefix="/api/auth")
+    app.include_router(router, prefix="/api/v1/auth")
     return app
 
 
@@ -37,7 +37,7 @@ async def client(app, db_session: AsyncSession):
 async def test_register(client: AsyncClient, db_session: AsyncSession):
     """Test successful registration."""
     response = await client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json={"email": "new@example.com", "password": "securepass123"},
     )
     assert response.status_code == 201
@@ -62,7 +62,7 @@ async def test_register_duplicate_email(client: AsyncClient, db_session: AsyncSe
     await db_session.flush()
 
     response = await client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json={"email": "exists@example.com", "password": "securepass123"},
     )
     assert response.status_code == 409
@@ -71,7 +71,7 @@ async def test_register_duplicate_email(client: AsyncClient, db_session: AsyncSe
 async def test_register_short_password(client: AsyncClient):
     """Test registration with short password returns 422."""
     response = await client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json={"email": "new@example.com", "password": "short"},
     )
     assert response.status_code == 422
@@ -84,7 +84,7 @@ async def test_login(client: AsyncClient, db_session: AsyncSession):
     await db_session.flush()
 
     response = await client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         json={"email": "login@example.com", "password": "pass123"},
     )
     assert response.status_code == 200
@@ -100,7 +100,7 @@ async def test_login_wrong_password(client: AsyncClient, db_session: AsyncSessio
     await db_session.flush()
 
     response = await client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         json={"email": "login@example.com", "password": "wrong"},
     )
     assert response.status_code == 401
@@ -109,7 +109,7 @@ async def test_login_wrong_password(client: AsyncClient, db_session: AsyncSessio
 async def test_login_nonexistent_email(client: AsyncClient):
     """Test login with nonexistent email returns 401."""
     response = await client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         json={"email": "nobody@example.com", "password": "pass123"},
     )
     assert response.status_code == 401
@@ -124,7 +124,7 @@ async def test_refresh_tokens(client: AsyncClient, db_session: AsyncSession):
 
     # Login to get tokens
     login_resp = await client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         json={"email": "refresh@example.com", "password": "pass"},
     )
     tokens = login_resp.json()
@@ -132,7 +132,7 @@ async def test_refresh_tokens(client: AsyncClient, db_session: AsyncSession):
 
     # Use refresh token
     refresh_resp = await client.post(
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
         json={"refresh_token": old_refresh},
     )
     assert refresh_resp.status_code == 200
@@ -142,7 +142,7 @@ async def test_refresh_tokens(client: AsyncClient, db_session: AsyncSession):
 
     # Old refresh token should be revoked
     second_refresh = await client.post(
-        "/api/auth/refresh",
+        "/api/v1/auth/refresh",
         json={"refresh_token": old_refresh},
     )
     assert second_refresh.status_code == 401
