@@ -128,7 +128,7 @@ function AnalyzeContent() {
         <Card>
           <CardContent className="flex flex-col items-center gap-4 p-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <h2 className="text-lg font-medium">{t("title")}</h2>
+            <h2 className="nike-h2">{t("title")}</h2>
             <Progress value={progress} className="w-full max-w-md" />
             <p className="text-sm text-muted-foreground">{message}</p>
             <p className="text-xs text-muted-foreground">{progress}%</p>

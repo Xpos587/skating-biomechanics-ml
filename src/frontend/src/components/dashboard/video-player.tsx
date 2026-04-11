@@ -9,7 +9,7 @@ export function VideoPlayer({ src }: VideoPlayerProps) {
     <Card>
       <CardContent className="p-4">
         {/* biome-ignore lint/a11y/useMediaCaption: analysis output, not media */}
-        <video src={src} controls className="w-full rounded-md" />
+        <video src={src} controls className="w-full rounded-none" />
       </CardContent>
     </Card>
   )
