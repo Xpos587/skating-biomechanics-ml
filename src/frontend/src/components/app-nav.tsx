@@ -1,18 +1,25 @@
 "use client"
 
-import { Activity, Settings, Trophy } from "lucide-react"
+import { Activity, LogIn, LogOut, Trophy, User } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 const navItems = [
   { href: "/", label: "Анализ", icon: Activity },
   { href: "/training", label: "Тренировки", icon: Trophy },
-  { href: "/settings", label: "Настройки", icon: Settings },
 ] as const
 
 export function AppNav() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { isAuthenticated, user, logout } = useAuth()
+
+  async function handleLogout() {
+    await logout()
+    router.push("/")
+  }
 
   return (
     <nav className="flex items-center gap-1">
@@ -30,6 +37,34 @@ export function AppNav() {
           </Link>
         )
       })}
+
+      {isAuthenticated ? (
+        <>
+          <Link
+            href="/profile"
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted ${pathname === "/profile" ? "bg-muted font-medium" : "text-muted-foreground"}`}
+          >
+            <User className="h-4 w-4" />
+            <span className="hidden md:inline">{user?.display_name ?? "Профиль"}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </>
+      ) : (
+        <Link
+          href="/login"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted text-muted-foreground"
+        >
+          <LogIn className="h-4 w-4" />
+          <span className="hidden md:inline">Войти</span>
+        </Link>
+      )}
+
       <ThemeToggle />
     </nav>
   )
