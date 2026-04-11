@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     task_ttl_seconds: int = 24 * 60 * 60
 
+    # PostgreSQL
+    database_url: str = "postgresql+asyncpg://skating:skating_dev@localhost:5432/skating_ml"
+
+    # JWT Authentication
+    jwt_secret_key: str = "change-me-to-a-random-secret"
+    jwt_access_token_expire_minutes: int = 15
+    jwt_refresh_token_expire_days: int = 7
+
+    # CORS
+    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
     # Cloudflare R2 settings
     cf_r2_access_key_id: str = ""
     cf_r2_secret_access_key: str = ""
