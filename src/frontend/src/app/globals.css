@@ -101,6 +101,10 @@ body {
   --chart-3: oklch(0.225 0 0);
   --chart-4: oklch(0.185 0 0);
   --chart-5: oklch(0.145 0 0);
+  --score-good: oklch(0.723 0.219 149);
+  --score-mid: oklch(0.795 0.184 86);
+  --score-bad: oklch(0.577 0.245 27);
+  --accent-gold: oklch(0.795 0.184 86);
   --radius: 1.25rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -137,6 +141,10 @@ body {
   --chart-3: oklch(0.225 0 0);
   --chart-4: oklch(0.185 0 0);
   --chart-5: oklch(0.145 0 0);
+  --score-good: oklch(0.723 0.219 149);
+  --score-mid: oklch(0.795 0.184 86);
+  --score-bad: oklch(0.577 0.245 27);
+  --accent-gold: oklch(0.795 0.184 86);
   --radius: 1.25rem;
   --sidebar: oklch(0.225 0 0);
   --sidebar-foreground: oklch(0.98 0 0);
@@ -179,5 +187,12 @@ body {
     font-size: 1rem;
     font-weight: 400;
     line-height: 1.75;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

@@ -21,16 +21,18 @@ export function TrendChart({ data }: { data: TrendResponse }) {
           {TREND_LABELS[data.trend]}
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={250}>
-        <LineChart data={data.data_points} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
-          {refMin !== undefined && refMax !== undefined && (
-            <ReferenceArea y1={refMin} y2={refMax} fill="#22c55e" fillOpacity={0.1} ifOverflow="extendDomain" />
-          )}
-          <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="h-[200px] sm:h-[250px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data.data_points} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
+            {refMin !== undefined && refMax !== undefined && (
+              <ReferenceArea y1={refMin} y2={refMax} fill="oklch(0.723 0.219 149)" fillOpacity={0.1} ifOverflow="extendDomain" />
+            )}
+            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
       {data.current_pr !== null && (
         <p className="text-sm text-amber-500 font-medium">PR: {data.current_pr.toFixed(3)}</p>
       )}

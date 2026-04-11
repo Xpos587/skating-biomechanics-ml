@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import type React from "react"
 import { useSessions } from "@/lib/api/sessions"
 
 const ELEMENT_LABELS: Record<string, string> = {
@@ -12,6 +13,12 @@ const ELEMENT_LABELS: Record<string, string> = {
   lutz: "Лютц",
   axel: "Аксель",
   three_turn: "Тройка",
+}
+
+function scoreStyle(score: number): React.CSSProperties {
+  if (score >= 0.7) return { color: "oklch(var(--score-good))" }
+  if (score >= 0.4) return { color: "oklch(var(--score-mid))" }
+  return { color: "oklch(var(--score-bad))" }
 }
 
 export function RecentActivity({ userId }: { userId?: string }) {
@@ -50,9 +57,7 @@ export function RecentActivity({ userId }: { userId?: string }) {
               <p className="text-xs text-muted-foreground">{date}</p>
             </div>
             {score && (
-              <span className={`ml-2 text-sm font-semibold ${
-                s.overall_score! >= 0.7 ? "text-green-500" : s.overall_score! >= 0.4 ? "text-amber-500" : "text-red-500"
-              }`}>
+              <span className="ml-2 text-sm font-semibold" style={scoreStyle(s.overall_score!)}>
                 {score}
               </span>
             )}

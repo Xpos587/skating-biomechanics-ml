@@ -27,8 +27,8 @@ export function StatsSummary({ userId }: Props) {
         </div>
       </div>
       <div className="flex items-center gap-3 rounded-xl border border-border p-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
-          <Trophy className="h-5 w-5 text-amber-500" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: "oklch(var(--accent-gold) / 0.1)" }}>
+          <Trophy className="h-5 w-5" style={{ color: "oklch(var(--accent-gold))" }} />
         </div>
         <div>
           <p className="text-2xl font-bold">{totalPRs}</p>
