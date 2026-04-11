@@ -380,6 +380,47 @@ class BiomechanicsAnalyzer:
 
         return angle_3pt(hip, knee, foot)
 
+    def compute_landing_knee_stability(self, poses: NormalizedPose, phases: ElementPhase) -> float:
+        """Compute post-landing knee stability score.
+
+        Measures how stable the knees are after landing by analyzing the
+        standard deviation of knee angles during the post-landing phase.
+        Camera-independent: uses internal body angles only.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+
+        Returns:
+            Stability score in [0.0, 1.0] where 1.0 = perfectly stable.
+            Formula: max(0.0, 1.0 - avg_std / 15.0)
+            Returns 1.0 if no post-landing data available.
+        """
+        # Check if we have post-landing data
+        if phases.end <= phases.landing + 1:
+            return 1.0
+
+        # Extract post-landing frames (landing+1 to end)
+        post_landing_start = phases.landing + 1
+        post_landing_poses = poses[post_landing_start : phases.end + 1]
+
+        # Compute knee angle series for left and right
+        left_knee_angles = self.compute_knee_angle_series(post_landing_poses, side="left")
+        right_knee_angles = self.compute_knee_angle_series(post_landing_poses, side="right")
+
+        # Calculate standard deviation of knee angles
+        left_std = float(np.std(left_knee_angles))
+        right_std = float(np.std(right_knee_angles))
+
+        # Average standard deviation
+        avg_std = (left_std + right_std) / 2.0
+
+        # Convert to stability score: lower std = higher stability
+        # 15 degrees is a reasonable threshold for "unstable"
+        stability = max(0.0, 1.0 - avg_std / 15.0)
+
+        return float(stability)
+
     def compute_arm_position(self, poses: NormalizedPose) -> float:
         """Compute arm position score.
 

@@ -295,6 +295,120 @@ class TestBiomechanicsAnalyzer:
         metric_names = [m.name for m in metrics]
         assert "trunk_lean" in metric_names
 
+    def test_compute_landing_knee_stability_stable(self):
+        """Should return high score for constant knee angles after landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create poses with stable knee angles after landing
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+        for i in range(10):
+            # Set up full body skeleton
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            poses[i, H36Key.LSHOULDER] = [-0.1, -0.3]
+            poses[i, H36Key.RSHOULDER] = [0.1, -0.3]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=4,
+            landing=6,
+            end=9,
+        )
+
+        score = analyzer.compute_landing_knee_stability(poses, phases)
+
+        # Constant knee angles should give high stability score
+        assert score > 0.7
+        assert score <= 1.0
+
+    def test_compute_landing_knee_stability_wobbly(self):
+        """Should return low score for oscillating knee angles after landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create poses with wobbling knees after landing
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+        for i in range(10):
+            # Set up full body skeleton
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            poses[i, H36Key.LSHOULDER] = [-0.1, -0.3]
+            poses[i, H36Key.RSHOULDER] = [0.1, -0.3]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+
+            # Add extreme wobble to knee positions after landing
+            # Dramatic X movement to create large angle changes
+            if i >= 6:  # After landing frame
+                # Create large angle variation: knee moves far from hip-foot line
+                if i % 2 == 0:
+                    # Even frames: knee way forward
+                    poses[i, H36Key.LKNEE] = [0.1, 0.35]
+                    poses[i, H36Key.RKNEE] = [0.2, 0.35]
+                else:
+                    # Odd frames: knee way back
+                    poses[i, H36Key.LKNEE] = [-0.15, 0.25]
+                    poses[i, H36Key.RKNEE] = [-0.05, 0.25]
+            else:
+                poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+                poses[i, H36Key.RKNEE] = [0.05, 0.3]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=4,
+            landing=6,
+            end=9,
+        )
+
+        score = analyzer.compute_landing_knee_stability(poses, phases)
+
+        # Oscillating knees should give low stability score
+        assert score < 0.5
+        assert score >= 0.0
+
+    def test_compute_landing_knee_stability_no_post_landing(self):
+        """Should return 1.0 when there's no post-landing data."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create minimal poses
+        poses = np.zeros((5, 17, 2), dtype=np.float32)
+        for i in range(5):
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            poses[i, H36Key.LSHOULDER] = [-0.1, -0.3]
+            poses[i, H36Key.RSHOULDER] = [0.1, -0.3]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=3,
+            landing=4,
+            end=4,  # No post-landing frames
+        )
+
+        score = analyzer.compute_landing_knee_stability(poses, phases)
+
+        # Should return perfect stability when no post-landing data
+        assert score == 1.0
+
 
 class TestMetricResult:
     """Test MetricResult dataclass."""
