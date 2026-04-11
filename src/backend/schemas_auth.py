@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
@@ -39,8 +42,16 @@ class UserResponse(BaseModel):
     theme: str
     is_active: bool
     created_at: str
+    updated_at: str
 
     model_config = {"from_attributes": True}
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def validate_datetime(cls, v: Any) -> str:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
 
 
 class UpdateProfileRequest(BaseModel):
