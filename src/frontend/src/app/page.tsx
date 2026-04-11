@@ -150,7 +150,7 @@ export default function UploadPage() {
   const handleAnalyze = () => {
     if (!detectResult || !clickCoord) return
     const params = new URLSearchParams({
-      video_path: detectResult.video_path,
+      video_key: detectResult.video_key,
       person_click: `${clickCoord.x},${clickCoord.y}`,
       frame_skip: String(frameSkip),
       layer: String(layer),

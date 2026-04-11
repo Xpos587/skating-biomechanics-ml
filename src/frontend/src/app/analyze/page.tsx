@@ -2,7 +2,7 @@
 
 import { AlertCircle, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DownloadSection } from "@/components/dashboard/download-section"
 import { StatsCards } from "@/components/dashboard/stats-cards"
 import { VideoPlayer } from "@/components/dashboard/video-player"
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { useTranslations } from "@/i18n"
-import { processVideo } from "@/lib/api"
+import { cancelQueuedProcess, enqueueProcess, pollTaskStatus } from "@/lib/api"
 import { toastError, toastSuccess } from "@/lib/toast"
 import type { PersonClick, ProcessResponse } from "@/types"
 
@@ -26,8 +26,10 @@ function AnalyzeContent() {
   const [message, setMessage] = useState(t("starting"))
   const [result, setResult] = useState<ProcessResponse | null>(null)
   const [error, setError] = useState("")
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const videoPath = params.get("video_path") || ""
+  const videoKey = params.get("video_key") || ""
   const clickParts = (params.get("person_click") || "0,0").split(",")
   const personClick: PersonClick = useMemo(
     () => ({
@@ -41,42 +43,79 @@ function AnalyzeContent() {
   const tracking = params.get("tracking") || "auto"
   const doExport = params.get("export") !== "false"
 
-  const startProcessing = useCallback(() => {
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const startProcessing = useCallback(async () => {
     setPhase("processing")
     setProgress(0)
     setMessage(t("preparing"))
 
-    processVideo(
-      {
-        video_path: videoPath,
+    try {
+      const { task_id } = await enqueueProcess({
+        video_key: videoKey,
         person_click: personClick,
         frame_skip: frameSkip,
         layer: layer,
         tracking: tracking,
         export: doExport,
-      },
-      {
-        onProgress(p, msg) {
-          setProgress(Math.round(p * 100))
-          setMessage(msg)
-        },
-        onResult(r) {
-          setResult(r as ProcessResponse)
-          setPhase("done")
-          toastSuccess(t("complete"))
-        },
-        onError(err) {
-          setError(err)
-          setPhase("error")
-          toastError(err)
-        },
-      },
-    )
-  }, [videoPath, personClick, frameSkip, layer, tracking, doExport, t])
+      })
+      setTaskId(task_id)
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await pollTaskStatus(task_id)
+
+          if (status.progress) {
+            setProgress(Math.round(status.progress * 100))
+          }
+          if (status.message) {
+            setMessage(status.message)
+          }
+
+          if (status.status === "completed" && status.result) {
+            stopPolling()
+            setResult(status.result as ProcessResponse)
+            setPhase("done")
+            toastSuccess(t("complete"))
+          } else if (status.status === "failed") {
+            stopPolling()
+            setError(status.error || "Processing failed")
+            setPhase("error")
+            toastError(status.error || "Processing failed")
+          } else if (status.status === "cancelled") {
+            stopPolling()
+            setError("Cancelled")
+            setPhase("error")
+          }
+        } catch (err) {
+          console.error("Poll error:", err)
+        }
+      }, 1000)
+    } catch (err) {
+      setError(String(err))
+      setPhase("error")
+      toastError(String(err))
+    }
+  }, [videoKey, personClick, frameSkip, layer, tracking, doExport, t, stopPolling])
+
+  const handleCancel = useCallback(async () => {
+    stopPolling()
+    if (taskId) {
+      await cancelQueuedProcess(taskId).catch(() => {})
+    }
+    setError("Cancelled")
+    setPhase("error")
+  }, [taskId, stopPolling])
 
   useEffect(() => {
-    if (videoPath) startProcessing()
-  }, [videoPath, startProcessing])
+    if (videoKey) startProcessing()
+    return () => stopPolling()
+  }, [videoKey, startProcessing, stopPolling])
 
   const videoUrl = result ? `/api/v1/outputs/${result.video_path}` : ""
   const posesUrl = result?.poses_path ? `/api/v1/outputs/${result.poses_path}` : null
@@ -93,6 +132,9 @@ function AnalyzeContent() {
             <Progress value={progress} className="w-full max-w-md" />
             <p className="text-sm text-muted-foreground">{message}</p>
             <p className="text-xs text-muted-foreground">{progress}%</p>
+            <Button variant="outline" size="sm" onClick={handleCancel}>
+              Cancel
+            </Button>
           </CardContent>
         </Card>
       )}
