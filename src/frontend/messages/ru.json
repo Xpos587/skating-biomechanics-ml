@@ -1,93 +1,107 @@
 {
-  "common.save": "Сохранить",
-  "common.saving": "Сохранение...",
-  "common.error": "Ошибка сохранения",
-  "common.loading": "Загрузка...",
-
-  "auth.signIn": "Вход",
-  "auth.signInSubtitle": "Введите email и пароль",
-  "auth.signingIn": "Вход...",
-  "auth.signInBtn": "Войти",
-  "auth.signInSuccess": "Вход выполнен",
-  "auth.signInError": "Ошибка входа",
-  "auth.signUp": "Регистрация",
-  "auth.signUpSubtitle": "Создайте аккаунт для начала работы",
-  "auth.signUpBtn": "Создать аккаунт",
-  "auth.signingUp": "Создание...",
-  "auth.signUpSuccess": "Аккаунт создан",
-  "auth.signUpError": "Ошибка регистрации",
-  "auth.name": "Имя",
-  "auth.nameOptional": "Имя (необязательно)",
-  "auth.namePlaceholder": "Ваше имя",
-  "auth.password": "Пароль",
-  "auth.passwordPlaceholder": "Минимум 8 символов",
-  "auth.hasAccount": "Уже есть аккаунт?",
-  "auth.noAccount": "Нет аккаунта?",
-  "auth.register": "Зарегистрироваться",
-  "auth.sessionExpired": "Сессия истекла",
-
-  "nav.analysis": "Анализ",
-  "nav.training": "Тренировки",
-  "nav.profile": "Профиль",
-  "nav.signIn": "Войти",
-
-  "app.title": "AI Тренер",
-  "app.titleFull": "AI Тренер — Фигурное катание",
-  "app.footer": "AI Тренер — Фигурное катание • Биомеханический анализ",
-
-  "home.dropVideo": "Перетащите видео сюда или нажмите для выбора",
-  "home.videoError": "Файл должен быть видео (MP4, MOV, WebM) до 500 МБ",
-  "home.personsDetected": "Обнаружено людей: {count}",
-  "home.retry": "Попробовать снова",
-  "home.preview": "Превью",
-  "home.clickSkater": "Нажмите на фигуриста на превью для выбора",
-  "home.skaters": "Фигуристы",
-  "home.skaterTrack": "#{trackId} — {hits} кадров",
-  "home.settings": "Настройки",
-  "home.tracking": "Трекинг",
-  "home.trackingAuto": "Авто",
-  "home.trackingNone": "Без трекинга",
-  "home.exportPoses": "Экспорт поз + CSV",
-  "home.analyze": "Анализировать",
-  "home.anotherVideo": "Другое видео",
-
-  "analyze.title": "Анализ видео",
-  "analyze.starting": "Начинаем...",
-  "analyze.preparing": "Подготовка...",
-  "analyze.complete": "Анализ завершён",
-  "analyze.retry": "Повторить",
-  "analyze.back": "Назад",
-
-  "profile.title": "Профиль",
-  "profile.signOut": "Выйти",
-  "profile.name": "Имя",
-  "profile.bio": "О себе",
-  "profile.height": "Рост (см)",
-  "profile.weight": "Вес (кг)",
-  "profile.updateSuccess": "Профиль обновлён",
-  "profile.updateError": "Ошибка сохранения",
-
-  "settings.title": "Настройки",
-  "settings.saved": "Настройки сохранены",
-  "settings.saveError": "Ошибка сохранения",
-  "settings.language": "Язык",
-  "settings.timezone": "Часовой пояс",
-  "settings.theme": "Тема",
-  "settings.system": "Системная",
-  "settings.light": "Светлая",
-  "settings.dark": "Тёмная",
-
-  "stats.frames": "Кадров",
-  "stats.validFrames": "Валидных",
-  "stats.resolution": "Разрешение",
-
-  "download.video": "Видео",
-  "download.poses": "Позы (.npy)",
-  "download.biomech": "Биомеханика (.csv)",
-
-  "placeholder.inDevelopment": "Раздел в разработке.",
-
-  "theme.toggle": "Переключить тему",
-
-  "training.title": "Тренировки"
+  "common": {
+    "save": "Сохранить",
+    "saving": "Сохранение...",
+    "error": "Ошибка сохранения",
+    "loading": "Загрузка..."
+  },
+  "auth": {
+    "signIn": "Вход",
+    "signInSubtitle": "Введите email и пароль",
+    "signingIn": "Вход...",
+    "signInBtn": "Войти",
+    "signInSuccess": "Вход выполнен",
+    "signInError": "Ошибка входа",
+    "signUp": "Регистрация",
+    "signUpSubtitle": "Создайте аккаунт для начала работы",
+    "signUpBtn": "Создать аккаунт",
+    "signingUp": "Создание...",
+    "signUpSuccess": "Аккаунт создан",
+    "signUpError": "Ошибка регистрации",
+    "name": "Имя",
+    "nameOptional": "Имя (необязательно)",
+    "namePlaceholder": "Ваше имя",
+    "password": "Пароль",
+    "passwordPlaceholder": "Минимум 8 символов",
+    "hasAccount": "Уже есть аккаунт?",
+    "noAccount": "Нет аккаунта?",
+    "register": "Зарегистрироваться",
+    "sessionExpired": "Сессия истекла"
+  },
+  "nav": {
+    "analysis": "Анализ",
+    "training": "Тренировки",
+    "profile": "Профиль",
+    "signIn": "Войти"
+  },
+  "app": {
+    "title": "AI Тренер",
+    "titleFull": "AI Тренер — Фигурное катание",
+    "footer": "AI Тренер — Фигурное катание • Биомеханический анализ"
+  },
+  "home": {
+    "dropVideo": "Перетащите видео сюда или нажмите для выбора",
+    "videoError": "Файл должен быть видео (MP4, MOV, WebM) до 500 МБ",
+    "personsDetected": "Обнаружено людей: {count}",
+    "retry": "Попробовать снова",
+    "preview": "Превью",
+    "clickSkater": "Нажмите на фигуриста на превью для выбора",
+    "skaters": "Фигуристы",
+    "skaterTrack": "#{trackId} — {hits} кадров",
+    "settings": "Настройки",
+    "tracking": "Трекинг",
+    "trackingAuto": "Авто",
+    "trackingNone": "Без трекинга",
+    "exportPoses": "Экспорт поз + CSV",
+    "analyze": "Анализировать",
+    "anotherVideo": "Другое видео"
+  },
+  "analyze": {
+    "title": "Анализ видео",
+    "starting": "Начинаем...",
+    "preparing": "Подготовка...",
+    "complete": "Анализ завершён",
+    "retry": "Повторить",
+    "back": "Назад"
+  },
+  "profile": {
+    "title": "Профиль",
+    "signOut": "Выйти",
+    "name": "Имя",
+    "bio": "О себе",
+    "height": "Рост (см)",
+    "weight": "Вес (кг)",
+    "updateSuccess": "Профиль обновлён",
+    "updateError": "Ошибка сохранения"
+  },
+  "settings": {
+    "title": "Настройки",
+    "saved": "Настройки сохранены",
+    "saveError": "Ошибка сохранения",
+    "language": "Язык",
+    "timezone": "Часовой пояс",
+    "theme": "Тема",
+    "system": "Системная",
+    "light": "Светлая",
+    "dark": "Тёмная"
+  },
+  "stats": {
+    "frames": "Кадров",
+    "validFrames": "Валидных",
+    "resolution": "Разрешение"
+  },
+  "download": {
+    "video": "Видео",
+    "poses": "Позы (.npy)",
+    "biomech": "Биомеханика (.csv)"
+  },
+  "placeholder": {
+    "inDevelopment": "Раздел в разработке."
+  },
+  "theme": {
+    "toggle": "Переключить тему"
+  },
+  "training": {
+    "title": "Тренировки"
+  }
 }

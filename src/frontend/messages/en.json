@@ -1,93 +1,107 @@
 {
-  "common.save": "Save",
-  "common.saving": "Saving...",
-  "common.error": "Save error",
-  "common.loading": "Loading...",
-
-  "auth.signIn": "Sign In",
-  "auth.signInSubtitle": "Enter your email and password",
-  "auth.signingIn": "Signing in...",
-  "auth.signInBtn": "Sign In",
-  "auth.signInSuccess": "Signed in",
-  "auth.signInError": "Sign in error",
-  "auth.signUp": "Sign Up",
-  "auth.signUpSubtitle": "Create an account to get started",
-  "auth.signUpBtn": "Create Account",
-  "auth.signingUp": "Creating...",
-  "auth.signUpSuccess": "Account created",
-  "auth.signUpError": "Sign up error",
-  "auth.name": "Name",
-  "auth.nameOptional": "Name (optional)",
-  "auth.namePlaceholder": "Your name",
-  "auth.password": "Password",
-  "auth.passwordPlaceholder": "Minimum 8 characters",
-  "auth.hasAccount": "Already have an account?",
-  "auth.noAccount": "Don't have an account?",
-  "auth.register": "Sign Up",
-  "auth.sessionExpired": "Session expired",
-
-  "nav.analysis": "Analysis",
-  "nav.training": "Training",
-  "nav.profile": "Profile",
-  "nav.signIn": "Sign In",
-
-  "app.title": "AI Coach",
-  "app.titleFull": "AI Coach — Figure Skating",
-  "app.footer": "AI Coach — Figure Skating • Biomechanical Analysis",
-
-  "home.dropVideo": "Drag & drop a video here or click to select",
-  "home.videoError": "File must be a video (MP4, MOV, WebM) up to 500 MB",
-  "home.personsDetected": "Persons detected: {count}",
-  "home.retry": "Try again",
-  "home.preview": "Preview",
-  "home.clickSkater": "Click on the skater in the preview to select",
-  "home.skaters": "Skaters",
-  "home.skaterTrack": "#{trackId} — {hits} frames",
-  "home.settings": "Settings",
-  "home.tracking": "Tracking",
-  "home.trackingAuto": "Auto",
-  "home.trackingNone": "No tracking",
-  "home.exportPoses": "Export poses + CSV",
-  "home.analyze": "Analyze",
-  "home.anotherVideo": "Another video",
-
-  "analyze.title": "Video Analysis",
-  "analyze.starting": "Starting...",
-  "analyze.preparing": "Preparing...",
-  "analyze.complete": "Analysis complete",
-  "analyze.retry": "Retry",
-  "analyze.back": "Back",
-
-  "profile.title": "Profile",
-  "profile.signOut": "Sign Out",
-  "profile.name": "Name",
-  "profile.bio": "About",
-  "profile.height": "Height (cm)",
-  "profile.weight": "Weight (kg)",
-  "profile.updateSuccess": "Profile updated",
-  "profile.updateError": "Save error",
-
-  "settings.title": "Settings",
-  "settings.saved": "Settings saved",
-  "settings.saveError": "Save error",
-  "settings.language": "Language",
-  "settings.timezone": "Timezone",
-  "settings.theme": "Theme",
-  "settings.system": "System",
-  "settings.light": "Light",
-  "settings.dark": "Dark",
-
-  "stats.frames": "Frames",
-  "stats.validFrames": "Valid",
-  "stats.resolution": "Resolution",
-
-  "download.video": "Video",
-  "download.poses": "Poses (.npy)",
-  "download.biomech": "Biomechanics (.csv)",
-
-  "placeholder.inDevelopment": "Section under development.",
-
-  "theme.toggle": "Toggle theme",
-
-  "training.title": "Training"
+  "common": {
+    "save": "Save",
+    "saving": "Saving...",
+    "error": "Save error",
+    "loading": "Loading..."
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signInSubtitle": "Enter your email and password",
+    "signingIn": "Signing in...",
+    "signInBtn": "Sign In",
+    "signInSuccess": "Signed in",
+    "signInError": "Sign in error",
+    "signUp": "Sign Up",
+    "signUpSubtitle": "Create an account to get started",
+    "signUpBtn": "Create Account",
+    "signingUp": "Creating...",
+    "signUpSuccess": "Account created",
+    "signUpError": "Sign up error",
+    "name": "Name",
+    "nameOptional": "Name (optional)",
+    "namePlaceholder": "Your name",
+    "password": "Password",
+    "passwordPlaceholder": "Minimum 8 characters",
+    "hasAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "register": "Sign Up",
+    "sessionExpired": "Session expired"
+  },
+  "nav": {
+    "analysis": "Analysis",
+    "training": "Training",
+    "profile": "Profile",
+    "signIn": "Sign In"
+  },
+  "app": {
+    "title": "AI Coach",
+    "titleFull": "AI Coach — Figure Skating",
+    "footer": "AI Coach — Figure Skating • Biomechanical Analysis"
+  },
+  "home": {
+    "dropVideo": "Drag & drop a video here or click to select",
+    "videoError": "File must be a video (MP4, MOV, WebM) up to 500 MB",
+    "personsDetected": "Persons detected: {count}",
+    "retry": "Try again",
+    "preview": "Preview",
+    "clickSkater": "Click on the skater in the preview to select",
+    "skaters": "Skaters",
+    "skaterTrack": "#{trackId} — {hits} frames",
+    "settings": "Settings",
+    "tracking": "Tracking",
+    "trackingAuto": "Auto",
+    "trackingNone": "No tracking",
+    "exportPoses": "Export poses + CSV",
+    "analyze": "Analyze",
+    "anotherVideo": "Another video"
+  },
+  "analyze": {
+    "title": "Video Analysis",
+    "starting": "Starting...",
+    "preparing": "Preparing...",
+    "complete": "Analysis complete",
+    "retry": "Retry",
+    "back": "Back"
+  },
+  "profile": {
+    "title": "Profile",
+    "signOut": "Sign Out",
+    "name": "Name",
+    "bio": "About",
+    "height": "Height (cm)",
+    "weight": "Weight (kg)",
+    "updateSuccess": "Profile updated",
+    "updateError": "Save error"
+  },
+  "settings": {
+    "title": "Settings",
+    "saved": "Settings saved",
+    "saveError": "Save error",
+    "language": "Language",
+    "timezone": "Timezone",
+    "theme": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "stats": {
+    "frames": "Frames",
+    "validFrames": "Valid",
+    "resolution": "Resolution"
+  },
+  "download": {
+    "video": "Video",
+    "poses": "Poses (.npy)",
+    "biomech": "Biomechanics (.csv)"
+  },
+  "placeholder": {
+    "inDevelopment": "Section under development."
+  },
+  "theme": {
+    "toggle": "Toggle theme"
+  },
+  "training": {
+    "title": "Training"
+  }
 }
