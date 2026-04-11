@@ -4,15 +4,17 @@ import { useRouter } from "next/navigation"
 import { type FormEvent, useState } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
+import { FormField, FormTextarea } from "@/components/form-field"
+import { Button } from "@/components/ui/button"
 
 export default function ProfilePage() {
   const { user, isLoading, logout } = useAuth()
   const router = useRouter()
 
-  const [displayName, setDisplayName] = useState(user?.display_name ?? "")
-  const [bio, setBio] = useState(user?.bio ?? "")
-  const [height, setHeight] = useState(user?.height_cm?.toString() ?? "")
-  const [weight, setWeight] = useState(user?.weight_kg?.toString() ?? "")
+  const [displayName, setDisplayName] = useState("")
+  const [bio, setBio] = useState("")
+  const [height, setHeight] = useState("")
+  const [weight, setWeight] = useState("")
   const [saving, setSaving] = useState(false)
 
   if (isLoading) return <div className="text-center text-muted-foreground">Загрузка...</div>
@@ -59,84 +61,45 @@ export default function ProfilePage() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-4">
-        <div className="space-y-2">
-          <label htmlFor="email" className="text-sm font-medium">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={user.email}
-            disabled
-            className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="name" className="text-sm font-medium">
-            Имя
-          </label>
-          <input
-            id="name"
-            type="text"
-            value={displayName}
-            onChange={e => setDisplayName(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="bio" className="text-sm font-medium">
-            О себе
-          </label>
-          <textarea
-            id="bio"
-            value={bio}
-            onChange={e => setBio(e.target.value)}
-            rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </div>
-
+        <FormField label="Email" id="email" type="email" value={user.email} disabled />
+        <FormField
+          label="Имя"
+          id="name"
+          type="text"
+          value={displayName}
+          onChange={e => setDisplayName(e.target.value)}
+        />
+        <FormTextarea
+          label="О себе"
+          id="bio"
+          value={bio}
+          onChange={e => setBio(e.target.value)}
+          rows={3}
+        />
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label htmlFor="height" className="text-sm font-medium">
-              Рост (см)
-            </label>
-            <input
-              id="height"
-              type="number"
-              value={height}
-              onChange={e => setHeight(e.target.value)}
-              min={50}
-              max={250}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="weight" className="text-sm font-medium">
-              Вес (кг)
-            </label>
-            <input
-              id="weight"
-              type="number"
-              value={weight}
-              onChange={e => setWeight(e.target.value)}
-              min={20}
-              max={300}
-              step={0.1}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
+          <FormField
+            label="Рост (см)"
+            id="height"
+            type="number"
+            value={height}
+            onChange={e => setHeight(e.target.value)}
+            min={50}
+            max={250}
+          />
+          <FormField
+            label="Вес (кг)"
+            id="weight"
+            type="number"
+            value={weight}
+            onChange={e => setWeight(e.target.value)}
+            min={20}
+            max={300}
+            step={0.1}
+          />
         </div>
-
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={saving}>
           {saving ? "Сохранение..." : "Сохранить"}
-        </button>
+        </Button>
       </form>
     </div>
   )

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-OUTPUTS_DIR = Path("data/uploads")
+OUTPUTS_DIR = Path(get_settings().outputs_dir)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 _executor = ThreadPoolExecutor(max_workers=1)

@@ -17,7 +17,7 @@ from src.backend.crud.refresh_token import create as create_refresh_token_crud
 from src.backend.crud.refresh_token import get_active_by_hash, revoke
 from src.backend.crud.user import create as create_user
 from src.backend.crud.user import get_by_email
-from src.backend.schemas_auth import (
+from src.backend.schemas import (
     LoginRequest,
     RefreshRequest,
     RegisterRequest,

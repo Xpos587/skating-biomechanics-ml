@@ -7,9 +7,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
+from src.config import get_settings
+
 router = APIRouter(tags=["misc"])
 
-OUTPUTS_DIR = Path("data/uploads")
+OUTPUTS_DIR = Path(get_settings().outputs_dir)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 

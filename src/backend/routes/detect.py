@@ -10,6 +10,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from src.backend.schemas import DetectResponse, PersonClick, PersonInfo
+from src.config import get_settings
 from src.device import DeviceConfig
 from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
 from src.utils.video import get_video_meta
@@ -48,7 +49,7 @@ async def detect_persons(
     """Detect all persons in the uploaded video and return annotated preview."""
     # Save uploaded file to temp location
     suffix = Path(video.filename or "video.mp4").suffix
-    tmp_dir = Path("data/uploads")
+    tmp_dir = Path(get_settings().outputs_dir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
     video_path = tmp_dir / f"detect_{np.random.randint(0, 999999):06d}{suffix}"
 

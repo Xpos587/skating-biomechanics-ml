@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation"
 import { type FormEvent, useState } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/components/auth-provider"
+import { FormField, FormSelect } from "@/components/form-field"
+import { Button } from "@/components/ui/button"
 
 const LANGUAGES = [
   { value: "ru", label: "Русский" },
@@ -20,11 +22,9 @@ export default function SettingsPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
-  const [language, setLanguage] = useState(user?.language ?? "ru")
-  const [timezone, setTimezone] = useState(user?.timezone ?? "Europe/Moscow")
-  const [theme, setTheme] = useState<"light" | "dark" | "system">(
-    (user?.theme as "light" | "dark" | "system") ?? "system",
-  )
+  const [language, setLanguage] = useState("")
+  const [timezone, setTimezone] = useState("")
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
   const [saving, setSaving] = useState(false)
 
   if (isLoading) return <div className="text-center text-muted-foreground">Загрузка...</div>
@@ -52,42 +52,30 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Настройки</h1>
 
       <form onSubmit={handleSave} className="space-y-4">
-        <div className="space-y-2">
-          <label htmlFor="language" className="text-sm font-medium">
-            Язык
-          </label>
-          <select
-            id="language"
-            value={language}
-            onChange={e => setLanguage(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {LANGUAGES.map(l => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormSelect
+          label="Язык"
+          id="language"
+          value={language}
+          onChange={e => setLanguage(e.target.value)}
+        >
+          {LANGUAGES.map(l => (
+            <option key={l.value} value={l.value}>
+              {l.label}
+            </option>
+          ))}
+        </FormSelect>
+
+        <FormField
+          label="Часовой пояс"
+          id="timezone"
+          type="text"
+          value={timezone}
+          onChange={e => setTimezone(e.target.value)}
+          placeholder="Europe/Moscow"
+        />
 
         <div className="space-y-2">
-          <label htmlFor="timezone" className="text-sm font-medium">
-            Часовой пояс
-          </label>
-          <input
-            id="timezone"
-            type="text"
-            value={timezone}
-            onChange={e => setTimezone(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="Europe/Moscow"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="theme" className="text-sm font-medium">
-            Тема
-          </label>
+          <span className="text-sm font-medium">Тема</span>
           <div className="flex gap-2">
             {THEMES.map(t => (
               <button
@@ -102,13 +90,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={saving}>
           {saving ? "Сохранение..." : "Сохранить"}
-        </button>
+        </Button>
       </form>
     </div>
   )
