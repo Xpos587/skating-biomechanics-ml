@@ -1,13 +1,11 @@
 """Auth API routes: register, login, refresh, logout."""
 
-from __future__ import annotations
-
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, status
 
-from src.backend.auth.deps import DbDep  # noqa: TC001
+from src.backend.auth.deps import DbDep
 from src.backend.auth.security import (
     create_access_token,
     create_refresh_token,

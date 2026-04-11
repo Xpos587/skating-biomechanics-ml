@@ -29,7 +29,7 @@ export default function ProfilePage() {
       await updateProfile({
         display_name: displayName || undefined,
         bio: bio || undefined,
-        height_cm: height ? Number.parseInt(height) : undefined,
+        height_cm: height ? Number.parseInt(height, 10) : undefined,
         weight_kg: weight ? Number.parseFloat(weight) : undefined,
       })
       toast.success("Профиль обновлён")

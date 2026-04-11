@@ -1,7 +1,5 @@
 """User API routes: profile and settings."""
 
-from __future__ import annotations
-
 from fastapi import APIRouter
 
 from src.backend.auth.deps import CurrentUser, DbDep
