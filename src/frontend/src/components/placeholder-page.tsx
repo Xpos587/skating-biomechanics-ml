@@ -1,8 +1,11 @@
-export function PlaceholderPage({ title }: { title: string }) {
+import { getTranslations } from "next-intl/server"
+
+export async function PlaceholderPage({ title }: { title: string }) {
+  const t = await getTranslations("placeholder")
   return (
     <div className="mx-auto max-w-4xl p-6">
       <h2 className="mb-4 text-xl font-semibold">{title}</h2>
-      <p className="text-muted-foreground">Раздел в разработке.</p>
+      <p className="text-muted-foreground">{t("inDevelopment")}</p>
     </div>
   )
 }
