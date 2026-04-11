@@ -92,6 +92,7 @@ class R2Config(BaseSettings):
     secret_access_key: SecretStr = SecretStr("")
     bucket: str = "skating-ml-pipeline"
     endpoint_url: str = ""
+    presign_expires: int = 3600
 
     class Config:
         env_prefix = "R2_"
@@ -112,7 +113,6 @@ class AppConfig(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8000
-    outputs_dir: str = "data/uploads"
     worker_max_jobs: int = 1
     worker_retry_delays: list[int] = [30, 120]
     log_level: str = "INFO"
