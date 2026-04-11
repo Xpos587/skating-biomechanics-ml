@@ -1,131 +1,116 @@
-"""POST /api/detect — detect persons in an uploaded video."""
+"""POST /api/detect — enqueue person detection job."""
 
 from __future__ import annotations
 
-import base64
-import tempfile
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-import cv2
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import APIRouter, HTTPException, UploadFile
 
-from src.backend.schemas import DetectResponse, PersonClick, PersonInfo
-from src.device import DeviceConfig
-from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
-from src.storage import upload_bytes
-from src.utils.video import get_video_meta
-from src.web_helpers import (
-    render_person_preview,
+from src.backend.schemas import (
+    DetectQueueResponse,
+    DetectResultResponse,
+    PersonInfo,
+    TaskStatusResponse,
 )
-
-if TYPE_CHECKING:
-    import numpy as np
+from src.config import get_settings
+from src.storage import upload_bytes
+from src.task_manager import (
+    TaskStatus,
+    create_task_state,
+    get_task_state,
+    get_valkey_client,
+)
 
 router = APIRouter()
 
 
-def _create_extractor(tracking: str) -> RTMPoseExtractor:
-    cfg = DeviceConfig.default()
-    return RTMPoseExtractor(
-        mode="balanced",
-        tracking_backend="rtmlib",
-        tracking_mode=tracking,
-        conf_threshold=0.3,
-        output_format="normalized",
-        device=cfg.device,
-    )
-
-
-def _encode_frame_bgr(frame: np.ndarray) -> str:
-    """Encode BGR frame to base64 PNG string."""
-    success, buf = cv2.imencode(".png", frame)
-    if not success:
-        raise RuntimeError("Failed to encode preview image")
-    return base64.b64encode(buf).decode("ascii")
-
-
-@router.post("/detect", response_model=DetectResponse)
-async def detect_persons(
+@router.post("/detect", response_model=DetectQueueResponse)
+async def enqueue_detect(
     video: UploadFile,
     tracking: str = "auto",
-) -> DetectResponse:
-    """Detect all persons in the uploaded video and return annotated preview."""
+) -> DetectQueueResponse:
+    """Upload video, enqueue detection job, return task_id immediately."""
     suffix = Path(video.filename or "video.mp4").suffix
     video_key = f"input/{uuid.uuid4().hex}{suffix}"
 
     content = await video.read()
-
-    # Upload to R2
     upload_bytes(content, video_key)
 
-    # Save to /tmp for local RTMPose processing
-    tmp_file = None
+    settings = get_settings()
+    task_id = f"det_{uuid.uuid4().hex[:12]}"
+
+    valkey = await get_valkey_client()
     try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-            f.write(content)
-            tmp_file = f.name
-
-        video_path = Path(tmp_file)
-
-        extractor = _create_extractor(tracking)
-        persons, _ = extractor.preview_persons(video_path, num_frames=30)
-
-        if not persons:
-            return DetectResponse(
-                persons=[],
-                preview_image="",
-                video_key=video_key,
-                status="Люди не найдены. Попробуйте другое видео.",
-            )
-
-        # Read first frame for annotated preview
-        cap = cv2.VideoCapture(str(video_path))
-        ret, frame = cap.read()
-        cap.release()
-
-        if not ret:
-            raise HTTPException(status_code=500, detail="Failed to read video frame")
-
-        meta = get_video_meta(video_path)
-        w, h = meta.width, meta.height
-
-        annotated = render_person_preview(frame, persons, selected_idx=None)
-        preview_b64 = _encode_frame_bgr(annotated)
-
-        # Auto-select if only one person
-        auto_click = None
-        status: str
-        if len(persons) == 1:
-            mid_hip = persons[0]["mid_hip"]
-            auto_click = PersonClick(
-                x=int(mid_hip[0] * w),
-                y=int(mid_hip[1] * h),
-            )
-            status = "Обнаружен 1 человек — выбран автоматически"
-        else:
-            status = f"Обнаружено {len(persons)} человек. Выберите на превью или из списка."
-
-        persons_out = [
-            PersonInfo(
-                track_id=p["track_id"],
-                hits=p["hits"],
-                bbox=p["bbox"],
-                mid_hip=p["mid_hip"],
-            )
-            for p in persons
-        ]
-
-        return DetectResponse(
-            persons=persons_out,
-            preview_image=preview_b64,
-            video_key=video_key,
-            auto_click=auto_click,
-            status=status,
-        )
-
+        await create_task_state(task_id, video_key=video_key, valkey=valkey)
     finally:
-        # Cleanup /tmp file
-        if tmp_file:
-            Path(tmp_file).unlink(missing_ok=True)
+        await valkey.close()
+
+    arq_pool = await create_pool(
+        RedisSettings(
+            host=settings.valkey.host,
+            port=settings.valkey.port,
+            database=settings.valkey.db,
+            password=settings.valkey.password.get_secret_value(),
+        )
+    )
+    try:
+        await arq_pool.enqueue_job(
+            "detect_video_task",
+            task_id=task_id,
+            video_key=video_key,
+            tracking=tracking,
+        )
+    finally:
+        await arq_pool.close()
+
+    return DetectQueueResponse(task_id=task_id, video_key=video_key)
+
+
+@router.get("/detect/{task_id}/status", response_model=TaskStatusResponse)
+async def get_detect_status(task_id: str):
+    """Poll detection task status."""
+    valkey = await get_valkey_client()
+    try:
+        state = await get_task_state(task_id, valkey=valkey)
+    finally:
+        await valkey.close()
+
+    if state is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    result = None
+    if state.get("result"):
+        result = DetectResultResponse(**state["result"])
+
+    return TaskStatusResponse(
+        task_id=task_id,
+        status=state["status"],
+        progress=state["progress"],
+        message=state.get("message", ""),
+        result=result,
+        error=state.get("error"),
+    )
+
+
+@router.get("/detect/{task_id}/result", response_model=DetectResultResponse)
+async def get_detect_result(task_id: str):
+    """Get detection result (persons, preview)."""
+    valkey = await get_valkey_client()
+    try:
+        state = await get_task_state(task_id, valkey=valkey)
+    finally:
+        await valkey.close()
+
+    if state is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if state.get("status") != TaskStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Task not completed yet")
+
+    if not state.get("result"):
+        raise HTTPException(status_code=500, detail="No result stored")
+
+    return DetectResultResponse(**state["result"])

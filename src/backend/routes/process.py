@@ -21,7 +21,7 @@ from src.task_manager import (
     get_valkey_client,
     set_cancel_signal,
 )
-from src.worker import MLModelFlags
+from src.backend.schemas import MLModelFlags
 
 router = APIRouter()
 
