@@ -48,6 +48,26 @@ These are the prompts given to Gemini Deep Research. The results informed implem
 | [MOGANET_RESEARCH.md](MOGANET_RESEARCH.md) | 2026-03-29 | MogaNet-B as pose estimator | Requires mmcv compilation, not standalone |
 | [MOGANET_SUMMARY.md](MOGANET_SUMMARY.md) | 2026-03-29 | MogaNet summary + YOLOv8 alternative | Duplicate of above. YOLOv8 superseded by YOLO26+rtmlib |
 
+### Hardware & Sensors
+
+| File | Date | Topic | Outcome |
+|------|------|-------|---------|
+| [RESEARCH_IMU_SENSORS_2026-04-09.md](RESEARCH_IMU_SENSORS_2026-04-09.md) | 2026-04-09 | IMU sensors for figure skating (WitMotion WT9011DCL) | Ordered 2x sensors for blade edge data collection |
+| [RESEARCH_BLE_IMU_WEB_2026-04-09.md](RESEARCH_BLE_IMU_WEB_2026-04-09.md) | 2026-04-09 | BLE IMU → web app (React + FastAPI) | iOS Safari blocks Web Bluetooth; needs native companion app |
+
+### GitHub Repositories & Tools
+
+| File | Date | Topic | Outcome |
+|------|------|-------|---------|
+| [RESEARCH_GITHUB_INSPIRATION_2026-04-09.md](RESEARCH_GITHUB_INSPIRATION_2026-04-09.md) | 2026-04-09 | 5 skating ML repos on GitHub | Referenced Pose2Sim, HSMR, Sports2D, etc. |
+| [RESEARCH_PROMPT_PERSON_REID_2026-04-03.md](RESEARCH_PROMPT_PERSON_REID_2026-04-03.md) | 2026-04-03 | Person re-identification research | → Anatomical biometric Re-ID in PoseTracker |
+
+### Action Segmentation
+
+| File | Date | Topic | Outcome |
+|------|------|-------|---------|
+| [RESEARCH_ACTION_SEGMENTATION_2026-04-09.md](RESEARCH_ACTION_SEGMENTATION_2026-04-09.md) | 2026-04-09 | Automated element segmentation (YourSkatingCoach, BIOES) | Referenced for future auto-segmentation improvements |
+
 ### Original Research
 
 | File | Date | Content |
