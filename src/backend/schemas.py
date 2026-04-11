@@ -91,13 +91,13 @@ class PersonClick(BaseModel):
 class DetectResponse(BaseModel):
     persons: list[PersonInfo]
     preview_image: str
-    video_path: str
+    video_key: str
     auto_click: PersonClick | None = None
     status: str
 
 
 class ProcessRequest(BaseModel):
-    video_path: str
+    video_key: str
     person_click: PersonClick
     frame_skip: int = 1
     layer: int = 3
