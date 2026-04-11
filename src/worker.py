@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
@@ -26,18 +25,6 @@ from src.task_manager import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class MLModelFlags:
-    """ML model feature flags for video processing."""
-
-    depth: bool = False
-    optical_flow: bool = False
-    segment: bool = False
-    foot_track: bool = False
-    matting: bool = False
-    inpainting: bool = False
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -58,12 +45,19 @@ async def process_video_task(
     layer: int = 3,
     tracking: str = "auto",
     export: bool = True,
-    ml_flags: MLModelFlags | None = None,
+    ml_flags: dict[str, bool] | None = None,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """arq task: dispatch video processing to Vast.ai Serverless GPU."""
     if ml_flags is None:
-        ml_flags = MLModelFlags()
+        ml_flags = {
+            "depth": False,
+            "optical_flow": False,
+            "segment": False,
+            "foot_track": False,
+            "matting": False,
+            "inpainting": False,
+        }
     settings = get_settings()
     valkey = await get_valkey_client()
 
@@ -95,14 +89,7 @@ async def process_video_task(
             layer=layer,
             tracking=tracking,
             export=export,
-            ml_flags={
-                "depth": ml_flags.depth,
-                "optical_flow": ml_flags.optical_flow,
-                "segment": ml_flags.segment,
-                "foot_track": ml_flags.foot_track,
-                "matting": ml_flags.matting,
-                "inpainting": ml_flags.inpainting,
-            },
+            ml_flags=ml_flags,
             element_type=element_type,
         )
         logger.info("Vast.ai processing complete for task %s", task_id)
@@ -148,6 +135,115 @@ async def process_video_task(
         await valkey.close()
 
 
+async def detect_video_task(
+    ctx: dict[str, Any],
+    *,
+    task_id: str,
+    video_key: str,
+    tracking: str = "auto",
+) -> dict[str, Any]:
+    """arq task: detect persons in uploaded video."""
+    settings = get_settings()
+    valkey = await get_valkey_client()
+
+    try:
+        now = datetime.now(UTC).isoformat()
+        await valkey.hset(
+            f"task:{task_id}",
+            mapping={"status": TaskStatus.RUNNING, "started_at": now},
+        )
+
+        import tempfile
+        from pathlib import Path
+
+        import cv2
+
+        from src.device import DeviceConfig
+        from src.pose_estimation.rtmlib_extractor import RTMPoseExtractor
+        from src.storage import download_file
+        from src.utils.video import get_video_meta
+        from src.web_helpers import render_person_preview
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_path = Path(tmpdir) / "input.mp4"
+            download_file(video_key, str(video_path))
+
+            cfg = DeviceConfig.default()
+            extractor = RTMPoseExtractor(
+                mode="balanced",
+                tracking_backend="rtmlib",
+                tracking_mode=tracking,
+                conf_threshold=0.3,
+                output_format="normalized",
+                device=cfg.device,
+            )
+            persons, _ = extractor.preview_persons(video_path, num_frames=30)
+
+            if not persons:
+                result_data = {
+                    "persons": [],
+                    "preview_image": "",
+                    "video_key": video_key,
+                    "auto_click": None,
+                    "status": "Люди не найдены. Попробуйте другое видео.",
+                }
+                await store_result(task_id, result_data, valkey=valkey)
+                return result_data
+
+            cap = cv2.VideoCapture(str(video_path))
+            ret, frame = cap.read()
+            cap.release()
+
+            if not ret:
+                raise RuntimeError("Failed to read video frame")
+
+            meta = get_video_meta(video_path)
+            w, h = meta.width, meta.height
+
+            annotated = render_person_preview(frame, persons, selected_idx=None)
+            success, buf = cv2.imencode(".png", annotated)
+            if not success:
+                raise RuntimeError("Failed to encode preview image")
+            import base64
+            preview_b64 = base64.b64encode(buf).decode("ascii")
+
+            auto_click = None
+            status_msg: str
+            if len(persons) == 1:
+                mid_hip = persons[0]["mid_hip"]
+                auto_click = {"x": int(mid_hip[0] * w), "y": int(mid_hip[1] * h)}
+                status_msg = "Обнаружен 1 человек — выбран автоматически"
+            else:
+                status_msg = f"Обнаружено {len(persons)} человек. Выберите на превью или из списка."
+
+            persons_out = [
+                {
+                    "track_id": p["track_id"],
+                    "hits": p["hits"],
+                    "bbox": p["bbox"],
+                    "mid_hip": p["mid_hip"],
+                }
+                for p in persons
+            ]
+
+            result_data = {
+                "persons": persons_out,
+                "preview_image": preview_b64,
+                "video_key": video_key,
+                "auto_click": auto_click,
+                "status": status_msg,
+            }
+            await store_result(task_id, result_data, valkey=valkey)
+            return result_data
+
+    except Exception as e:
+        logger.exception("Detection task %s failed", task_id)
+        await store_error(task_id, str(e), valkey=valkey)
+        raise
+    finally:
+        await valkey.close()
+
+
 _settings = get_settings()
 
 
@@ -162,7 +258,7 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
 
-    functions: ClassVar[list] = [process_video_task]
+    functions: ClassVar[list] = [process_video_task, detect_video_task]
     cron_jobs: ClassVar[list] = []
 
     redis_settings = RedisSettings(
