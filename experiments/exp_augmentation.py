@@ -6,7 +6,7 @@ Uses BiGRU (best model from exp 2c/2d) with early stopping.
 
 Usage:
     cd /home/michael/Github/skating-biomechanics-ml
-    uv run python data/experiments/exp_augmentation.py
+    uv run python experiments/exp_augmentation.py
 """
 
 import pickle

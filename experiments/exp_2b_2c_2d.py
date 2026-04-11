@@ -7,7 +7,7 @@ Experiments 2b, 2c, 2d: Follow-up classification experiments.
 
 Usage:
     cd /home/michael/Github/skating-biomechanics-ml
-    uv run python data/experiments/exp_2b_2c_2d.py
+    uv run python experiments/exp_2b_2c_2d.py
 """
 
 import pickle
