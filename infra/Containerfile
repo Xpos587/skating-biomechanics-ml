@@ -23,17 +23,17 @@ COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen 2>/dev/null || uv sync
 
 # Copy frontend deps
-COPY src/frontend/package.json src/frontend/bun.lock* src/frontend/
-RUN cd src/frontend && bun install --frozen-lockfile 2>/dev/null || bun install
+COPY frontend/package.json frontend/bun.lock* frontend/
+RUN cd frontend && bun install --frozen-lockfile 2>/dev/null || bun install
 
 # Copy source
-COPY src/ src/
-COPY scripts/ scripts/
+COPY backend/ backend/
+COPY ml/ ml/
 COPY data/ data/
 
 # Build frontend
-RUN cd src/frontend && bun run build
+RUN cd frontend && bun run build
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

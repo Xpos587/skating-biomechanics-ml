@@ -1,6 +1,6 @@
 :3000 {
     reverse_proxy /api/* localhost:8000
-    root * src/frontend/dist
+    root * frontend/dist
     file_server
     try_files {path} /index.html
 

@@ -64,7 +64,7 @@ Video → RTMPose (rtmlib, CUDA) → HALPE26 (26kp)
 ## GPU Requirements
 
 **GPU-only. CPU inference is forbidden.** Always use `device='cuda'`.
-Before running: `bash scripts/setup_cuda_compat.sh` (required after `uv sync`).
+Before running: `bash ml/scripts/setup_cuda_compat.sh` (required after `uv sync`).
 System has CUDA 13.2, onnxruntime-gpu needs CUDA 12 compat libs in `.venv/cuda-compat/`.
 
 ## Key Concepts
@@ -95,7 +95,7 @@ When tracking quality degrades (skeleton jumps to wrong person), follow this dat
 
 The tracking pipeline has 3 layers that can independently cause track switches:
 1. **Sports2DTracker** — per-frame centroid association (Kalman-predicted distance matrix)
-2. **Anti-steal logic** — in `rtmlib_extractor.py`, guards against centroid jumps
+2. **Anti-steal logic** — in `ml/skating_ml/pose_estimation/rtmlib_extractor.py`, guards against centroid jumps
 3. **Tracklet merger** — post-hoc NaN gap filling with biometric re-association
 
 ### Step 2: Analyze centroid trajectories

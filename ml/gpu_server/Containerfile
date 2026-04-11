@@ -88,11 +88,11 @@ COPY --chown=appuser:appuser data/models/lama_fp32.onnx data/models/
 COPY --chown=appuser:appuser data/models/sam2/ data/models/sam2/
 
 # Source code — changes most often, top layer
-COPY --chown=appuser:appuser src/ src/
-COPY --chown=appuser:appuser vastai/server.py vastai/server.py
+COPY --chown=appuser:appuser ml/skating_ml/ skating_ml/
+COPY --chown=appuser:appuser ml/gpu_server/ gpu_server/
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "vastai.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "gpu_server.server:app", "--host", "0.0.0.0", "--port", "8000"]

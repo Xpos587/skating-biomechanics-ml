@@ -41,7 +41,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["backend/app", "ml/skating_ml"]
 
 [dependency-groups]
 dev = [
@@ -111,16 +111,17 @@ max-returns = 8
 max-statements = 80
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["backend", "skating_ml"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117"]
 "__init__.py" = ["F401"]  # unused imports
 "scripts/visualize_with_skeleton.py" = ["ARG001"]
-"src/analysis/rules/*.py" = []
-"src/visualization/**/*.py" = []
-"src/cli.py" = []
-"src/**/*.py" = ["ARG001", "F841"]  # unused args in callback-heavy code
+"ml/skating_ml/analysis/rules/*.py" = []
+"ml/skating_ml/visualization/**/*.py" = []
+"ml/skating_ml/cli.py" = []
+"ml/**/*.py" = ["ARG001", "F841"]  # unused args in callback-heavy code
+"backend/**/*.py" = ["ARG001", "F841"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -147,7 +148,7 @@ exclude = [
 
 [tool.vulture]
 min_confidence = 80
-paths = ["src", "tests"]
+paths = ["backend/app", "ml/skating_ml", "backend/tests", "ml/tests"]
 exclude = ["__init__.py"]
 make_whitelist = false
 
@@ -156,10 +157,10 @@ skips = ["B101", "B608"]
 exclude_dirs = ["Sports2D/", "TCPFormer/", "tests/"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+testpaths = ["backend/tests", "ml/tests"]
+pythonpath = ["backend", "ml"]
 addopts = [
-    "--cov=src",
+    "--cov=backend/app",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--strict-markers",
@@ -173,7 +174,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["backend/app", "ml/skating_ml"]
 omit = [
     "*/tests/*",
     "*/__init__.py",
