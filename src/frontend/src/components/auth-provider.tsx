@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, type ReactNode, useContext, useEffect, useState } from "react"
+import { createContext, type ReactNode, useContext, useState } from "react"
 import type { UserResponse } from "@/lib/auth"
 import * as auth from "@/lib/auth"
+import { useMountEffect } from "@/lib/useMountEffect"
 
 interface AuthContextValue {
   user: UserResponse | null
@@ -19,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
+  useMountEffect(() => {
     const token = auth.getAccessToken()
     if (!token) {
       setIsLoading(false)
@@ -29,12 +30,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     auth
       .fetchMe()
       .then(setUser)
-      .catch(() => {
-        auth.clearTokens()
-        setUser(null)
+      .catch(async () => {
+        const refresh = auth.getRefreshToken()
+        if (!refresh) {
+          auth.clearTokens()
+          window.location.href = "/login"
+          return
+        }
+        try {
+          const tokens = await auth.refreshToken(refresh)
+          auth.setTokens(tokens.access_token, tokens.refresh_token)
+          const u = await auth.fetchMe()
+          setUser(u)
+        } catch {
+          auth.clearTokens()
+          window.location.href = "/login"
+        }
       })
       .finally(() => setIsLoading(false))
-  }, [])
+  })
 
   async function login(email: string, password: string) {
     const tokens = await auth.login({ email, password })
