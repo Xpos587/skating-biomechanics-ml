@@ -10,9 +10,6 @@ Usage:
     uv run python data/experiments/exp_2b_2c_2d.py
 """
 
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Force CPU — PyTorch CUDA broken on this system
-
 import pickle
 import time
 from collections import Counter
@@ -228,16 +225,22 @@ def main():
     print("EXP 2c: BiGRU Variable-Length (FSC, 64 classes)")
     print("=" * 60)
 
-    all_labels = sorted(set(fsc_train_l + fsc_test_l))
-    lmap = {l: i for i, l in enumerate(all_labels)}
-    tr_l_all = [lmap[l] for l in fsc_train_l]
-    te_l_all = [lmap[l] for l in fsc_test_l]
+    # Filter empty sequences
+    fsc_tr_valid = [(p, l) for p, l in zip(fsc_train_p, fsc_train_l) if len(p) > 0]
+    fsc_te_valid = [(p, l) for p, l in zip(fsc_test_p, fsc_test_l) if len(p) > 0]
+    fsc_train_p_v, fsc_train_l_v = zip(*fsc_tr_valid) if fsc_tr_valid else ([], [])
+    fsc_test_p_v, fsc_test_l_v = zip(*fsc_te_valid) if fsc_te_valid else ([], [])
 
-    print(f"Classes: {len(all_labels)}, Train: {len(fsc_train_p)}, Test: {len(fsc_test_p)}")
+    all_labels = sorted(set(fsc_train_l_v + fsc_test_l_v))
+    lmap = {l: i for i, l in enumerate(all_labels)}
+    tr_l_all = [lmap[l] for l in fsc_train_l_v]
+    te_l_all = [lmap[l] for l in fsc_test_l_v]
+
+    print(f"Classes: {len(all_labels)}, Train: {len(fsc_train_p_v)}, Test: {len(fsc_test_p_v)}")
     print(f"Random baseline: {1/len(all_labels):.3%}\n")
 
-    tr_ds = VarLenDataset(fsc_train_p, tr_l_all)
-    te_ds = VarLenDataset(fsc_test_p, te_l_all)
+    tr_ds = VarLenDataset(list(fsc_train_p_v), tr_l_all)
+    te_ds = VarLenDataset(list(fsc_test_p_v), te_l_all)
     tr_dl = DataLoader(tr_ds, 64, shuffle=True, collate_fn=varlen_collate)
     te_dl = DataLoader(te_ds, 64, shuffle=False, collate_fn=varlen_collate)
 
@@ -257,6 +260,12 @@ def main():
     mmfs_te_p, mmfs_te_l = load_mmfs("test")
     mmfs_tr_s = pickle.load(open(BASE / "mmfs/MMFS/skeleton/train_score.pkl", "rb"))
     mmfs_te_s = pickle.load(open(BASE / "mmfs/MMFS/skeleton/test_score.pkl", "rb"))
+
+    # Filter empty sequences
+    mmfs_tr = [(p, l) for p, l in zip(mmfs_tr_p, mmfs_tr_l) if len(p) > 0]
+    mmfs_te = [(p, l) for p, l in zip(mmfs_te_p, mmfs_te_l) if len(p) > 0]
+    mmfs_tr_p, mmfs_tr_l = zip(*mmfs_tr) if mmfs_tr else ([], [])
+    mmfs_te_p, mmfs_te_l = zip(*mmfs_te) if mmfs_te else ([], [])
 
     print(f"Classes: {len(set(mmfs_tr_l))}, Train: {len(mmfs_tr_p)}, Test: {len(mmfs_te_p)}")
     print(f"Score range: {min(mmfs_tr_s):.1f} - {max(mmfs_tr_s):.1f}")
