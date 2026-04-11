@@ -2,14 +2,15 @@
 
 > Index of all research materials. Documents are kept for historical context — decisions made, alternatives evaluated, and dead ends explored.
 
-## Current System (2026-04-09)
+## Current System (2026-04-11)
 
 | Component | Chosen | Rejected |
 |-----------|--------|----------|
-| **2D Pose** | RTMPose via rtmlib (HALPE26, 26kp) — sole backend | YOLO26-Pose (removed), BlazePose (33kp, deprecated) |
+| **2D Pose** | RTMPose via rtmlib (HALPE26, 26kp) — sole backend | YOLO26-Pose (removed), BlazePose (33kp, deprecated), DWPose (same accuracy on ice), RTMO (no foot kp) |
 | **3D Lifting** | MotionAGFormer-S (38.4mm MPJPE) | Pose3DM (code not released), VIBE (too heavy) |
 | **Tracking** | OC-SORT + anatomical biometrics | DeepSORT (color-based, fails on black clothing) |
 | **Jump Height** | CoM parabolic trajectory | Flight time (60% error for low jumps) |
+| **Quality Analysis** | OOFSkate approach (body kinematics proxy features) | Direct blade edge detection (unsolved for single-camera) |
 | **Inference** | ONNX Runtime + CUDA 12 compat | PyTorch CUDA (broken on CUDA 13.2) |
 
 ---
@@ -67,6 +68,7 @@ These are the prompts given to Gemini Deep Research. The results informed implem
 | 2026-04-01 | PyTorch CUDA → onnxruntime-gpu | CUDA 13 incompatibility solved with standalone CUDA 12 libs |
 | 2026-04-01 | Raw 2D skeleton → CorrectiveLens 3D→2D | Kinematic constraints fix occlusion artifacts |
 | 2026-04-09 | Remove YOLO26-Pose backend entirely | RTMPose is sole backend; removed ultralytics dep, h36m_extractor.py, yolo_extractor.py, action segmentation code |
+| 2026-04-11 | Blade edge detection → OOFSkate proxy features | Direct edge detection unsolved for single-camera video (Omega=14 cameras, JudgeAI=IMU). Body kinematics approach validated at 2026 Olympics (MIT OOFSkate) |
 
 ## Open Questions
 

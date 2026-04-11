@@ -1,6 +1,6 @@
 # Figure Skating Biomechanics ML - Roadmap
 
-**Status:** MVP 100% complete | Last updated: 2026-04-01
+**Status:** MVP 100% complete | Last updated: 2026-04-11
 
 > **This is the SINGLE SOURCE OF TRUTH for project status.** All implementation decisions and priority changes must be reflected here first.
 
@@ -41,6 +41,28 @@ The system has been migrated to use H3.6M 17-keypoint 3D format as the primary p
 - ✅ Comparison tool (side-by-side, overlay, selectable overlays)
 - ✅ Performance: ~12s for 14.5s video (GPU, frame_skip=8)
 - ✅ Tests: 279+ passing
+
+## 🎉 Strategic Pivot: OOFSkate-Approach (2026-04-11)
+
+**Decision:** Body kinematics proxy features instead of direct blade edge detection.
+
+Direct blade edge detection from single-camera video is an unsolved problem in open-source:
+- Omega (Olympics 2026): 14 specialized rink cameras, closed-source
+- JudgeAI-LutzEdge: requires IMU sensors on boots (private data)
+- BDA Algorithm (79%): needs reliable foot keypoints — unreliable on ice
+- No open-source solution achieves acceptable accuracy from phone video
+
+**Chosen approach (inspired by MIT OOFSkate):**
+- Infer element quality from body kinematics, not blade edge
+- Proxy features: CoM trajectory, torso lean, approach arc, landing deceleration
+- Works with H3.6M 17kp (no foot keypoints needed)
+- Validated at 2026 Winter Olympics (MIT → NBC Sports)
+
+**Implications:**
+- Blade edge detection → deprioritized (requires specialized hardware)
+- Focus → improve body kinematics analysis quality
+- Pose backbone → RTMPose confirmed (rtmlib: RTMPose/DWPose/RTMO/RTMW available, none solve edge detection on ice)
+- Foot keypoints (HALPE26 extra 9kp) → kept for future use but not critical
 
 ---
 
@@ -411,6 +433,13 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
    - Impact: Segments not precise
    - Solution: Trim to element core motion
 
+### DEPRIORITIZED
+2. **Direct blade edge detection from video** — unsolved in open-source
+   - Omega uses 14 rink cameras + proprietary AI (not replicable)
+   - IMU-based approaches need sensors on boots
+   - Foot keypoints unreliable on ice even with HALPE26
+   - See "Strategic Pivot: OOFSkate-Approach" above for chosen direction
+
 ---
 
 ## Next Steps (Priority Order)
@@ -443,12 +472,11 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
    - **Files:** `src/detection/pose_tracker.py`, `src/skeletons.py`
    - **Tests:** 14 tests for tracker, 14 tests for skeleton hierarchy
 
-5. **Integrate Blade Detection into Pipeline** PENDING
-   - Add blade state to MetricResult
-   - Update rules to use edge information
-   - Add edge visualization to HUD
-   - **Estimated:** 1-2 hours
-   - Note: blade_edge_detector_3d.py exists but not wired into pipeline.py
+5. **Integrate Blade Detection into Pipeline** ❌ DEPRIORITIZED
+   - Direct blade edge detection from single camera is unsolved in open-source
+   - Foot keypoints unreliable on ice even with HALPE26
+   - Replaced by OOFSkate proxy-feature approach (Phase I below)
+   - Note: blade_edge_detector_3d.py kept for reference but not wired into pipeline
 
 6. **Fix DTW Tests** ✅ DONE
    - All DTW tests passing (H3.6M 17kp format)
@@ -468,16 +496,16 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
 ### Phase D: Future Enhancements
 
 9. **GCN Element Classifier** 📝 RESEARCH
-   - Collect YouTube dataset (BIOES-tagged)
-   - Train SAFSAR-style few-shot model
-   - Hierarchical rules for complex elements
-   - **Estimated:** 1-2 weeks (data collection + training)
+   - Train on Figure-Skating-Classification dataset (5168 seq, 64 classes, COCO 17kp → H3.6M mapping needed)
+   - SAFSAR-style few-shot for rare elements
+   - Hierarchical rules for complex combinations
+   - **Data available:** MMFS (26198 seq), Figure-Skating-Classification (5168 seq), AthletePose3D (71GB)
+   - **Estimated:** 1-2 weeks (data prep + training + evaluation)
 
-10. **Two-Stream Blade Detection** 📝 RESEARCH
-    - Train MobileNetV3 on 64x64 patches
-    - Merge with kinematic heuristics
-    - Target: 80% accuracy
-    - **Estimated:** 1-2 weeks (data + training)
+10. **Two-Stream Blade Detection** ❌ DEPRIORITIZED
+    - Direct blade edge detection from video is unsolved in open-source
+    - Replaced by OOFSkate proxy-feature approach (Phase I)
+    - Audio-visual fusion (skate sound) remains a possible future direction
 
 ### Phase E: Pose Estimation Upgrade (2026-03-31)
 
@@ -580,6 +608,49 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
     - --person-click X Y for scripted use
     - Files: `src/cli.py`, `src/pose_estimation/h36m_extractor.py`
 
+### Phase I: OOFSkate-Approach — Body Kinematics Quality Analysis (2026-04-11)
+
+**Strategy:** Infer element quality from body kinematics proxy features instead of direct blade edge detection. Inspired by MIT OOFSkate (deployed at 2026 Winter Olympics with NBC Sports).
+
+**Why:** Direct blade edge detection requires 14 specialized rink cameras (Omega) or IMU sensors (JudgeAI). No open-source solution works from single-camera phone video. Body kinematics approach works with H3.6M 17kp and validated at Olympic level.
+
+29. **Landing Quality Score** 📝 NEXT
+    - Smooth deceleration metric (CoM velocity at landing)
+    - Hard landing detection (velocity spike > threshold)
+    - Landing stability (ankle/knee angle consistency post-landing)
+    - Clean edge vs toe assist proxy: sudden velocity change = likely toe pick
+    - **Files:** `src/analysis/metrics.py`
+    - **Estimated:** 2-3 hours
+
+30. **Torso Lean & Approach Arc** 📝 PLANNED
+    - Torso lean angle relative to vertical (spine→neck vector)
+    - Approach trajectory curvature (CoM x-z path)
+    - Proxy for edge type: lutz (lean back, long outside arc) vs flip (lean forward, inside arc)
+    - **Files:** `src/analysis/metrics.py`, `src/analysis/physics_engine.py`
+    - **Estimated:** 3-4 hours
+
+31. **Element Quality Scoring (GOE proxy)** 📝 PLANNED
+    - Numerical quality score per element (inspired by OOFSkate's GOE estimation)
+    - Based on: height, rotation, landing quality, airtime, torso control
+    - Comparison against reference database averages
+    - Russian text output: "Оценка качества: +1.2 GOE"
+    - **Files:** `src/analysis/metrics.py`, `src/analysis/recommender.py`
+    - **Estimated:** 4-6 hours
+
+32. **Reference Database Expansion** 📝 PLANNED
+    - Build reference library from competition videos (YouTube)
+    - Per-element average metrics from elite skaters
+    - Store in `data/references/` as .npz with metadata
+    - Enable automatic comparison: "Your jump height is 85% of elite average"
+    - **Data available:** AthletePose3D (71GB, 5154 videos), MMFS, Figure-Skating-Classification
+    - **Estimated:** 1-2 days (extraction + normalization + storage)
+
+33. **GCN Element Classifier** 📝 RESEARCH
+    - See Phase D item 9 above
+    - Training data ready: Figure-Skating-Classification (5168 seq, 64 classes)
+    - COCO 17kp → H3.6M 17kp mapping required (different skeleton definitions)
+    - **Estimated:** 1-2 weeks
+
 ---
 
 ## Kinovea-like Comparison Tool (2026-03-31) ✅ DONE
@@ -650,22 +721,26 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
    - **SAFSAR** - Few-shot learning for rare elements
    - **GCN architectures** - SkelFormer, HI-GCN (work on skeleton data)
 
-### Blade Detection Enhancements
-- **Current:** BDA Algorithm (79-83% accuracy) ✅ Implemented
-- **Gemini Recommendation:** Two-stream hybrid
-  - Stream 1: Kinematic heuristics (already done)
-  - Stream 2: MobileNetV3-Small on 64x64 patches (critical frames only)
-  - Expected: 80% accuracy with minimal compute
-- **Future:** Audio-visual fusion (skate sound vs toe pick)
+### Blade Detection Strategy (Updated 2026-04-11)
+- **Current:** BDA Algorithm (79-83% accuracy) ✅ Implemented but not wired into pipeline
+- **Problem:** Foot keypoints unreliable on ice; no open-source solution for single-camera video
+- **Omega (2026 Olympics):** 14 rink cameras, proprietary — not replicable
+- **JudgeAI-LutzEdge:** IMU sensors required — private data
+- **Chosen direction:** OOFSkate proxy features (body kinematics) — Phase I above
+- **Future possibility:** Audio-visual fusion (skate sound classification) for mobile app
 
 ### Data Resources
 | Dataset | Content | Link | Status |
 |---------|---------|------|--------|
-| FS-Jump3D | 3D pose jumps, markerless mocap | github.com/ryota-skating/FS-Jump3D | ✅ Public |
-| FSBench | 783 videos, 76h+, 3D+audio+text | arXiv:2504.19514 | ✅ CVPR 2025 |
-| YourSkatingCoach | BIOES-tagged elements | arXiv:2410.20427 | ✅ 2024 |
-| MMFS | 11,672 clips, 256 categories | Multi-modality | Request |
-| AthletePose3D | 1.3M frames, 12 sports | Nagoya University | New! |
+| AthletePose3D | 1.3M frames, 12 sports, 71GB | github.com/calvinyeungck/AthletePose3D | ✅ Downloaded |
+| MMFS | 26198 skeleton seq, 256 categories, 1.7GB | github.com/dingyn-Reno/MMFS | ✅ Downloaded |
+| Figure-Skating-Classification | 5168 seq, 64 classes, 340MB | huggingface.co/datasets/Mercity/... | ✅ Downloaded |
+| FS-Jump3D | Subset of AthletePose3D | github.com/ryota-skating/FS-Jump3D | ❌ Duplicate (skip) |
+| FSBench | 783 videos, 76h+, 3D+audio+text | arXiv:2504.19514 | 📝 Temporarily closed |
+| YourSkatingCoach | BIOES-tagged elements | arXiv:2410.20427 | 📝 Supplementary only |
+| FineFS | 1167 samples, scores+boundaries | github.com/yanliji/FineFS-dataset | 📝 Google Drive link dead |
+
+**See `data/DATASETS.md` for detailed registry and relationships.**
 
 ---
 
@@ -719,6 +794,8 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
 | 0.3 | 2026-03-28 | MVP 92% | 3D pose infrastructure, PhysicsEngine, keypoint mapping |
 | 0.4 | 2026-03-28 | MVP 95% | Phase 14 complete: MotionAGFormer integration, 3D viz |
 | 0.5 | 2026-03-28 | MVP 96% | Phase A+B complete: Pose filtering + multi-person tracking |
+| 0.6 | 2026-04-01 | MVP 100% | RTMPose + GPU pipeline, Nike design system, SaaS frontend |
+| 0.7 | 2026-04-11 | Strategic pivot | OOFSkate approach (proxy features over blade edge), datasets collected |
 
 ---
 
@@ -744,6 +821,19 @@ result = engine.fit_jump_trajectory(poses_3d, takeoff_idx, landing_idx)
 4. **YourSkatingCoach (2024)** - Fine-Grained Element Analysis
    - arXiv:2410.20427
    - BIOES-tagging, precise boundaries
+
+### Industry References
+5. **OOFSkate (MIT, 2026)** - Optical tracking system for figure skating
+   - Jerry Lu MFin '24, MIT Sports Lab
+   - Mobile app: video → physics metrics → GOE score estimate
+   - Deployed with NBC Sports at 2026 Winter Olympics
+   - Approach: body kinematics (no direct blade edge detection)
+   - https://news.mit.edu/2026/3-questions-ai-olympic-skaters-0213
+6. **Omega (2026 Olympics)** - Computer vision blade angle detection
+   - 14 specialized cameras around rink
+   - Jump height, rotation, blade angle — real-time
+   - Closed-source, proprietary
+   - Blade detection ready but not yet used for judging
 
 ### API Documentation
 See individual module docstrings

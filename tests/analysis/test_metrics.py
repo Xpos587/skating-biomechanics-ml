@@ -409,6 +409,171 @@ class TestBiomechanicsAnalyzer:
         # Should return perfect stability when no post-landing data
         assert score == 1.0
 
+    def test_compute_relative_jump_height(self):
+        """Should compute jump height normalized by spine length."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create 10 frames with a jump parabola
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+
+        # Spine length is 0.3 (hips at base_y, shoulders at base_y - 0.3)
+        base_y = 0.5
+        spine_length = 0.3
+        jump_amplitude = 0.15
+
+        for i in range(10):
+            # Parabolic jump at frames 2-7
+            # Frame 2: takeoff, Frame 4-5: peak, Frame 7: landing
+            if 2 <= i <= 7:
+                # Parabola: amplitude * (1 - 4 * ((t - mid) / width)^2)
+                mid = 4.5
+                width = 5.0
+                parabola = jump_amplitude * (1 - 4 * ((i - mid) / width) ** 2)
+                hip_y = base_y - parabola  # Y inverted, so subtract for up
+            else:
+                hip_y = base_y
+
+            # Set keypoints
+            poses[i, H36Key.LHIP] = [-0.05, hip_y]
+            poses[i, H36Key.RHIP] = [0.05, hip_y]
+            poses[i, H36Key.LSHOULDER] = [-0.1, hip_y - spine_length]
+            poses[i, H36Key.RSHOULDER] = [0.1, hip_y - spine_length]
+            poses[i, H36Key.LKNEE] = [-0.05, hip_y + 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, hip_y + 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, hip_y + 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, hip_y + 0.6]
+            poses[i, H36Key.HEAD] = [0, hip_y - 0.5]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=5,
+            landing=7,
+            end=9,
+        )
+
+        height = analyzer.compute_relative_jump_height(poses, phases)
+
+        # Height should be positive and reasonable
+        # With amplitude 0.15 and spine 0.3, ratio should be ~0.5
+        assert height > 0
+        assert height < 3.0  # Sanity check
+
+    def test_compute_relative_jump_height_no_jump(self):
+        """Should return 0.0 when takeoff >= landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create 5 frames with no jump
+        poses = np.zeros((5, 17, 2), dtype=np.float32)
+        base_y = 0.5
+        spine_length = 0.3
+
+        for i in range(5):
+            poses[i, H36Key.LHIP] = [-0.05, base_y]
+            poses[i, H36Key.RHIP] = [0.05, base_y]
+            poses[i, H36Key.LSHOULDER] = [-0.1, base_y - spine_length]
+            poses[i, H36Key.RSHOULDER] = [0.1, base_y - spine_length]
+            poses[i, H36Key.LKNEE] = [-0.05, base_y + 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, base_y + 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, base_y + 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, base_y + 0.6]
+            poses[i, H36Key.HEAD] = [0, base_y - 0.5]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=1,
+            peak=1,
+            landing=1,  # Same as takeoff
+            end=4,
+        )
+
+        height = analyzer.compute_relative_jump_height(poses, phases)
+
+        # Should return 0.0 when no jump
+        assert height == 0.0
+
+    def test_compute_landing_trunk_recovery_good(self):
+        """Should return high score when trunk stays upright after landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create poses with upright trunk throughout
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+        for i in range(10):
+            # Set up full body skeleton with shoulders directly above hips
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            # Shoulders directly above hips (same X, different Y) = upright
+            poses[i, H36Key.LSHOULDER] = [-0.05, -0.3]
+            poses[i, H36Key.RSHOULDER] = [0.05, -0.3]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=4,
+            landing=6,
+            end=9,
+        )
+
+        score = analyzer.compute_landing_trunk_recovery(poses, phases)
+
+        # Upright trunk should give high recovery score
+        assert score > 0.7
+        assert score <= 1.0
+
+    def test_compute_landing_trunk_recovery_leaned(self):
+        """Should return low score when trunk leans forward after landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create poses with forward lean after landing
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+        for i in range(10):
+            # Set up full body skeleton
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+
+            # After landing, shoulders shift forward (Y less negative = higher)
+            # This creates forward trunk lean
+            if i >= 6:  # After landing frame
+                # Shoulders higher (less negative Y) and slightly forward (positive X)
+                poses[i, H36Key.LSHOULDER] = [0.05, -0.15]  # Forward and up
+                poses[i, H36Key.RSHOULDER] = [0.15, -0.15]  # Forward and up
+            else:
+                # Before landing: upright
+                poses[i, H36Key.LSHOULDER] = [-0.05, -0.3]
+                poses[i, H36Key.RSHOULDER] = [0.05, -0.3]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=4,
+            landing=6,
+            end=9,
+        )
+
+        score = analyzer.compute_landing_trunk_recovery(poses, phases)
+
+        # Forward lean should give low recovery score
+        assert score < 0.5
+        assert score >= 0.0
+
 
 class TestMetricResult:
     """Test MetricResult dataclass."""

@@ -421,6 +421,41 @@ class BiomechanicsAnalyzer:
 
         return float(stability)
 
+    def compute_landing_trunk_recovery(self, poses: NormalizedPose, phases: ElementPhase) -> float:
+        """Compute post-landing trunk recovery score.
+
+        Measures how upright the trunk is during the post-landing phase.
+        Camera-independent: uses spine-to-hip angle relative to vertical.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+
+        Returns:
+            Recovery score in [0.0, 1.0] where 1.0 = perfectly upright.
+            Formula: max(0.0, 1.0 - avg_lean / 30.0)
+            Returns 1.0 if no post-landing data available.
+        """
+        # Check if we have post-landing data
+        if phases.end <= phases.landing:
+            return 1.0
+
+        # Extract post-landing frames (landing+1 to end)
+        post_landing_start = phases.landing + 1
+        post_landing_poses = poses[post_landing_start : phases.end + 1]
+
+        # Compute trunk lean for post-landing frames
+        trunk_lean = self.compute_trunk_lean(post_landing_poses)
+
+        # Calculate average absolute lean during post-landing
+        avg_lean = float(np.mean(np.abs(trunk_lean)))
+
+        # Convert to recovery score: lower lean = higher recovery
+        # 30 degrees is a reasonable threshold for "poor recovery"
+        recovery = max(0.0, 1.0 - avg_lean / 30.0)
+
+        return float(recovery)
+
     def compute_arm_position(self, poses: NormalizedPose) -> float:
         """Compute arm position score.
 
@@ -616,6 +651,77 @@ class BiomechanicsAnalyzer:
         # Symmetry = 1 - average asymmetry
         avg_asymmetry = float(np.mean(asymmetries))
         return float(max(0, 1 - avg_asymmetry))
+
+    def compute_relative_jump_height(
+        self, poses: NormalizedPose, phases: ElementPhase
+    ) -> float:
+        """Compute jump height normalized by spine length (camera-independent).
+
+        This metric provides a camera-independent measure of jump height by
+        normalizing the Center of Mass displacement by the athlete's spine length.
+        This removes dependence on camera distance and zoom level.
+
+        Typical values:
+        - 0.0: No jump
+        - ~0.5: Typical jump
+        - ~1.0+: Elite jump (CoM displacement equal to spine length)
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+
+        Returns:
+            Relative jump height as ratio (CoM displacement / spine length).
+            Returns 0.0 if takeoff >= landing (no jump detected).
+        """
+        # Guard against invalid phases
+        if phases.takeoff >= phases.landing:
+            return 0.0
+
+        # Calculate average spine length around takeoff
+        # Spine = distance from mid-hip to mid-shoulder
+        spine_lengths: list[float] = []
+
+        # Sample frames around takeoff (±2 frames if available)
+        start_frame = max(0, phases.takeoff - 2)
+        end_frame = min(len(poses), phases.takeoff + 3)
+
+        for i in range(start_frame, end_frame):
+            pose = poses[i]
+
+            # Compute mid-hip and mid-shoulder
+            mid_hip = (pose[H36Key.LHIP] + pose[H36Key.RHIP]) / 2
+            mid_shoulder = (pose[H36Key.LSHOULDER] + pose[H36Key.RSHOULDER]) / 2
+
+            # Calculate spine length
+            spine_len = float(np.linalg.norm(mid_shoulder - mid_hip))
+
+            # Skip invalid spine lengths
+            if spine_len >= 0.01:
+                spine_lengths.append(spine_len)
+
+        # If no valid spine lengths found, return 0.0
+        if not spine_lengths:
+            return 0.0
+
+        avg_spine = float(np.mean(spine_lengths))
+
+        # Calculate CoM trajectory
+        com_trajectory = calculate_com_trajectory(poses)
+
+        # Get CoM at takeoff
+        takeoff_com = com_trajectory[phases.takeoff]
+
+        # Find minimum CoM during flight (maximum height)
+        # Y is inverted in normalized coords, so min Y = max height
+        flight_com = com_trajectory[phases.takeoff : phases.landing + 1]
+        peak_com = np.min(flight_com)
+
+        # CoM displacement = takeoff - peak (both inverted, so difference is positive)
+        com_displacement = float(takeoff_com - peak_com)
+
+        # Return normalized height
+        return com_displacement / avg_spine
 
 
 @dataclass
