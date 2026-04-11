@@ -5,6 +5,9 @@ description = "ML-based figure skating biomechanics analysis"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "asyncpg>=0.30",
+    "bcrypt>=4.0,<4.1",
+    "email-validator>=2.3.0",
     "rtmlib>=0.0.7",            # RTMPose pose estimation (HALPE26, 26kp with feet)
     "onnxruntime-gpu>=1.24.4",      # ONNX Runtime with CUDA backend for rtmlib
     "opencv-python>=4.10.0",
@@ -18,15 +21,16 @@ dependencies = [
     "trimesh>=4.11.5",
     "pygltflib>=1.16.5",
     "fastapi>=0.135.2",
-    "uvicorn[standard]>=0.42.0",
-    "python-multipart>=0.0.22",
-    "sse-starlette>=3.3.4",
-    "structlog>=25.5.0",
-    "arq>=0.26.0",
-    "redis>=5.0.0",
+    "passlib[bcrypt]>=1.7",
+    "PyJWT>=2.9",
     "pydantic-settings>=2.0.0",
-    "boto3>=1.42.80",
+    "python-multipart>=0.0.22",
+    "redis>=5.0.0",
+    "sse-starlette>=3.3.4",
+    "sqlalchemy[asyncio]>=2.0",
+    "structlog>=25.5.0",
     "ultralytics>=8.0.0",
+    "uvicorn[standard]>=0.42.0",
 ]
 
 [build-system]
