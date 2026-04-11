@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 > **PROJECT ROADMAP:** @ROADMAP.md — SINGLE SOURCE OF TRUTH for implementation status
-> **RESEARCH:** @docs/research/RESEARCH_SUMMARY_2026-03-28.md — Exa + Gemini findings (41 papers)
+> **MODULE DOCS:** @docs/CLAUDE.md — research, specs, plans
 
 ---
 
@@ -169,5 +169,4 @@ Key lessons learned:
 ## References
 
 - @ROADMAP.md — project status (SINGLE SOURCE OF TRUTH)
-- @docs/research/RESEARCH_SUMMARY_2026-03-28.md — research findings (41 papers)
-- @docs/research/RESEARCH.md — research memory bank (index)
+- @docs/CLAUDE.md — documentation index (research, specs, plans)
