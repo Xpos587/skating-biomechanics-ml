@@ -75,3 +75,23 @@ export async function apiFetch<T>(
   if (res.status === 204) return undefined as T
   return schema.parse(await res.json())
 }
+
+// ---------------------------------------------------------------------------
+// Convenience helpers
+// ---------------------------------------------------------------------------
+
+export async function apiPost<T>(path: string, schema: z.ZodSchema<T>, body: unknown): Promise<T> {
+  return apiFetch<T>(path, schema, { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } })
+}
+
+export async function apiPatch<T>(path: string, schema: z.ZodSchema<T>, body: unknown): Promise<T> {
+  return apiFetch<T>(path, schema, { method: "PATCH", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } })
+}
+
+export async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: authHeaders() })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
+    throw new ApiError(body.detail, res.status)
+  }
+}
