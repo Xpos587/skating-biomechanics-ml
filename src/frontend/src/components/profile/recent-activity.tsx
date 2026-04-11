@@ -3,17 +3,7 @@
 import Link from "next/link"
 import type React from "react"
 import { useSessions } from "@/lib/api/sessions"
-
-const ELEMENT_LABELS: Record<string, string> = {
-  waltz_jump: "Вальсовый",
-  toe_loop: "Перекидной",
-  flip: "Флип",
-  salchow: "Сальхов",
-  loop: "Петля",
-  lutz: "Лютц",
-  axel: "Аксель",
-  three_turn: "Тройка",
-}
+import { useTranslations } from "@/i18n"
 
 function scoreStyle(score: number): React.CSSProperties {
   if (score >= 0.7) return { color: "oklch(var(--score-good))" }
@@ -23,6 +13,7 @@ function scoreStyle(score: number): React.CSSProperties {
 
 export function RecentActivity({ userId }: { userId?: string }) {
   const { data: sessionsData } = useSessions(userId)
+  const t = useTranslations("elements")
 
   if (!sessionsData) return null
 
@@ -52,7 +43,7 @@ export function RecentActivity({ userId }: { userId?: string }) {
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
-                {ELEMENT_LABELS[s.element_type] ?? s.element_type}
+                {t(s.element_type)}
               </p>
               <p className="text-xs text-muted-foreground">{date}</p>
             </div>

@@ -4,12 +4,7 @@ import type React from "react"
 import Link from "next/link"
 import { Award, Clock, Loader2 } from "lucide-react"
 import type { Session } from "@/types"
-
-const ELEMENT_NAMES: Record<string, string> = {
-  three_turn: "Тройка", waltz_jump: "Вальсовый", toe_loop: "Перекидной",
-  flip: "Флип", salchow: "Сальхов", loop: "Петля",
-  lutz: "Лютц", axel: "Аксель",
-}
+import { useTranslations } from "@/i18n"
 
 function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -31,13 +26,14 @@ function scoreStyle(score: number | null): React.CSSProperties {
 
 export function SessionCard({ session }: { session: Session }) {
   const hasPR = session.metrics.some((m) => m.is_pr)
+  const t = useTranslations("elements")
 
   return (
     <Link href={`/sessions/${session.id}`} className="block">
       <div className="rounded-2xl border border-border p-3 sm:p-4 hover:bg-accent/30 transition-colors">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-medium truncate">{ELEMENT_NAMES[session.element_type] ?? session.element_type}</p>
+            <p className="font-medium truncate">{t(session.element_type)}</p>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3 shrink-0" />
               {relativeTime(session.created_at)}

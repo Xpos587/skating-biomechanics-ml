@@ -111,5 +111,15 @@
   },
   "training": {
     "title": "Тренировки"
+  },
+  "elements": {
+    "three_turn": "Тройка",
+    "waltz_jump": "Вальсовый",
+    "toe_loop": "Перекидной",
+    "flip": "Флип",
+    "salchow": "Сальхов",
+    "loop": "Петля",
+    "lutz": "Лютц",
+    "axel": "Аксель"
   }
 }

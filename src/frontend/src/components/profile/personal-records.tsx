@@ -3,21 +3,12 @@
 import { Trophy } from "lucide-react"
 import Link from "next/link"
 import { useMetricRegistry, usePRs } from "@/lib/api/metrics"
-
-const ELEMENT_LABELS: Record<string, string> = {
-  waltz_jump: "Вальсовый",
-  toe_loop: "Перекидной",
-  flip: "Флип",
-  salchow: "Сальхов",
-  loop: "Петля",
-  lutz: "Лютц",
-  axel: "Аксель",
-  three_turn: "Тройка",
-}
+import { useTranslations } from "@/i18n"
 
 export function PersonalRecords({ userId }: { userId?: string }) {
   const { data: prsData } = usePRs(userId)
   const { data: registry } = useMetricRegistry()
+  const t = useTranslations("elements")
 
   if (!prsData || !registry) return null
 
@@ -42,7 +33,7 @@ export function PersonalRecords({ userId }: { userId?: string }) {
       {Object.entries(grouped).map(([elementType, elementPRs]) => (
         <div key={elementType}>
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-            {ELEMENT_LABELS[elementType] ?? elementType}
+            {t(elementType)}
           </h3>
           <div className="space-y-1.5">
             {elementPRs.map((pr) => {

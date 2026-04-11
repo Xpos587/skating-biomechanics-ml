@@ -111,5 +111,15 @@
   },
   "training": {
     "title": "Training"
+  },
+  "elements": {
+    "three_turn": "Three Turn",
+    "waltz_jump": "Waltz Jump",
+    "toe_loop": "Toe Loop",
+    "flip": "Flip",
+    "salchow": "Salchow",
+    "loop": "Loop",
+    "lutz": "Lutz",
+    "axel": "Axel"
   }
 }
