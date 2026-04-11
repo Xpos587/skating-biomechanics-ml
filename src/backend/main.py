@@ -9,7 +9,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.backend.logging_config import configure_logging
-from src.backend.routes import detect, models, process
+from src.backend.routes import auth, detect, models, process, users
+from src.config import get_settings
 
 configure_logging()
 logger = structlog.get_logger()
@@ -18,12 +19,14 @@ app = FastAPI(title="AI Тренер — Фигурное катание")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_settings().cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(detect.router)
 app.include_router(models.router)
 app.include_router(process.router)
