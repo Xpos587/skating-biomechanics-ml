@@ -3,9 +3,9 @@
  */
 
 import { z } from "zod"
-import { API_BASE, apiFetch } from "@/lib/api-client"
-import type { ProcessResponse } from "@/lib/schemas"
-import { DetectResponseSchema, ProcessRequestSchema, ProcessResponseSchema } from "@/lib/schemas"
+import { API_BASE, apiFetch, ApiError, getAccessToken } from "@/lib/api-client"
+import type { ProcessResponse, PersonInfo } from "@/lib/schemas"
+import { DetectQueueResponseSchema, DetectResultResponseSchema, ProcessRequestSchema, ProcessResponseSchema } from "@/lib/schemas"
 
 // ---------------------------------------------------------------------------
 // Models
@@ -78,16 +78,33 @@ export async function cancelQueuedProcess(taskId: string): Promise<void> {
 // Detect (FormData — can't use JSON apiFetch)
 // ---------------------------------------------------------------------------
 
-export async function detectPersons(
+export async function detectEnqueue(
   file: File,
   tracking = "auto",
-): Promise<{ data: unknown; error?: string }> {
+): Promise<{ task_id: string; video_key: string }> {
   const form = new FormData()
   form.append("video", file)
-  const res = await fetch(`${API_BASE}/detect?tracking=${encodeURIComponent(tracking)}`, {
+  form.append("tracking", tracking)
+  const token = getAccessToken()
+  const res = await fetch(`${API_BASE}/detect`, {
     method: "POST",
     body: form,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
-  if (!res.ok) return { data: null, error: await res.text() }
-  return { data: DetectResponseSchema.parse(await res.json()), error: undefined }
+  if (!res.ok) throw new ApiError((await res.json().catch(() => ({}))).detail ?? `HTTP ${res.status}`, res.status)
+  return DetectQueueResponseSchema.parse(await res.json())
+}
+
+export async function detectStatus(
+  taskId: string,
+): Promise<{ task_id: string; status: string; progress: number; message: string; result: unknown | null; error: string | null }> {
+  const data = await apiFetch(`/detect/${taskId}/status`, TaskStatusSchema)
+  return data
+}
+
+export async function detectResult(
+  taskId: string,
+): Promise<{ persons: PersonInfo[]; preview_image: string; video_key: string; auto_click: { x: number; y: number } | null; status: string }> {
+  const data = await apiFetch(`/detect/${taskId}/result`, DetectResultResponseSchema)
+  return data
 }

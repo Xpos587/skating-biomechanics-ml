@@ -30,6 +30,20 @@ export const DetectResponseSchema = z.object({
   status: z.string(),
 })
 
+export const DetectQueueResponseSchema = z.object({
+  task_id: z.string(),
+  video_key: z.string(),
+  status: z.string(),
+})
+
+export const DetectResultResponseSchema = z.object({
+  persons: z.array(PersonInfoSchema),
+  preview_image: z.string(),
+  video_key: z.string(),
+  auto_click: PersonClickSchema.nullable(),
+  status: z.string(),
+})
+
 export const ProcessStatsSchema = z.object({
   total_frames: z.number().int().positive(),
   valid_frames: z.number().int().nonnegative(),
@@ -73,6 +87,8 @@ export const TaskStatusResponseSchema = z.object({
 export type PersonInfo = z.infer<typeof PersonInfoSchema>
 export type PersonClick = z.infer<typeof PersonClickSchema>
 export type DetectResponse = z.infer<typeof DetectResponseSchema>
+export type DetectQueueResponse = z.infer<typeof DetectQueueResponseSchema>
+export type DetectResultResponse = z.infer<typeof DetectResultResponseSchema>
 export type ProcessStats = z.infer<typeof ProcessStatsSchema>
 export type ProcessRequest = z.infer<typeof ProcessRequestSchema>
 export type ProcessResponse = z.infer<typeof ProcessResponseSchema>
