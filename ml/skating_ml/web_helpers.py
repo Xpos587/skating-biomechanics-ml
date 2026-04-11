@@ -403,10 +403,10 @@ def process_video_pipeline(  # noqa: PLR0913
     analysis_recommendations = []
 
     if element_type and prepared.n_valid > 0:
-        from skating_ml.analysis.metrics import BiomechanicsAnalyzer
-        from skating_ml.analysis.recommender import Recommender
-        from skating_ml.analysis.phase_detector import PhaseDetector
         from skating_ml.analysis.element_defs import get_element_def
+        from skating_ml.analysis.metrics import BiomechanicsAnalyzer
+        from skating_ml.analysis.phase_detector import PhaseDetector
+        from skating_ml.analysis.recommender import Recommender
 
         elem_def = get_element_def(element_type)
         if elem_def:

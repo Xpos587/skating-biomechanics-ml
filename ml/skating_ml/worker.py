@@ -68,8 +68,8 @@ async def process_video_task(
             mapping={"status": TaskStatus.RUNNING, "started_at": now},
         )
 
-        from backend.app.database import async_session
         from backend.app.crud.session import get_by_id
+        from backend.app.database import async_session
         from skating_ml.vastai.client import process_video_remote
 
         # Fetch element_type from session if session_id provided
@@ -158,9 +158,9 @@ async def detect_video_task(
 
         import cv2
 
+        from backend.app.storage import download_file
         from skating_ml.device import DeviceConfig
         from skating_ml.pose_estimation.rtmlib_extractor import RTMPoseExtractor
-        from backend.app.storage import download_file
         from skating_ml.utils.video import get_video_meta
         from skating_ml.web_helpers import render_person_preview
 

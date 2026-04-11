@@ -3,15 +3,21 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter, HTTPException, status
 
 from backend.app.auth.deps import CurrentUser, DbDep
 from backend.app.crud.relationship import (
     create as create_rel,
-    get_by_id as get_rel_by_id,
+)
+from backend.app.crud.relationship import (
     get_active as get_active_rel,
-    list_active_students,
-    list_active_coaches,
+)
+from backend.app.crud.relationship import (
+    get_by_id as get_rel_by_id,
+)
+from backend.app.crud.relationship import (
     list_for_user,
     list_pending_for_skater,
 )
@@ -62,7 +68,7 @@ async def accept_invite(rel_id: str, user: CurrentUser, db: DbDep):
 @router.post("/relationships/{rel_id}/end", response_model=RelationshipResponse)
 async def end_relationship(rel_id: str, user: CurrentUser, db: DbDep):
     """Either party ends the relationship."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     rel = await get_rel_by_id(db, rel_id)
     if not rel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relationship not found")
@@ -72,7 +78,7 @@ async def end_relationship(rel_id: str, user: CurrentUser, db: DbDep):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already ended")
 
     rel.status = "ended"
-    rel.ended_at = datetime.now(timezone.utc)
+    rel.ended_at = datetime.now(UTC)
     db.add(rel)
     await db.flush()
     await db.refresh(rel)

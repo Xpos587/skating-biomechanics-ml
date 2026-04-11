@@ -6,9 +6,20 @@ import structlog
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.logging_config import configure_logging
-from backend.app.routes import auth, detect, metrics, misc, models, process, relationships, sessions, uploads, users
 from backend.app.config import get_settings
+from backend.app.logging_config import configure_logging
+from backend.app.routes import (
+    auth,
+    detect,
+    metrics,
+    misc,
+    models,
+    process,
+    relationships,
+    sessions,
+    uploads,
+    users,
+)
 
 configure_logging()
 logger = structlog.get_logger()

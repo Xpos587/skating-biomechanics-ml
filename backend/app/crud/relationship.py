@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
 
 from backend.app.models.relationship import Relationship
 

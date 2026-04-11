@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from pydantic import BaseModel
-
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
 
 from backend.app.auth.deps import CurrentUser
 from backend.app.config import get_settings

@@ -9,13 +9,12 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, HTTPException, UploadFile
 
+from backend.app.config import get_settings
 from backend.app.schemas import (
     DetectQueueResponse,
     DetectResultResponse,
-    PersonInfo,
     TaskStatusResponse,
 )
-from backend.app.config import get_settings
 from backend.app.storage import upload_bytes
 from backend.app.task_manager import (
     TaskStatus,

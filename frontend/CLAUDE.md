@@ -7,6 +7,7 @@
 - **Styling**: Tailwind CSS v4, shadcn/ui, OKLCH color system
 - **State**: React Query (@tanstack/react-query) + Zod schema validation
 - **i18n**: next-intl (messages in `frontend/messages/ru.json`, `en.json`)
+- **React Query**: @tanstack/react-query for server state
 - **Icons**: Lucide React
 - **Charts**: Recharts
 - **Runtime**: bun (NOT npm/npx)

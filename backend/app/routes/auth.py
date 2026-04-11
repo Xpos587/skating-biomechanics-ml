@@ -13,6 +13,7 @@ from backend.app.auth.security import (
     hash_token,
     verify_password,
 )
+from backend.app.config import get_settings
 from backend.app.crud.refresh_token import create as create_refresh_token_crud
 from backend.app.crud.refresh_token import get_active_by_hash, revoke
 from backend.app.crud.user import create as create_user
@@ -23,7 +24,6 @@ from backend.app.schemas import (
     RegisterRequest,
     TokenResponse,
 )
-from backend.app.config import get_settings
 
 router = APIRouter(tags=["auth"])
 settings = get_settings()

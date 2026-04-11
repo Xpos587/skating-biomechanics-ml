@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime  # noqa: TC003
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func, text
+from sqlalchemy import DateTime, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.models.base import Base, TimestampMixin

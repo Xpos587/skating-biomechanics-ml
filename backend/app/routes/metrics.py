@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select
 
 from backend.app.auth.deps import CurrentUser, DbDep
 from backend.app.crud.relationship import is_coach_for_student
 from backend.app.metrics_registry import METRIC_REGISTRY
 from backend.app.models.session import Session, SessionMetric
-from backend.app.schemas import DiagnosticsFinding, DiagnosticsResponse, TrendDataPoint, TrendResponse
+from backend.app.schemas import (
+    DiagnosticsFinding,
+    DiagnosticsResponse,
+    TrendDataPoint,
+    TrendResponse,
+)
 from backend.app.services.diagnostics import (
     check_consistently_below_range,
     check_declining_trend,
@@ -19,7 +25,6 @@ from backend.app.services.diagnostics import (
     check_new_pr,
     check_stagnation,
 )
-from sqlalchemy import desc, select
 
 router = APIRouter(tags=["metrics"])
 
@@ -60,7 +65,7 @@ async def get_trend(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown metric: {metric_name}")
 
     # Calculate date filter
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     period_map = {"7d": 7, "30d": 30, "90d": 90, "all": None}
     days = period_map.get(period)
     date_filter = Session.created_at >= (now - timedelta(days=days)) if days else True
