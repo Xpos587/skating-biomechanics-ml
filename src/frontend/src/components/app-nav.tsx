@@ -32,7 +32,7 @@ export function AppNav() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted ${isActive ? "bg-muted font-medium" : "text-muted-foreground"}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors hover:text-foreground ${isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}
           >
             <Icon className="h-4 w-4" />
             <span className="hidden md:inline">{item.label}</span>
@@ -44,7 +44,7 @@ export function AppNav() {
         <>
           <Link
             href="/profile"
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted ${pathname === "/profile" ? "bg-muted font-medium" : "text-muted-foreground"}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors hover:text-foreground ${pathname === "/profile" ? "text-foreground font-medium" : "text-muted-foreground"}`}
           >
             <User className="h-4 w-4" />
             <span className="hidden md:inline">{user?.display_name ?? t("profile")}</span>
@@ -52,7 +52,7 @@ export function AppNav() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -60,7 +60,7 @@ export function AppNav() {
       ) : (
         <Link
           href="/login"
-          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted text-muted-foreground"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors hover:text-foreground text-muted-foreground"
         >
           <LogIn className="h-4 w-4" />
           <span className="hidden md:inline">{t("signIn")}</span>

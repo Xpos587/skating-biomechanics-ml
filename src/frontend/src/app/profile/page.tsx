@@ -53,7 +53,7 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("title")}</h1>
+        <h1 className="nike-h1">{t("title")}</h1>
         <button
           type="button"
           onClick={handleLogout}

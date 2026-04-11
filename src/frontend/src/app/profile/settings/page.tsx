@@ -62,7 +62,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      <h1 className="nike-h1">{t("title")}</h1>
 
       <form onSubmit={handleSave} className="space-y-4">
         <FormSelect
@@ -95,7 +95,7 @@ export default function SettingsPage() {
                 key={th.value}
                 type="button"
                 onClick={() => setTheme(th.value)}
-                className={`rounded-md border px-4 py-2 text-sm ${theme === th.value ? "border-primary bg-primary/10" : "border-input"}`}
+                className={`rounded-[0.5rem] border-[1.5px] px-4 py-2 text-sm ${theme === th.value ? "border-foreground bg-secondary" : "border-input"}`}
               >
                 {t(th.labelKey)}
               </button>

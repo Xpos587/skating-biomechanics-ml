@@ -35,7 +35,7 @@ export default function RegisterPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2 text-center">
-        <h1 className="text-2xl font-bold">{t("signUp")}</h1>
+        <h1 className="nike-h1">{t("signUp")}</h1>
         <p className="text-sm text-muted-foreground">{t("signUpSubtitle")}</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -72,7 +72,7 @@ export default function RegisterPage() {
       </form>
       <p className="text-center text-sm text-muted-foreground">
         {t("hasAccount")}{" "}
-        <Link href="/login" className="text-primary hover:underline">
+        <Link href="/login" className="text-link hover:underline">
           {t("signInBtn")}
         </Link>
       </p>

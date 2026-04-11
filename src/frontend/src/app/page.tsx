@@ -187,7 +187,7 @@ export default function UploadPage() {
           onKeyDown={e => {
             if (e.key === "Enter" || e.key === " ") fileRef.current?.click()
           }}
-          className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 transition-colors hover:border-primary"
+          className="flex cursor-pointer flex-col items-center justify-center rounded-[1.25rem] border-2 border-dashed border-border p-12 transition-colors hover:border-foreground"
         >
           <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
           <p className="text-lg font-medium">{t("dropVideo")}</p>
@@ -299,7 +299,7 @@ export default function UploadPage() {
                         type="button"
                         key={p.track_id}
                         onClick={() => selectFromList(p.track_id)}
-                        className={`rounded px-3 py-1.5 text-left text-sm transition-colors ${
+                        className={`rounded-[0.5rem] px-3 py-1.5 text-left text-sm transition-colors ${
                           selectedPerson === p.track_id
                             ? "bg-primary text-primary-foreground"
                             : "hover:bg-muted"

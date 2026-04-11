@@ -38,7 +38,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
   ] as const
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {statItems.map(item => {
         const Icon = item.icon
         return (
@@ -50,7 +50,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-2xl font-bold">{item.getValue(stats)}</p>
+              <p className="text-2xl font-medium">{item.getValue(stats)}</p>
             </CardContent>
           </Card>
         )

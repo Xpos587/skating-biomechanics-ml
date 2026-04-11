@@ -26,8 +26,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen bg-background text-foreground">
         <NextIntlClientProvider messages={messages}>
           <Providers>
-            <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-4">
+            <header className="sticky top-0 z-50 border-b border-border bg-background">
+              <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between px-4">
                 <Link href="/" className="flex items-center gap-2 font-semibold">
                   <Activity className="h-5 w-5" />
                   <span className="hidden sm:inline">{t("title")}</span>
@@ -35,8 +35,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <AppNav />
               </div>
             </header>
-            <main className="mx-auto w-full max-w-6xl p-4 sm:p-6">{children}</main>
-            <footer className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+            <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+            <footer className="px-4 py-6 text-center text-xs text-muted-foreground">
               {t("footer")}
             </footer>
             <Toaster richColors position="bottom-right" />
