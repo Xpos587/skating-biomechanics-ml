@@ -20,7 +20,13 @@ dependencies = [
     "alembic>=1.18.4",
     "arq>=0.27.0",
     "boto3>=1.42.83",
+    "madmom>=0.16.1",
+    "msaf>=0.1.0",
+    "librosa>=0.10.0",
 ]
+
+[tool.uv.extra-build-dependencies]
+madmom = ["Cython", "numpy"]
 
 [build-system]
 requires = ["hatchling"]
