@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { BarChart3, Camera, Music, Newspaper, Users } from "lucide-react"
+import { BarChart3, Camera, Music, Newspaper, User, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { z } from "zod"
@@ -28,6 +28,7 @@ export function BottomDock() {
     { href: "/choreography", icon: Music, label: t("planner") },
     { href: "/progress", icon: BarChart3, label: t("progress") },
     ...(hasStudents ? [{ href: "/dashboard", icon: Users, label: t("students") }] : []),
+    { href: "/profile", icon: User, label: t("profile") },
   ] as const
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
