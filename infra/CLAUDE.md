@@ -3,10 +3,9 @@
 ## Architecture
 
 ```
-Caddy (:3000)
+Caddy (:80)
   ├── /api/* → FastAPI (:8000)
-  ├── WebSocket → Next.js dev (:5173)
-  └── /* → frontend/dist (static files)
+  └── /* → Next.js standalone (:3000)
 ```
 
 ## Files
