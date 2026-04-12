@@ -32,7 +32,8 @@
       },
       "suspicious": {
         "noExplicitAny": "warn",
-        "noArrayIndexKey": "warn"
+        "noArrayIndexKey": "warn",
+        "noDocumentCookie": "warn"
       },
       "complexity": {
         "noForEach": "warn"
