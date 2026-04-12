@@ -21,7 +21,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-05T06:18:21.12077948Z"
+exclude-newer = "2026-04-05T06:45:02.682243795Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -3660,7 +3660,7 @@ wheels = [
 [[package]]
 name = "skating-biomechanics-ml"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "arq" },

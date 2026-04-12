@@ -73,7 +73,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --frozen --dev
-      - run: PYTHONPATH=. uv run pytest backend/tests/ ml/tests/ -v -m "not slow" --tb=short
+      - run: PYTHONPATH=ml:. uv run pytest backend/tests/ ml/tests/ -v -m "not slow" --tb=short
 
   fe-lint:
     name: Lint (Biome)
