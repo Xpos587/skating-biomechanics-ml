@@ -290,3 +290,135 @@ class RelationshipResponse(BaseModel):
 
 class RelationshipListResponse(BaseModel):
     relationships: list[RelationshipResponse]
+
+
+# ---------------------------------------------------------------------------
+# Choreography
+# ---------------------------------------------------------------------------
+
+
+class MusicAnalysisResponse(BaseModel):
+    id: str
+    user_id: str
+    filename: str
+    audio_url: str
+    duration_sec: float
+    bpm: float | None
+    meter: str | None
+    structure: list[dict] | None
+    energy_curve: dict | None
+    downbeats: list[float] | None
+    peaks: list[float] | None
+    status: str
+    created_at: str
+    updated_at: str
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def validate_datetime(cls, v: Any) -> str:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
+
+
+class UploadMusicResponse(BaseModel):
+    music_id: str
+    filename: str
+
+
+class GenerateRequest(BaseModel):
+    music_id: str
+    discipline: str = Field(pattern=r"^(mens_singles|womens_singles)$")
+    segment: str = Field(pattern=r"^(short_program|free_skate)$")
+    inventory: dict
+
+
+class LayoutElement(BaseModel):
+    code: str
+    goe: int = 0
+    timestamp: float = 0.0
+    position: dict | None = None
+    is_back_half: bool = False
+    is_jump_pass: bool = False
+    jump_pass_index: int | None = None
+
+
+class Layout(BaseModel):
+    elements: list[LayoutElement]
+    total_tes: float
+    back_half_indices: list[int]
+
+
+class GenerateResponse(BaseModel):
+    layouts: list[Layout]
+
+
+class ValidateRequest(BaseModel):
+    discipline: str = Field(pattern=r"^(mens_singles|womens_singles)$")
+    segment: str = Field(pattern=r"^(short_program|free_skate)$")
+    elements: list[dict]
+
+
+class ValidateResponse(BaseModel):
+    is_valid: bool
+    errors: list[str]
+    warnings: list[str]
+    total_tes: float | None = None
+
+
+class RenderRinkRequest(BaseModel):
+    elements: list[dict]
+    width: int = Field(default=1200, ge=400, le=4000)
+    height: int = Field(default=600, ge=200, le=2000)
+
+
+class ChoreographyProgramResponse(BaseModel):
+    id: str
+    user_id: str
+    music_analysis_id: str | None
+    title: str | None
+    discipline: str
+    segment: str
+    season: str
+    layout: dict | None
+    total_tes: float | None
+    estimated_goe: float | None
+    estimated_pcs: float | None
+    estimated_total: float | None
+    is_valid: bool | None
+    validation_errors: list[str] | None
+    validation_warnings: list[str] | None
+    created_at: str
+    updated_at: str
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def validate_datetime(cls, v: Any) -> str:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
+
+
+class ProgramListResponse(BaseModel):
+    programs: list[ChoreographyProgramResponse]
+    total: int
+
+
+class SaveProgramRequest(BaseModel):
+    title: str | None = None
+    layout: dict | None = None
+    total_tes: float | None = None
+    estimated_goe: float | None = None
+    estimated_pcs: float | None = None
+    estimated_total: float | None = None
+    is_valid: bool | None = None
+    validation_errors: list[str] | None = None
+    validation_warnings: list[str] | None = None
+
+
+class ExportRequest(BaseModel):
+    format: str = Field(pattern=r"^(svg|pdf|json)$")
