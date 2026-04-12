@@ -1,0 +1,23 @@
+id: no-type-any
+language: tsx
+message: |
+  Don't use `any` type. Use proper typing or `unknown` for truly dynamic data.
+
+  Instead of:  const data = res as any
+  Use:         const data = res as ExpectedType
+
+  Instead of:  function foo(x: any)
+  Use:         function foo(x: unknown)
+severity: warning
+note: |
+  Allowed: generic constraints, .d.ts declaration files, test fixtures.
+rule:
+  any:
+    - kind: as_expression
+      has:
+        kind: predefined_type
+        regex: '^any$'
+    - kind: type_annotation
+      has:
+        kind: predefined_type
+        regex: '^any$'

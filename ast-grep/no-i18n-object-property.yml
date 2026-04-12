@@ -1,0 +1,20 @@
+id: no-i18n-object-property
+language: tsx
+message: |
+  Don't hardcode user-facing text in object properties. Use translations.
+
+  Instead of:  { label: "Прогресс" }
+  Use:         { label: t("nav.progress") }
+severity: warning
+note: |
+  Allowed: technical properties (icon, href, src, className, style, type, name, id).
+rule:
+  kind: pair
+  has:
+    kind: string_fragment
+    regex: '[\u0410-\u044F\u0451]{2,}'
+    stopBy: end
+  not:
+    has:
+      kind: property_identifier
+      regex: '^(icon|href|src|className|style|type|name|id|key|ref|path|action|method|accept|media|loading|pattern|format|color|to|rel|target|role|value)$'

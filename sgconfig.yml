@@ -4,4 +4,4 @@ test_dirs:
   - ast-grep/__tests__
 util_dirs: []
 language_globs:
-  tsx: "src/frontend/**/*.{ts,tsx}"
+  tsx: "frontend/src/**/*.{ts,tsx}"

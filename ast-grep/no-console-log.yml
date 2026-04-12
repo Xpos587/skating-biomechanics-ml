@@ -1,0 +1,12 @@
+id: no-console-log
+language: tsx
+message: |
+  Remove console.log before committing. Use proper logging or remove.
+
+  For debugging: use React Query devtools or browser DevTools.
+  For errors: use console.error or a proper error boundary.
+severity: warning
+note: |
+  Allowed: console.error, console.warn in error handlers.
+rule:
+  pattern: console.log($$$ARGS)

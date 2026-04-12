@@ -1,0 +1,20 @@
+id: no-raw-tailwind-colors
+language: tsx
+message: |
+  Use OKLCH CSS variables instead of raw Tailwind color classes.
+
+  Instead of:  <div className="text-red-500 bg-blue-100" />
+  Use:         <div className="text-destructive bg-primary" />
+
+  Semantic tokens: --foreground, --background, --primary, --muted, --accent,
+  --border, --score-good, --score-mid, --score-bad, --accent-gold.
+severity: warning
+note: |
+  Opacity modifiers on semantic tokens are fine: text-foreground/80, bg-primary/20.
+  OKLCH inline styles are also fine: style={{ color: "oklch(var(--accent-gold))" }}.
+rule:
+  kind: string_fragment
+  regex: '(text|bg|border)-(white|black|gray|neutral|zinc|slate|stone|red|green|blue|yellow|orange|amber|indigo|violet|purple|pink|emerald|teal|cyan|sky|lime|rose|fuchsia)(-\\d+)?(/\\d+)?'
+ignores:
+  - "frontend/src/components/ui/**"
+  - "frontend/src/components/upload/camera-recorder.tsx"

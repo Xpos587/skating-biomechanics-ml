@@ -1,0 +1,13 @@
+id: no-nested-links
+language: tsx
+message: |
+  Don't nest <a> inside <a>. React will warn about this.
+
+  Instead of:  <Link href="/a"><a href="/b">text</a></Link>
+  Use:         Separate the links or restructure the layout.
+severity: error
+rule:
+  pattern: <a $$$>$$$A</a>
+  has:
+    pattern: <a $$$>$$$</a>
+    stopBy: end

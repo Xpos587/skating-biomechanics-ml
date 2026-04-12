@@ -1,0 +1,20 @@
+id: no-i18n-jsx-text
+language: tsx
+message: |
+  Don't hardcode user-facing text in JSX. Use useTranslations() or getTranslations() from next-intl.
+
+  Instead of:  <h1>Welcome</h1>
+  Use:         const t = useTranslations("ns"); <h1>{t("key")}</h1>
+severity: warning
+note: |
+  Allowed: <title> (SEO), technical attributes (className, data-testid), aria-label.
+rule:
+  kind: jsx_element
+  has:
+    kind: jsx_text
+    regex: '[\u0410-\u044F\u0451A-Za-z]'
+    stopBy: end
+  not:
+    has:
+      kind: jsx_expression
+      stopBy: end

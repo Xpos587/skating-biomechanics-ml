@@ -1,0 +1,31 @@
+[project]
+name = "skating-ml"
+version = "0.1.0"
+description = "ML pipeline for figure skating biomechanics analysis"
+requires-python = ">=3.11"
+dependencies = [
+    "rtmlib>=0.0.7",            # RTMPose pose estimation (HALPE26, 26kp with feet)
+    "onnxruntime-gpu>=1.24.4",  # ONNX Runtime with CUDA backend for rtmlib
+    "opencv-python>=4.10.0",
+    "numpy>=2.0.0",
+    "dtw-python>=1.5.0",
+    "scipy>=1.14.0",
+    "pillow>=12.1.1",
+    "deep-sort-realtime>=1.3.2",
+    "av>=17.0.0",
+    "trimesh>=4.11.5",
+    "pygltflib>=1.16.5",
+    "ultralytics>=8.0.0",
+    "arq>=0.27.0",
+    "boto3>=1.42.83",
+    "redis>=5.0.0",
+    "structlog>=25.5.0",
+    "skating-backend @ file:///../backend",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["skating_ml"]

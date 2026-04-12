@@ -1,0 +1,16 @@
+id: no-i18n-string-arg
+language: tsx
+message: |
+  Don't hardcode user-facing strings in function calls. Use useTranslations().
+
+  Instead of:  toast.success("Приглашение отправлено")
+  Use:         toast.success(t("invitation.sent"))
+severity: warning
+note: |
+  Allowed: console.log, test assertions, Error throwing, technical strings.
+rule:
+  kind: call_expression
+  has:
+    kind: string_fragment
+    regex: '[\u0410-\u044F\u0451]{2,}'
+    stopBy: end

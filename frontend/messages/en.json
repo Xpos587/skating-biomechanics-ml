@@ -1,0 +1,198 @@
+{
+  "common": {
+    "save": "Save",
+    "saving": "Saving...",
+    "error": "Save error",
+    "loading": "Loading...",
+    "noData": "No data",
+    "cancel": "Cancel",
+    "or": "or",
+    "back": "Back"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signInSubtitle": "Enter your email and password",
+    "signingIn": "Signing in...",
+    "signInBtn": "Sign In",
+    "signInSuccess": "Signed in",
+    "signInError": "Sign in error",
+    "signUp": "Sign Up",
+    "signUpSubtitle": "Create an account to get started",
+    "signUpBtn": "Create Account",
+    "signingUp": "Creating...",
+    "signUpSuccess": "Account created",
+    "signUpError": "Sign up error",
+    "name": "Name",
+    "nameOptional": "Name (optional)",
+    "namePlaceholder": "Your name",
+    "password": "Password",
+    "passwordPlaceholder": "Minimum 8 characters",
+    "hasAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "register": "Sign Up",
+    "sessionExpired": "Session expired"
+  },
+  "nav": {
+    "analysis": "Analysis",
+    "training": "Training",
+    "profile": "Profile",
+    "signIn": "Sign In",
+    "feed": "Feed",
+    "upload": "Record",
+    "progress": "Progress",
+    "students": "Students",
+    "dashboard": "Students"
+  },
+  "app": {
+    "title": "AI Coach",
+    "titleFull": "AI Coach — Figure Skating",
+    "footer": "AI Coach — Figure Skating • Biomechanical Analysis"
+  },
+  "home": {
+    "dropVideo": "Drag & drop a video here or click to select",
+    "videoError": "File must be a video (MP4, MOV, WebM) up to 500 MB",
+    "personsDetected": "Persons detected: {count}",
+    "retry": "Try again",
+    "preview": "Preview",
+    "clickSkater": "Click on the skater in the preview to select",
+    "skaters": "Skaters",
+    "skaterTrack": "#{trackId} — {hits} frames",
+    "settings": "Settings",
+    "tracking": "Tracking",
+    "trackingAuto": "Auto",
+    "trackingNone": "No tracking",
+    "exportPoses": "Export poses + CSV",
+    "analyze": "Analyze",
+    "anotherVideo": "Another video"
+  },
+  "analyze": {
+    "title": "Video Analysis",
+    "starting": "Starting...",
+    "preparing": "Preparing...",
+    "complete": "Analysis complete",
+    "retry": "Retry",
+    "back": "Back"
+  },
+  "profile": {
+    "title": "Profile",
+    "signOut": "Sign Out",
+    "name": "Name",
+    "bio": "Bio",
+    "height": "Height (cm)",
+    "weight": "Weight (kg)",
+    "updateSuccess": "Profile updated",
+    "updateError": "Save error",
+    "totalSessions": "Sessions",
+    "totalPRs": "PRs",
+    "editProfile": "Edit",
+    "personalRecords": "Personal Records",
+    "noRecords": "No sessions yet. Record your first video!",
+    "noPRs": "No personal records yet.",
+    "newPR": "New PR!",
+    "viewSession": "View",
+    "noRecordsHint": "Records will appear after your first successful session",
+    "recentActivity": "Recent Activity",
+    "noActivity": "No sessions yet",
+    "recordVideo": "Record video",
+    "cancel": "Cancel"
+  },
+  "settings": {
+    "title": "Settings",
+    "saved": "Settings saved",
+    "saveError": "Save error",
+    "language": "Language",
+    "timezone": "Timezone",
+    "theme": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "stats": {
+    "frames": "Frames",
+    "validFrames": "Valid",
+    "resolution": "Resolution"
+  },
+  "download": {
+    "video": "Video",
+    "poses": "Poses (.npy)",
+    "biomech": "Biomechanics (.csv)"
+  },
+  "placeholder": {
+    "inDevelopment": "Section under development."
+  },
+  "theme": {
+    "toggle": "Toggle theme"
+  },
+  "training": {
+    "title": "Training"
+  },
+  "elements": {
+    "three_turn": "Three Turn",
+    "waltz_jump": "Waltz Jump",
+    "toe_loop": "Toe Loop",
+    "flip": "Flip",
+    "salchow": "Salchow",
+    "loop": "Loop",
+    "lutz": "Lutz",
+    "axel": "Axel"
+  },
+  "toast": {
+    "videoUploaded": "Video uploaded, analysis started",
+    "sessionCreateError": "Failed to create session",
+    "invitationSent": "Invitation sent",
+    "inviteSendError": "Failed to send invitation"
+  },
+  "feed": {
+    "noSessions": "No sessions",
+    "noSessionsHint": "Record a video for analysis",
+    "recordVideo": "Record video"
+  },
+  "upload": {
+    "uploadingVideo": "Uploading video...",
+    "uploadFile": "Upload file"
+  },
+  "connections": {
+    "title": "Connections",
+    "inviteStudent": "Invite Student",
+    "invite": "Invite",
+    "incomingInvites": "Incoming Invitations",
+    "accept": "Accept",
+    "activeConnections": "Active Connections",
+    "endConnection": "End"
+  },
+  "sessions": {
+    "notFound": "Session not found",
+    "metrics": "Metrics",
+    "recommendations": "Recommendations"
+  },
+  "students": {
+    "title": "Students",
+    "noStudents": "No students",
+    "noStudentsHint": "Invite a skater to track their progress",
+    "inviteStudent": "Invite Student",
+    "progress": "Progress",
+    "diagnostics": "Diagnostics",
+    "metrics": {
+      "max_height": "Jump Height",
+      "airtime": "Airtime",
+      "landing_knee_stability": "Landing Stability",
+      "rotation_speed": "Rotation Speed"
+    }
+  },
+  "progress": {
+    "trends": {
+      "improving": "Improving",
+      "stable": "Stable",
+      "declining": "Declining"
+    },
+    "periods": {
+      "7d": "7 d",
+      "30d": "30 d",
+      "90d": "90 d",
+      "all": "All"
+    }
+  },
+  "coach": {
+    "noProblems": "No problems detected"
+  }
+}
