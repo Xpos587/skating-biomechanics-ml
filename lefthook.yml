@@ -36,8 +36,8 @@ pre-commit:
       stage_fixed: true
 
     biome-check:
-      glob: "src/frontend/**/*.{ts,tsx,js,jsx,json,css}"
-      run: cd src/frontend && bunx biome check --write --staged
+      glob: "frontend/**/*.{ts,tsx,js,jsx,json,css}"
+      run: cd frontend && bunx biome check --write --staged
       stage_fixed: true
 
 commit-msg:
@@ -119,23 +119,23 @@ pre-push:
 format:
   commands:
     ruff-format:
-      run: uv run ruff check src/ tests/ scripts/ --fix && uv run ruff format src/ tests/ scripts/
+      run: uv run ruff check backend/ ml/ --fix && uv run ruff format backend/ ml/
     biome-check:
-      run: cd src/frontend && bunx biome check --write .
+      run: cd frontend && bunx biome check --write .
 
 test:
   commands:
     pytest:
-      run: uv run pytest tests/ -v -m "not slow" --tb=short
+      run: uv run pytest backend/tests/ ml/tests/ -v -m "not slow" --tb=short
     fe-test:
-      run: cd src/frontend && bun test --run
+      run: cd frontend && bun test --run
 
 typecheck:
   commands:
     basedpyright:
-      run: uv run basedpyright --level error src/
+      run: uv run basedpyright --level error backend/
     fe-typecheck:
-      run: cd src/frontend && bunx tsc -p tsconfig.app.json
+      run: cd frontend && bunx tsc -p tsconfig.app.json
 
 post-push:
   commands:

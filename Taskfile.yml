@@ -10,17 +10,17 @@ tasks:
   py-lint:
     desc: Run ruff check and format on Python code
     dir: .
-    cmd: "{{.UV_RUN}} ruff check src/ tests/ scripts/ --fix && {{.UV_RUN}} ruff format src/ tests/ scripts/"
+    cmd: "{{.UV_RUN}} ruff check backend/ ml/ --fix && {{.UV_RUN}} ruff format backend/ ml/"
 
   py-test:
     desc: Run pytest tests (excluding slow tests)
     dir: .
-    cmd: "{{.UV_RUN}} pytest tests/ -v -m \"not slow\" --tb=short"
+    cmd: "{{.UV_RUN}} pytest backend/tests/ ml/tests/ -v -m \"not slow\" --tb=short"
 
   py-typecheck:
-    desc: Run basedpyright type checker on src/
+    desc: Run basedpyright type checker on backend/
     dir: .
-    cmd: "{{.UV_RUN}} basedpyright --level error src/"
+    cmd: "{{.UV_RUN}} basedpyright --level error backend/"
 
   py-all:
     desc: Run all Python quality checks (lint, test, typecheck)
@@ -52,22 +52,22 @@ tasks:
   # Frontend tasks
   fe-lint:
     desc: Run Biome check and format on frontend code
-    dir: src/frontend
+    dir: frontend
     cmd: "{{.BUNX}} biome check --write ."
 
   fe-test:
     desc: Run vitest tests
-    dir: src/frontend
+    dir: frontend
     cmd: "bun test --run"
 
   fe-typecheck:
     desc: Run TypeScript type checker
-    dir: src/frontend
+    dir: frontend
     cmd: "{{.BUNX}} tsc -p tsconfig.app.json"
 
   fe-build:
     desc: Build frontend for production
-    dir: src/frontend
+    dir: frontend
     cmd: "bun run build"
 
   fe-all:
@@ -98,11 +98,11 @@ tasks:
   dev-backend:
     desc: Start Python backend dev server
     dir: .
-    cmd: "{{.UV_RUN}} uvicorn src.backend.main:app --reload --port 8000"
+    cmd: "{{.UV_RUN}} uvicorn backend.app.main:app --reload --port 8000"
 
   dev-frontend:
     desc: Start frontend dev server
-    dir: src/frontend
+    dir: frontend
     cmd: "bun run dev"
 
   # Default task
@@ -113,7 +113,7 @@ tasks:
   # Vast.ai Serverless tasks
   vastai-build:
     desc: Build GPU worker image for Vast.ai Serverless
-    cmd: podman build -f vastai/Containerfile -t ghcr.io/xpos587/skating-ml-gpu:latest .
+    cmd: podman build -f ml/gpu_server/Containerfile -t ghcr.io/xpos587/skating-ml-gpu:latest .
 
   vastai-push:
     desc: Push GPU worker image to ghcr.io

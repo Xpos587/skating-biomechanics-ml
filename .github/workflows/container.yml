@@ -4,9 +4,9 @@ on:
   push:
     branches: [master]
     paths:
-      - vastai/Containerfile
+      - ml/gpu_server/Containerfile
       - .containerignore
-      - src/**
+      - ml/**
       - Taskfile.yml
       - .github/workflows/container.yml
   workflow_dispatch:
@@ -52,7 +52,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: vastai/Containerfile
+          file: ml/gpu_server/Containerfile
           push: true
           tags: |
             ghcr.io/xpos587/skating-ml-gpu:latest
