@@ -200,4 +200,8 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+  /* Sonner toast: lift above bottom dock (64px + safe area) */
+  [data-sonner-toaster] {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
+  }
 }

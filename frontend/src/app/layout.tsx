@@ -23,7 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NextIntlClientProvider messages={messages}>
           <Providers>
             {children}
-            <Toaster richColors position="bottom-right" />
+            <Toaster richColors position="bottom-center" toastOptions={{ duration: 3000 }} />
           </Providers>
         </NextIntlClientProvider>
       </body>
