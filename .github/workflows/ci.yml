@@ -71,10 +71,15 @@ jobs:
           fetch-depth: 0
 
       - name: Install gitleaks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ARCH=$(uname -m)
           [ "$ARCH" = "x86_64" ] && ARCH="x64"
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(uname -s)_${ARCH}.tar.gz" | tar xz -C /usr/local/bin gitleaks
+          OS=$(uname -s)
+          URL="https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_${OS}_${ARCH}.tar.gz"
+          echo "Downloading: $URL"
+          curl --fail --location --show-error --header "Authorization: token $GH_TOKEN" "$URL" | tar xz -C /usr/local/bin gitleaks
 
       - name: Scan for secrets
         run: gitleaks detect --source . --no-banner --config .gitleaks.toml -v
@@ -97,7 +102,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: uv sync --frozen --all-groups
+        run: uv sync --frozen --all-groups --project .
 
       - name: Run tests
         run: uv run pytest backend/tests/ ml/tests/ -v -m "not slow" --tb=short
