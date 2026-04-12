@@ -82,7 +82,7 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
   })
 
   return (
-    <div className="relative -mx-4 -mt-4 aspect-video overflow-hidden bg-black sm:-mx-6 sm:-mt-6">
+    <div className="relative aspect-video w-full overflow-hidden bg-black">
       <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
 
       {!cameraReady && (
