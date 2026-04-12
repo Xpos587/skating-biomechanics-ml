@@ -20,10 +20,6 @@ def _make_pose(cx: float, cy: float) -> np.ndarray:
     return pose
 
 
-def _make_foot() -> np.ndarray:
-    return np.zeros((6, 3), dtype=np.float32)
-
-
 class TestTracklet:
     def test_properties(self):
         t = Tracklet(track_id=0, frames=[10, 11, 12])
@@ -52,8 +48,8 @@ class TestTracklet:
 class TestBuildTracklets:
     def test_single_track(self):
         fd = {
-            0: {0: (_make_pose(0.3, 0.5), _make_foot())},
-            1: {0: (_make_pose(0.31, 0.51), _make_foot())},
+            0: {0: _make_pose(0.3, 0.5)},
+            1: {0: _make_pose(0.31, 0.51)},
         }
         ts = build_tracklets(fd)
         assert len(ts) == 1
@@ -62,10 +58,10 @@ class TestBuildTracklets:
 
     def test_multiple_tracks(self):
         fd = {
-            0: {0: (_make_pose(0.3, 0.5), _make_foot()), 1: (_make_pose(0.7, 0.5), _make_foot())},
+            0: {0: _make_pose(0.3, 0.5), 1: _make_pose(0.7, 0.5)},
             1: {
-                0: (_make_pose(0.31, 0.51), _make_foot()),
-                1: (_make_pose(0.69, 0.49), _make_foot()),
+                0: _make_pose(0.31, 0.51),
+                1: _make_pose(0.69, 0.49),
             },
         }
         ts = build_tracklets(fd)
@@ -156,13 +152,11 @@ class TestTrackletMerger:
             track_id=0,
             frames=[1, 2],
             poses={1: _make_pose(0.3, 0.5), 2: _make_pose(0.31, 0.51)},
-            foot_keypoints={1: _make_foot(), 2: _make_foot()},
         )
         t2 = Tracklet(
             track_id=1,
             frames=[5, 6],
             poses={5: _make_pose(0.32, 0.52), 6: _make_pose(0.33, 0.53)},
-            foot_keypoints={5: _make_foot(), 6: _make_foot()},
         )
         merged = TrackletMerger().merge(t1, t2)
         assert merged.track_id == 0

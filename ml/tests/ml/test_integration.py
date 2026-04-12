@@ -74,7 +74,7 @@ class TestMLPipelineIntegration:
         from backend.app.schemas import ProcessRequest
 
         req = ProcessRequest(
-            video_path="/tmp/test.mp4",
+            video_key="test-video.mp4",
             person_click={"x": 100, "y": 200},
             depth=True,
             optical_flow=True,
@@ -93,7 +93,7 @@ class TestMLPipelineIntegration:
         from backend.app.schemas import ProcessRequest
 
         req = ProcessRequest(
-            video_path="/tmp/test.mp4",
+            video_key="test-video.mp4",
             person_click={"x": 100, "y": 200},
         )
         assert req.depth is False

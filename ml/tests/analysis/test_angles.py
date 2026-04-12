@@ -1,6 +1,7 @@
 """Tests for comprehensive biomechanics angle computation."""
 
 import numpy as np
+import pytest
 
 from skating_ml.analysis.angles import (
     ANGLE_DEFS,
@@ -76,10 +77,11 @@ class TestComputeJointAngles:
 
 class TestComputeSegmentAngles:
     def test_trunk_vertical(self):
-        """Vertical trunk should give ~90° angle."""
+        """Vertical trunk should give ~90° angle (or -90° for upward)."""
         pose = _standing_pose()
         angles = compute_segment_angles(pose)
-        assert 80 < angles["Trunk"] < 100
+        # Trunk goes upward (mid_hip to mid_shoulder), so angle is -90°
+        assert abs(angles["Trunk"]) == pytest.approx(90.0, abs=10)
 
     def test_all_segment_angles_defined(self):
         """All defined segments should have computed angles."""

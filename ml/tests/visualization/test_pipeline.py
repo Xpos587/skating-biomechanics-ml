@@ -128,7 +128,6 @@ def _fake_extraction(n=10):
     """Create a fake TrackedExtraction result."""
     extraction = mock.MagicMock()
     extraction.poses = np.random.rand(n, 17, 3).astype(np.float32)
-    extraction.foot_keypoints = None
     extraction.frame_indices = np.arange(n)
     extraction.valid_mask.return_value = np.ones(n, dtype=bool)
     return extraction
@@ -140,12 +139,15 @@ class TestPreparePoses:
         from skating_ml.visualization.pipeline import PreparedPoses, prepare_poses
 
         with (
-            mock.patch("skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta()),
+            mock.patch(
+                "skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta()
+            ),
             mock.patch("skating_ml.visualization.pipeline.RTMPoseExtractor") as MockExt,
             mock.patch("skating_ml.visualization.pipeline.CorrectiveLens") as MockLens,
             mock.patch("skating_ml.visualization.pipeline.ONNXPoseExtractor") as MockOnnx,
             mock.patch(
-                "skating_ml.visualization.pipeline._resolve_model_3d", return_value=Path("model.onnx")
+                "skating_ml.visualization.pipeline._resolve_model_3d",
+                return_value=Path("model.onnx"),
             ),
         ):
             MockExt.return_value.extract_video_tracked.return_value = _fake_extraction()
@@ -172,12 +174,15 @@ class TestPreparePoses:
         from skating_ml.visualization.pipeline import prepare_poses
 
         with (
-            mock.patch("skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta()),
+            mock.patch(
+                "skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta()
+            ),
             mock.patch("skating_ml.visualization.pipeline.RTMPoseExtractor") as MockExt,
             mock.patch("skating_ml.visualization.pipeline.CorrectiveLens") as MockLens,
             mock.patch("skating_ml.visualization.pipeline.ONNXPoseExtractor") as MockONNX,
             mock.patch(
-                "skating_ml.visualization.pipeline._resolve_model_3d", return_value=Path("model.onnx")
+                "skating_ml.visualization.pipeline._resolve_model_3d",
+                return_value=Path("model.onnx"),
             ),
         ):
             MockExt.return_value.extract_video_tracked.return_value = _fake_extraction()
@@ -195,7 +200,9 @@ class TestPreparePoses:
         from skating_ml.visualization.pipeline import prepare_poses
 
         with (
-            mock.patch("skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta()),
+            mock.patch(
+                "skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta()
+            ),
             mock.patch("skating_ml.visualization.pipeline.RTMPoseExtractor") as MockExt,
             mock.patch("skating_ml.visualization.pipeline._resolve_model_3d", return_value=None),
         ):
@@ -219,13 +226,15 @@ class TestPreparePoses:
 
         with (
             mock.patch(
-                "skating_ml.visualization.pipeline.get_video_meta", return_value=_fake_meta(num_frames=20)
+                "skating_ml.visualization.pipeline.get_video_meta",
+                return_value=_fake_meta(num_frames=20),
             ),
             mock.patch("skating_ml.visualization.pipeline.RTMPoseExtractor") as MockExt,
             mock.patch("skating_ml.visualization.pipeline.CorrectiveLens") as MockLens,
             mock.patch("skating_ml.visualization.pipeline.ONNXPoseExtractor") as MockOnnx,
             mock.patch(
-                "skating_ml.visualization.pipeline._resolve_model_3d", return_value=Path("model.onnx")
+                "skating_ml.visualization.pipeline._resolve_model_3d",
+                return_value=Path("model.onnx"),
             ),
         ):
             MockExt.return_value.extract_video_tracked.return_value = extraction
