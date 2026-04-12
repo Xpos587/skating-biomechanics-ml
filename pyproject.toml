@@ -159,7 +159,6 @@ exclude_dirs = ["Sports2D/", "TCPFormer/", "tests/"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests", "ml/tests"]
-pythonpath = ["backend", "ml"]
 addopts = [
     "--cov=backend/app",
     "--cov-report=term-missing",
