@@ -1,23 +1,21 @@
-"""RTMPose-based pose extractor with foot keypoints via rtmlib.
+"""RTMO-based pose extractor via rtmlib.
 
-Uses the rtmlib PoseTracker with BodyWithFeet model to extract 26-keypoint
-HALPE26 poses (COCO 17 + 6 foot + 3 face).  The output is converted to
-H3.6M 17-keypoint format for the analysis pipeline, with foot keypoints
-preserved separately for blade edge detection.
+Uses the rtmlib PoseTracker with Body model to extract 17-keypoint
+COCO poses.  The output is converted to H3.6M 17-keypoint format
+for the analysis pipeline.
 
 Architecture:
-    Video → rtmlib PoseTracker (BodyWithFeet) → HALPE26 (26kp)
-        → H3.6M (17kp) + foot keypoints (6kp)
+    Video → rtmlib PoseTracker (Body) → COCO (17kp) → H3.6M (17kp)
 
-Key advantages over YOLO26-Pose:
-    - 6 dedicated foot keypoints (heel, big toe, small toe per foot)
+Key advantages:
+    - One-stage detection (no separate detector needed)
     - Better accuracy on distant/small subjects
     - Built-in tracking with consistent IDs
     - ONNX Runtime inference (no PyTorch dependency)
 
 References:
     - rtmlib: https://github.com/Tau-J/rtmlib
-    - RTMPose: https://arxiv.org/abs/2303.07399
+    - RTMO: https://github.com/Tau-J/rtmlib/tree/main/docs/en/rtmo
 """
 
 import logging
@@ -29,30 +27,29 @@ import numpy as np
 from tqdm import tqdm
 
 if TYPE_CHECKING:
-    from rtmlib import BodyWithFeet, PoseTracker
+    from rtmlib import Body, PoseTracker
 else:
     try:
-        from rtmlib import BodyWithFeet, PoseTracker
+        from rtmlib import Body, PoseTracker
     except ImportError:
         PoseTracker = None  # type: ignore[assignment]
-        BodyWithFeet = None  # type: ignore[assignment]
+        Body = None  # type: ignore[assignment]
 
 from ..detection.pose_tracker import PoseTracker as CustomPoseTracker
 from ..tracking.skeletal_identity import compute_2d_skeletal_ratios
 from ..tracking.tracklet_merger import TrackletMerger, build_tracklets
 from ..types import PersonClick, TrackedExtraction
 from ..utils.video import get_video_meta
-from .h36m import _biometric_distance
-from .halpe26 import extract_foot_keypoints, halpe26_to_h36m
+from .h36m import _biometric_distance, coco_to_h36m
 
 logger = logging.getLogger(__name__)
 
 
 class RTMPoseExtractor:
-    """HALPE26 pose extractor using rtmlib BodyWithFeet model.
+    """COCO pose extractor using rtmlib Body model (RTMO).
 
-    Provides H3.6M 17-keypoint poses plus 6 foot keypoints for blade edge
-    detection.  Uses rtmlib's built-in tracking for multi-person handling.
+    Provides H3.6M 17-keypoint poses. Uses rtmlib's built-in tracking
+    for multi-person handling.
 
     Args:
         mode: Model preset — ``"lightweight"`` (fast), ``"balanced"``
@@ -63,7 +60,6 @@ class RTMPoseExtractor:
         conf_threshold: Minimum keypoint confidence to accept [0, 1].
         output_format: ``"normalized"`` for [0, 1] coords. ``"pixels"``
             for absolute pixel coords.
-        det_frequency: Run person detection every N frames (1 = every frame).
         frame_skip: Process every Nth frame for pose estimation (1 = every
             frame). Higher values = faster but less accurate. Skipped
             frames are filled with NaN for downstream interpolation.
@@ -78,7 +74,6 @@ class RTMPoseExtractor:
         tracking_mode: str = "auto",
         conf_threshold: float = 0.3,
         output_format: str = "normalized",
-        det_frequency: int = 1,
         frame_skip: int = 1,
         device: str = "auto",
         backend: str = "onnxruntime",
@@ -91,7 +86,6 @@ class RTMPoseExtractor:
         self._tracking_mode = tracking_mode
         self._conf_threshold = conf_threshold
         self._output_format = output_format
-        self._det_frequency = det_frequency
         self._frame_skip = max(1, frame_skip)
         self._device = device
         self._backend = backend
@@ -109,19 +103,18 @@ class RTMPoseExtractor:
     def tracker(self):
         """Lazy-initialise rtmlib PoseTracker on first access."""
         if self._tracker is None:
-            if BodyWithFeet is None:
-                raise ImportError("rtmlib BodyWithFeet model not available")
+            if Body is None:
+                raise ImportError("rtmlib Body model not available")
             # Create a local tracker variable with proper type
-            from rtmlib import BodyWithFeet as RTMBodyWithFeet
+            from rtmlib import Body as RTMBody
             from rtmlib import PoseTracker as RTMPoseTracker
 
             self._tracker = RTMPoseTracker(
-                RTMBodyWithFeet,
-                det_frequency=self._det_frequency,
+                RTMBody,
                 tracking=True,
                 tracking_thr=0.3,
                 mode=self._mode,
-                to_openpose=False,  # MUST be False — ensures HALPE26 ordering
+                to_openpose=False,
                 backend=self._backend,
                 device=self._device,
             )
@@ -137,9 +130,9 @@ class RTMPoseExtractor:
         person_click: PersonClick | None = None,
         progress_cb=None,
     ) -> TrackedExtraction:
-        """Extract H3.6M + foot keypoints from video with tracking.
+        """Extract H3.6M poses from video with tracking.
 
-        Runs rtmlib BodyWithFeet on every frame, tracks all persons,
+        Runs rtmlib Body (RTMO) on every frame, tracks all persons,
         and selects a single target person for output.
 
         Args:
@@ -150,9 +143,8 @@ class RTMPoseExtractor:
                 progress reporting (e.g. Gradio progress bar).
 
         Returns:
-            TrackedExtraction with poses (N, 17, 3), foot_keypoints
-            (N, 6, 3), frame_indices, tracking metadata.  Missing frames
-            are filled with NaN.
+            TrackedExtraction with poses (N, 17, 3), frame_indices,
+            tracking metadata.  Missing frames are filled with NaN.
 
         Raises:
             ValueError: If no pose is detected in any frame.
@@ -163,7 +155,6 @@ class RTMPoseExtractor:
 
         # Pre-allocate with NaN
         all_poses = np.full((num_frames, 17, 3), np.nan, dtype=np.float32)
-        all_feet = np.full((num_frames, 6, 3), np.nan, dtype=np.float32)
 
         # Tracking state
         if self._tracking_backend == "custom":
@@ -197,8 +188,8 @@ class RTMPoseExtractor:
         # Track hit counts for auto-select
         track_hit_counts: dict[int, int] = {}
 
-        # Per-frame track_id→(h36m_pose, foot_kps) for retroactive fill
-        frame_track_data: dict[int, dict[int, tuple[np.ndarray, np.ndarray]]] = {}
+        # Per-frame track_id→h36m_pose for retroactive fill
+        frame_track_data: dict[int, dict[int, np.ndarray]] = {}
 
         # Last known target pose for biometric track migration
         last_target_pose: np.ndarray | None = None
@@ -270,7 +261,7 @@ class RTMPoseExtractor:
                     frame_idx += 1
                     continue
                 keypoints, scores = tracker_result
-                # keypoints: (P, 26, 2) pixel coords, scores: (P, 26)
+                # keypoints: (P, 17, 2) pixel coords, scores: (P, 17)
 
                 # Rescale keypoints back to original resolution
                 if frame_ds is not frame:
@@ -286,36 +277,29 @@ class RTMPoseExtractor:
 
                 n_persons = len(keypoints)
                 h36m_poses = np.zeros((n_persons, 17, 3), dtype=np.float32)
-                foot_kps_list: list[np.ndarray] = []
 
                 for p in range(n_persons):
-                    kp = keypoints[p].astype(np.float32)  # (26, 2) pixels
-                    conf = scores[p].astype(np.float32)  # (26,)
+                    kp = keypoints[p].astype(np.float32)  # (17, 2) pixels
+                    conf = scores[p].astype(np.float32)  # (17,)
 
-                    # Build HALPE26 (26, 3) with confidence
-                    halpe26 = np.zeros((26, 3), dtype=np.float32)
-                    halpe26[:, :2] = kp
-                    halpe26[:, 2] = conf
+                    # Build COCO (17, 3) with confidence
+                    coco = np.zeros((17, 3), dtype=np.float32)
+                    coco[:, :2] = kp
+                    coco[:, 2] = conf
 
                     # Normalize to [0, 1]
-                    halpe26[:, 0] /= w
-                    halpe26[:, 1] /= h
+                    coco[:, 0] /= w
+                    coco[:, 1] /= h
 
                     # Convert to H3.6M 17kp
-                    h36m = halpe26_to_h36m(halpe26)
-
-                    # Extract foot keypoints (6, 3)
-                    foot = extract_foot_keypoints(halpe26)
+                    h36m = coco_to_h36m(coco)
 
                     # Convert to pixels if requested
                     if self._output_format == "pixels":
                         h36m[:, 0] *= w
                         h36m[:, 1] *= h
-                        foot[:, 0] *= w
-                        foot[:, 1] *= h
 
                     h36m_poses[p] = h36m
-                    foot_kps_list.append(foot)
 
                 # --- Track association ---
                 if sports2d_tracker is not None:
@@ -336,8 +320,7 @@ class RTMPoseExtractor:
 
                 # Store per-track data for retroactive fill
                 frame_track_data[frame_idx] = {
-                    tid: (h36m_poses[p].copy(), foot_kps_list[p].copy())
-                    for p, tid in enumerate(track_ids)
+                    tid: h36m_poses[p].copy() for p, tid in enumerate(track_ids)
                 }
 
                 # Update hit counts
@@ -392,7 +375,6 @@ class RTMPoseExtractor:
                                     stolen = True
                                     break
                             all_poses[frame_idx] = h36m_poses[p]
-                            all_feet[frame_idx] = foot_kps_list[p]
                             last_target_pose = h36m_poses[p].copy()
                             last_target_ratios = compute_2d_skeletal_ratios(h36m_poses[p])
                             target_lost_frame = None
@@ -403,7 +385,6 @@ class RTMPoseExtractor:
                     # When stolen, we must NOT keep the impostor's data
                     if stolen:
                         all_poses[frame_idx] = np.full((17, 3), np.nan, dtype=np.float32)
-                        all_feet[frame_idx] = np.full((6, 3), np.nan, dtype=np.float32)
                         found = False
 
                     if (not found or stolen) and last_target_pose is not None:
@@ -413,7 +394,7 @@ class RTMPoseExtractor:
                         if frame_idx - target_lost_frame <= 60:
                             best_dist = float("inf")
                             best_new_tid: int | None = None
-                            best_new_data: tuple[np.ndarray, np.ndarray] | None = None
+                            best_new_pose: np.ndarray | None = None
                             prev_cx = np.nanmean(last_target_pose[:, 0])
                             prev_cy = np.nanmean(last_target_pose[:, 1])
                             for p, tid in enumerate(track_ids):
@@ -435,27 +416,22 @@ class RTMPoseExtractor:
                                 if combined < best_dist:
                                     best_dist = combined
                                     best_new_tid = tid
-                                    best_new_data = (
-                                        h36m_poses[p],
-                                        foot_kps_list[p],
-                                    )
+                                    best_new_pose = h36m_poses[p]
 
                             if (
                                 best_new_tid is not None
                                 and best_dist < 1.5
-                                and best_new_data is not None
+                                and best_new_pose is not None
                             ):
                                 target_track_id = best_new_tid
-                                all_poses[frame_idx] = best_new_data[0]
-                                all_feet[frame_idx] = best_new_data[1]
-                                last_target_pose = best_new_data[0].copy()
-                                last_target_ratios = compute_2d_skeletal_ratios(best_new_data[0])
+                                all_poses[frame_idx] = best_new_pose
+                                last_target_pose = best_new_pose.copy()
+                                last_target_ratios = compute_2d_skeletal_ratios(best_new_pose)
                                 target_lost_frame = None
                                 # Retroactively fill from stored frames
                                 for fidx, tmap in frame_track_data.items():
                                     if target_track_id in tmap and np.isnan(all_poses[fidx, 0, 0]):
-                                        all_poses[fidx] = tmap[target_track_id][0]
-                                        all_feet[fidx] = tmap[target_track_id][1]
+                                        all_poses[fidx] = tmap[target_track_id]
 
                 frame_idx += 1
                 pbar.update(1)
@@ -476,8 +452,7 @@ class RTMPoseExtractor:
             )
             for fidx, tmap in frame_track_data.items():
                 if target_track_id in tmap and np.isnan(all_poses[fidx, 0, 0]):
-                    all_poses[fidx] = tmap[target_track_id][0]
-                    all_feet[fidx] = tmap[target_track_id][1]
+                    all_poses[fidx] = tmap[target_track_id]
 
         # --- Post-hoc tracklet merging for occlusion recovery ---
         valid_mask_pre = ~np.isnan(all_poses[:, 0, 0])
@@ -523,10 +498,6 @@ class RTMPoseExtractor:
                                         f,
                                         all_poses[f],
                                     )
-                                    all_feet[f] = match.foot_keypoints.get(
-                                        f,
-                                        all_feet[f],
-                                    )
                             logger.info(
                                 "Post-hoc merge: filled %d frames from track %d",
                                 sum(
@@ -550,7 +521,6 @@ class RTMPoseExtractor:
             target_track_id=target_track_id,
             fps=video_meta.fps,
             video_meta=video_meta,
-            foot_keypoints=all_feet,
         )
 
     # ------------------------------------------------------------------
@@ -679,7 +649,7 @@ class RTMPoseExtractor:
             num_frames: Number of frames to scan (default 30).
 
         Returns:
-            List of dicts sorted by hits (descending)::
+            Tuple of (list of dicts, preview_path)::
 
                 {
                     "track_id": int,
@@ -688,6 +658,8 @@ class RTMPoseExtractor:
                     "first_frame": int,
                     "mid_hip": (x, y),          # normalized
                 }
+
+            preview_path: Path to person grid preview image.
         """
         video_path = Path(video_path)
         video_meta = get_video_meta(video_path)
@@ -751,13 +723,13 @@ class RTMPoseExtractor:
                     kp = keypoints[p].astype(np.float32)
                     conf = scores[p].astype(np.float32)
 
-                    halpe26 = np.zeros((26, 3), dtype=np.float32)
-                    halpe26[:, :2] = kp
-                    halpe26[:, 2] = conf
-                    halpe26[:, 0] /= w
-                    halpe26[:, 1] /= h
+                    coco = np.zeros((17, 3), dtype=np.float32)
+                    coco[:, :2] = kp
+                    coco[:, 2] = conf
+                    coco[:, 0] /= w
+                    coco[:, 1] /= h
 
-                    h36m_poses[p] = halpe26_to_h36m(halpe26)
+                    h36m_poses[p] = coco_to_h36m(coco)
 
                 # Track association
                 if sports2d_tracker is not None:
@@ -940,7 +912,7 @@ def extract_rtmpose_poses(
     output_format: str = "normalized",
     person_click: PersonClick | None = None,
 ) -> TrackedExtraction:
-    """Extract H3.6M + foot keypoints from video using rtmlib.
+    """Extract H3.6M poses from video using rtmlib.
 
     Convenience function that creates an RTMPoseExtractor and runs
     tracked extraction.
@@ -952,7 +924,7 @@ def extract_rtmpose_poses(
         person_click: Optional click to select target person.
 
     Returns:
-        TrackedExtraction with poses and foot_keypoints populated.
+        TrackedExtraction with poses populated.
     """
     extractor = RTMPoseExtractor(mode=mode, output_format=output_format)
     return extractor.extract_video_tracked(video_path, person_click=person_click)
