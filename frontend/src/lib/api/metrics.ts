@@ -52,7 +52,7 @@ export function useTrend(
   if (userId) params.set("user_id", userId)
   return useQuery({
     queryKey: ["trend", userId, elementType, metricName, period],
-    queryFn: () => apiFetch("/metrics/trend?" + params.toString(), TrendSchema),
+    queryFn: () => apiFetch(`/metrics/trend?${params.toString()}`, TrendSchema),
     enabled: !!elementType && !!metricName,
   })
 }
@@ -61,7 +61,7 @@ export function useDiagnostics(userId?: string) {
   const params = userId ? `?user_id=${userId}` : ""
   return useQuery({
     queryKey: ["diagnostics", userId],
-    queryFn: () => apiFetch("/metrics/diagnostics" + params, DiagnosticsSchema),
+    queryFn: () => apiFetch(`/metrics/diagnostics${params}`, DiagnosticsSchema),
   })
 }
 
@@ -88,7 +88,7 @@ export function usePRs(userId?: string, elementType?: string) {
   if (elementType) params.set("element_type", elementType)
   return useQuery({
     queryKey: ["prs", userId, elementType],
-    queryFn: () => apiFetch("/metrics/prs?" + params.toString(), PRListSchema),
+    queryFn: () => apiFetch(`/metrics/prs?${params.toString()}`, PRListSchema),
   })
 }
 

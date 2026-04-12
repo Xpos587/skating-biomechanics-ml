@@ -29,7 +29,7 @@ export function BottomDock() {
     ...(hasStudents ? [{ href: "/dashboard", icon: Users, label: t("students") }] : []),
   ] as const
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/")
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom)] lg:hidden">

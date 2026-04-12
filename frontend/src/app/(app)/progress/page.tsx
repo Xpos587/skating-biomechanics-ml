@@ -25,6 +25,7 @@ export default function ProgressPage() {
       <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
         {ELEMENTS.map(el => (
           <button
+            type="button"
             key={el.id}
             onClick={() => setElement(el.id)}
             className={`truncate rounded-xl border p-1.5 text-center text-[11px] sm:p-2 sm:text-xs ${element === el.id ? "border-primary bg-primary/10" : "border-border"}`}

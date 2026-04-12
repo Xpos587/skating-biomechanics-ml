@@ -50,6 +50,7 @@ export default function ConnectionsPage() {
             className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
           />
           <button
+            type="button"
             onClick={handleInvite}
             className="whitespace-nowrap rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm"
           >
@@ -68,6 +69,7 @@ export default function ConnectionsPage() {
             >
               <span className="text-sm truncate mr-2">{r.coach_name ?? r.coach_id}</span>
               <button
+                type="button"
                 onClick={() => acceptInvite.mutateAsync(r.id)}
                 className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground"
               >
@@ -88,6 +90,7 @@ export default function ConnectionsPage() {
             >
               <span className="text-sm truncate mr-2">{r.skater_name ?? r.skater_id}</span>
               <button
+                type="button"
                 onClick={() => endRel.mutateAsync(r.id)}
                 className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
               >

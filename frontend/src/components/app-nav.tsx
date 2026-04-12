@@ -34,7 +34,7 @@ export function AppNav() {
     ...(hasStudents ? [{ href: "/dashboard", icon: Users, label: t("students") }] : []),
   ] as const
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/")
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
 
   async function handleLogout() {
     await logout()

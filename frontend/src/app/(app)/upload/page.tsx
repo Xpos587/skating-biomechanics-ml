@@ -22,7 +22,7 @@ export default function UploadPage() {
     setFile(f)
   }
 
-  const handleUploaded = async (key: string) => {
+  const handleUploaded = async (_key: string) => {
     try {
       await createSession.mutateAsync({ element_type: "auto" })
       toast.success(t("videoUploaded"))

@@ -13,9 +13,9 @@ export function DiagnosticsList({ findings }: { findings: DiagnosticsFinding[] }
 
   return (
     <div className="space-y-2">
-      {findings.map((f, i) => (
+      {findings.map(f => (
         <div
-          key={i}
+          key={`${f.severity}-${f.metric}-${f.message}`}
           className={`rounded-xl border p-3 ${
             f.severity === "warning" ? "border-border" : "border-border bg-muted/30"
           }`}

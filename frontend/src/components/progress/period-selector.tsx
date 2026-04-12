@@ -17,6 +17,7 @@ export function PeriodSelector({
     <div className="flex gap-1 rounded-lg bg-muted p-1">
       {PERIOD_KEYS.map(p => (
         <button
+          type="button"
           key={p}
           onClick={() => onChange(p)}
           className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${

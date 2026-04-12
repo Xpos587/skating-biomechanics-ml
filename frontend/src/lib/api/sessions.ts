@@ -40,7 +40,7 @@ export function useSessions(userId?: string, elementType?: string) {
   if (elementType) params.set("element_type", elementType)
   return useQuery({
     queryKey: ["sessions", userId, elementType],
-    queryFn: () => apiFetch("/sessions?" + params.toString(), SessionListSchema),
+    queryFn: () => apiFetch(`/sessions?${params.toString()}`, SessionListSchema),
   })
 }
 

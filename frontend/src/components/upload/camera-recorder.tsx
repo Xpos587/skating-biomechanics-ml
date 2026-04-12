@@ -32,7 +32,7 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
 
       recorder.ondataavailable = e => chunks.push(e.data)
       recorder.onstop = () => {
-        stream.getTracks().forEach(t => t.stop())
+        for (const track of stream.getTracks()) track.stop()
         const blob = new Blob(chunks, { type: mimeType })
         onRecorded(blob)
       }
@@ -74,6 +74,7 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
       <div className="flex items-center justify-center gap-4">
         {!recording ? (
           <button
+            type="button"
             onClick={startRecording}
             className="rounded-full bg-red-500 p-4 text-white hover:bg-red-600 transition-colors"
           >
@@ -81,6 +82,7 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
           </button>
         ) : (
           <button
+            type="button"
             onClick={stopRecording}
             className="rounded-full bg-red-500 p-4 text-white hover:bg-red-600 transition-colors"
           >

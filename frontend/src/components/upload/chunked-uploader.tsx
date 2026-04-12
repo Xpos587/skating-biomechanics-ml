@@ -31,6 +31,7 @@ export function ChunkedUploader({
       <p className="text-xs text-muted-foreground text-center">{progress}%</p>
       {progress === 0 && (
         <button
+          type="button"
           onClick={upload}
           className="w-full rounded-xl bg-primary text-primary-foreground py-3 text-sm font-medium"
         >

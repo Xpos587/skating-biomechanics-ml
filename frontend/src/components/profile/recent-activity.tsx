@@ -50,7 +50,7 @@ export function RecentActivity({ userId }: { userId?: string }) {
               <p className="text-xs text-muted-foreground">{date}</p>
             </div>
             {score && (
-              <span className="ml-2 text-sm font-semibold" style={scoreStyle(s.overall_score!)}>
+              <span className="ml-2 text-sm font-semibold" style={scoreStyle(s.overall_score ?? 0)}>
                 {score}
               </span>
             )}

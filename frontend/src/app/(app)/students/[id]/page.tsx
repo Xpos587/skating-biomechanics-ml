@@ -43,12 +43,14 @@ export default function StudentProfilePage() {
 
       <div className="flex gap-1 rounded-lg bg-muted p-1">
         <button
+          type="button"
           onClick={() => setTab("progress")}
           className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === "progress" ? "bg-background shadow-sm" : ""}`}
         >
           {ts("progress")}
         </button>
         <button
+          type="button"
           onClick={() => setTab("diagnostics")}
           className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === "diagnostics" ? "bg-background shadow-sm" : ""}`}
         >
@@ -61,6 +63,7 @@ export default function StudentProfilePage() {
           <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
             {ELEMENT_IDS.map(elId => (
               <button
+                type="button"
                 key={elId}
                 onClick={() => setElement(elId)}
                 className={`truncate rounded-xl border p-1.5 text-center text-[11px] sm:p-2 sm:text-xs ${element === elId ? "border-primary bg-primary/10" : "border-border"}`}

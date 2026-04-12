@@ -29,7 +29,9 @@ export default function SessionDetailPage() {
       </div>
 
       {session.processed_video_url && (
-        <video src={session.processed_video_url} controls className="w-full rounded-xl" />
+        <video src={session.processed_video_url} controls className="w-full rounded-xl">
+          <track kind="captions" />
+        </video>
       )}
 
       {session.metrics.length > 0 && (
@@ -55,8 +57,8 @@ export default function SessionDetailPage() {
         <div className="rounded-2xl border border-border p-3 sm:p-4">
           <h2 className="text-sm font-medium mb-2">{ts("recommendations")}</h2>
           <ul className="space-y-1 text-sm text-muted-foreground">
-            {session.recommendations.map((r, i) => (
-              <li key={i}>{r}</li>
+            {session.recommendations.map(r => (
+              <li key={r}>{r}</li>
             ))}
           </ul>
         </div>
