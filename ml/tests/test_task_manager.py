@@ -30,6 +30,7 @@ async def valkey():
     await client.close()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_and_get_state(valkey):
     await create_task_state("test_task_1", "/tmp/video.mp4", valkey=valkey)
@@ -42,6 +43,7 @@ async def test_create_and_get_state(valkey):
     assert state["video_path"] == "/tmp/video.mp4"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_update_progress(valkey):
     await create_task_state("test_task_2", "/tmp/video.mp4", valkey=valkey)
@@ -52,6 +54,7 @@ async def test_update_progress(valkey):
     assert state["message"] == "Rendering..."
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_store_result(valkey):
     await create_task_state("test_task_3", "/tmp/video.mp4", valkey=valkey)
@@ -62,6 +65,7 @@ async def test_store_result(valkey):
     assert state["result"] == {"video_path": "out.mp4", "stats": {}}
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_store_error(valkey):
     await create_task_state("test_task_4", "/tmp/video.mp4", valkey=valkey)
@@ -72,6 +76,7 @@ async def test_store_error(valkey):
     assert state["error"] == "OOM"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_cancel_flow(valkey):
     await create_task_state("test_task_5", "/tmp/video.mp4", valkey=valkey)
@@ -85,6 +90,7 @@ async def test_cancel_flow(valkey):
     assert state["status"] == TaskStatus.CANCELLED
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_get_nonexistent_returns_none(valkey):
     state = await get_task_state("nonexistent", valkey=valkey)

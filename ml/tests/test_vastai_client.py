@@ -28,6 +28,9 @@ def test_vast_result_fields():
         poses_key="output/test_poses.npy",
         csv_key=None,
         stats={"frames": 100},
+        metrics=None,
+        phases=None,
+        recommendations=None,
     )
     assert r.video_key == "output/test_analyzed.mp4"
     assert r.csv_key is None
