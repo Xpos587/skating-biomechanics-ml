@@ -82,11 +82,9 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
   })
 
   return (
-    <div className="relative min-h-[60dvh] overflow-hidden rounded-2xl bg-black">
-      {/* Full-screen viewfinder */}
+    <div className="relative -mx-4 -mt-4 aspect-video overflow-hidden bg-black sm:-mx-6 sm:-mt-6">
       <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
 
-      {/* Camera not available */}
       {!cameraReady && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted">
           <VideoOff className="h-10 w-10 text-muted-foreground" />
@@ -94,22 +92,20 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
         </div>
       )}
 
-      {/* Recording indicator */}
       {recording && (
-        <div className="absolute left-4 top-4 flex items-center gap-2 rounded-xl bg-black/50 px-3 py-1.5 backdrop-blur-sm">
+        <div className="absolute left-3 top-3 flex items-center gap-2 rounded-xl bg-black/50 px-3 py-1.5 backdrop-blur-sm">
           <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
           <span className="font-mono text-sm text-white">{fmt(elapsed)}</span>
         </div>
       )}
 
-      {/* Floating record button */}
       {cameraReady && (
-        <div className="absolute inset-x-0 bottom-0 flex justify-center pb-6">
+        <div className="absolute inset-x-0 bottom-0 flex justify-center pb-5">
           {recording ? (
             <button
               type="button"
               onClick={stopRecording}
-              className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-white bg-red-500 shadow-lg transition-transform hover:scale-95 active:scale-90"
+              className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-[6px] border-white bg-red-500 shadow-lg transition-transform hover:scale-95 active:scale-90"
               aria-label="Stop recording"
             >
               <div className="h-7 w-7 rounded-sm bg-white" />
@@ -118,7 +114,7 @@ export function CameraRecorder({ onRecorded }: { onRecorded: (blob: Blob) => voi
             <button
               type="button"
               onClick={startRecording}
-              className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-red-500 bg-red-500/20 shadow-lg transition-transform hover:scale-105"
+              className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-[6px] border-white/40 bg-red-500/80 shadow-lg transition-transform hover:scale-105"
               aria-label="Start recording"
             >
               <div className="h-8 w-8 rounded-full bg-red-500" />

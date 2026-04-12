@@ -14,6 +14,7 @@ type Step = "ready" | "picked" | "uploading" | "done"
 export default function UploadPage() {
   const createSession = useCreateSession()
   const t = useTranslations("upload")
+  const tc = useTranslations("common")
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -67,13 +68,34 @@ export default function UploadPage() {
     )
   }
 
+  // Uploading state
+  if (step === "uploading") {
+    return (
+      <div className="mx-auto max-w-lg space-y-5 px-4 py-20">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 nike-h3">{t("uploadingVideo")}</p>
+        </div>
+        <div className="space-y-2">
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-center text-xs text-muted-foreground">{progress}%</p>
+        </div>
+      </div>
+    )
+  }
+
   // File picked — video preview + element picker + upload
   if (step === "picked" && file && previewUrl) {
     return (
       <div className="mx-auto max-w-lg space-y-5 px-4 py-4">
         {/* Video preview */}
         <div className="relative overflow-hidden rounded-2xl bg-black">
-          {/* biome-ignore lint/a11y/useMediaCaption: user recording, no captions needed */}
+          {/* biome-ignore lint/a11y/useMediaCaption: user recording, no captions */}
           <video
             src={previewUrl}
             controls
@@ -112,57 +134,37 @@ export default function UploadPage() {
     )
   }
 
-  // Uploading state
-  if (step === "uploading") {
-    return (
-      <div className="mx-auto max-w-lg space-y-5 px-4 py-20">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 nike-h3">{t("uploadingVideo")}</p>
-        </div>
-        <div className="space-y-2">
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-center text-xs text-muted-foreground">{progress}%</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Initial state — full-screen camera with floating file button
+  // Initial state — camera fills width with negative margins
   return (
-    <div className="relative mx-auto max-w-lg px-4 py-4">
+    <div className="-mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
       <CameraRecorder
         onRecorded={blob =>
           handleFile(new File([blob], `recording_${Date.now()}.webm`, { type: blob.type }))
         }
       />
 
-      {/* Floating file upload button — top-right corner, overlapping camera */}
-      <div className="pointer-events-none absolute right-6 top-8 z-10">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-xl bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
-          aria-label={t("chooseFile")}
-        >
-          <Film className="h-5 w-5" />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="video/*"
-          className="hidden"
-          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
+      {/* File upload + hint strip below camera */}
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6">
+        <p className="text-xs text-muted-foreground">{t("recordHint")}</p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{tc("or")}</span>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
+          >
+            <Film className="h-3.5 w-3.5" />
+            {t("chooseFile")}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
+        </div>
       </div>
-
-      {/* Hint below camera */}
-      <p className="mt-3 text-center text-xs text-muted-foreground">{t("recordHint")}</p>
     </div>
   )
 }
