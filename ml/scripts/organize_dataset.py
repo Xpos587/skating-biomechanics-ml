@@ -63,7 +63,7 @@ def create_video_metadata(video_info: dict, video_path: Path) -> dict:
     }
 
 
-def analyze_video(video_path: Path, video_id: str) -> dict:  # noqa: ARG001
+def analyze_video(video_path: Path, video_id: str) -> dict:
     """Run analysis on video and return results."""
     pipeline = AnalysisPipeline(reference_store=None)
 

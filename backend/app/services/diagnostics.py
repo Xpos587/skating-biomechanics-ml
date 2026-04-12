@@ -28,14 +28,14 @@ def _linear_regression(values: list[float]) -> tuple[float, float]:
     y_mean = sum(values) / n
 
     ss_xx = sum((xi - x_mean) ** 2 for xi in x)
-    ss_xy = sum((xi - x_mean) * (yi - y_mean) for xi, yi in zip(x, values))
+    ss_xy = sum((xi - x_mean) * (yi - y_mean) for xi, yi in zip(x, values, strict=False))
     ss_yy = sum((yi - y_mean) ** 2 for yi in values)
 
     if ss_xx == 0:
         return 0.0, 0.0
 
     slope = ss_xy / ss_xx
-    r_squared = (ss_xy ** 2) / (ss_xx * ss_yy) if ss_yy > 0 else 0.0
+    r_squared = (ss_xy**2) / (ss_xx * ss_yy) if ss_yy > 0 else 0.0
     return slope, r_squared
 
 
@@ -99,7 +99,7 @@ def check_stagnation(
     if mean == 0:
         return None
     variance = sum((v - mean) ** 2 for v in values) / len(values)
-    std = variance ** 0.5
+    std = variance**0.5
     cv = std / abs(mean)
     if cv < 0.05:
         return Finding(
@@ -148,7 +148,7 @@ def check_high_variability(
     if mean == 0:
         return None
     variance = sum((v - mean) ** 2 for v in values) / len(values)
-    std = variance ** 0.5
+    std = variance**0.5
     cv = std / abs(mean)
     if cv > 0.20:
         return Finding(

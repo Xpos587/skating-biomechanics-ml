@@ -2,7 +2,9 @@
 
 
 def check_pr(
-    direction: str, current_best: float | None, new_value: float,
+    direction: str,
+    current_best: float | None,
+    new_value: float,
 ) -> tuple[bool, float | None]:
     """Check if new_value is a personal record.
 

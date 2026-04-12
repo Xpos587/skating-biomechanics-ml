@@ -177,7 +177,7 @@ class TestMetricRegistry:
 
         # ALL_ELEMENTS should be jumps + three_turn
         assert len(ALL_ELEMENTS) == 8, f"Expected 8 total elements, got {len(ALL_ELEMENTS)}"
-        assert ALL_ELEMENTS == JUMP_ELEMENTS + ("three_turn",)
+        assert (*JUMP_ELEMENTS, "three_turn") == ALL_ELEMENTS
 
         # All element types in registry should be in ALL_ELEMENTS
         for metric_def in METRIC_REGISTRY.values():

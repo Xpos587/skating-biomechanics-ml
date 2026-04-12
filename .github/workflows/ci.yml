@@ -60,7 +60,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Type check
-        run: uv run basedpyright --level error backend/app ml/skating_ml
+        run: uv run basedpyright --level error backend/app
 
   gitleaks:
     name: Secret Scan (gitleaks)

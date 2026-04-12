@@ -128,7 +128,9 @@ class TestFootTracker:
         mock_session.get_inputs.return_value = mock_inputs
         mock_session.get_outputs.return_value = mock_outputs
 
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
+        with mock.patch(
+            "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+        ):
             tracker = FootTracker(reg)
             assert tracker._session is mock_session
             assert tracker._input_name == "image"

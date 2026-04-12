@@ -96,7 +96,9 @@ class TestDepthEstimator:
             {"name": "image", "shape": [1, 3, 518, 518], "type": "float32"}
         ]
 
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
+        with mock.patch(
+            "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+        ):
             est = DepthEstimator(reg)
             assert est._session is mock_session
 

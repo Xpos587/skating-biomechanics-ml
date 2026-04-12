@@ -43,7 +43,7 @@ JUMP_ELEMENTS = (
     "axel",
 )
 
-ALL_ELEMENTS = JUMP_ELEMENTS + ("three_turn",)
+ALL_ELEMENTS = (*JUMP_ELEMENTS, "three_turn")
 
 
 # Metric registry
@@ -175,10 +175,7 @@ def get_metrics_for_element(element_type: str) -> dict[str, MetricDef]:
         ValueError: If element_type is not recognized
     """
     if element_type not in ALL_ELEMENTS:
-        raise ValueError(
-            f"Unknown element type: {element_type}. "
-            f"Valid options: {ALL_ELEMENTS}"
-        )
+        raise ValueError(f"Unknown element type: {element_type}. Valid options: {ALL_ELEMENTS}")
 
     return {
         metric_name: metric_def

@@ -17,6 +17,7 @@ import argparse
 from pathlib import Path
 
 from scripts.normalize_video import is_normalized, normalize_video
+
 from skating_ml.visualization.comparison import ComparisonConfig, ComparisonMode, ComparisonRenderer
 
 

@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException, Query, status
 
-from backend.app.auth.deps import CurrentUser, DbDep
 from backend.app.crud.relationship import is_coach_for_student
 from backend.app.crud.session import create, get_by_id, list_by_user, soft_delete, update
 from backend.app.schemas import (
@@ -14,6 +15,9 @@ from backend.app.schemas import (
     SessionListResponse,
     SessionResponse,
 )
+
+if TYPE_CHECKING:
+    from backend.app.auth.deps import CurrentUser, DbDep
 
 router = APIRouter(tags=["sessions"])
 
@@ -41,14 +45,26 @@ async def list_sessions(
 ):
     # Coaches can view their students' sessions
     target_user_id = user_id if user_id else user.id
-    if user_id and user_id != user.id:
-        if not await is_coach_for_student(db, coach_id=user.id, skater_id=user_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user")
+    if (
+        user_id
+        and user_id != user.id
+        and not await is_coach_for_student(db, coach_id=user.id, skater_id=user_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user"
+        )
 
     sessions = await list_by_user(
-        db, user_id=target_user_id, element_type=element_type, limit=limit, offset=offset, sort=sort,
+        db,
+        user_id=target_user_id,
+        element_type=element_type,
+        limit=limit,
+        offset=offset,
+        sort=sort,
     )
-    return SessionListResponse(sessions=[_session_to_response(s) for s in sessions], total=len(sessions))
+    return SessionListResponse(
+        sessions=[_session_to_response(s) for s in sessions], total=len(sessions)
+    )
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
@@ -56,15 +72,19 @@ async def get_session(session_id: str, user: CurrentUser, db: DbDep):
     session = await get_by_id(db, session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-    if session.user_id != user.id:
-        if not await is_coach_for_student(db, coach_id=user.id, skater_id=session.user_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    if session.user_id != user.id and not await is_coach_for_student(
+        db, coach_id=user.id, skater_id=session.user_id
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     return _session_to_response(session)
 
 
 @router.patch("/sessions/{session_id}", response_model=SessionResponse)
 async def patch_session(
-    session_id: str, body: PatchSessionRequest, user: CurrentUser, db: DbDep,
+    session_id: str,
+    body: PatchSessionRequest,
+    user: CurrentUser,
+    db: DbDep,
 ):
     session = await get_by_id(db, session_id)
     if not session:

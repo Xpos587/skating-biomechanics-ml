@@ -205,6 +205,7 @@ async def detect_video_task(
             if not success:
                 raise RuntimeError("Failed to encode preview image")
             import base64
+
             preview_b64 = base64.b64encode(buf).decode("ascii")
 
             auto_click = None

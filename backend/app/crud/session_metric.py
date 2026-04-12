@@ -6,14 +6,17 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
-from backend.app.models.session import SessionMetric
+from backend.app.models.session import Session, SessionMetric
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_current_best(
-    db: AsyncSession, user_id: str, element_type: str, metric_name: str,
+    db: AsyncSession,
+    user_id: str,
+    element_type: str,
+    metric_name: str,
 ) -> float | None:
     """Get the current best value for a user+element+metric combination.
 

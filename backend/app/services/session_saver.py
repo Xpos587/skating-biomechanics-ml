@@ -49,22 +49,25 @@ async def save_analysis_results(
 
         # Check PR
         current_best = await get_current_best(
-            db, user_id=session.user_id,
+            db,
+            user_id=session.user_id,
             element_type=session.element_type,
             metric_name=mr.name,
         )
         direction = mdef.direction if mdef else "higher"
         is_pr, prev_best = check_pr(direction, current_best, mr.value)
 
-        metric_rows.append({
-            "session_id": session_id,
-            "metric_name": mr.name,
-            "metric_value": mr.value,
-            "is_pr": is_pr,
-            "prev_best": prev_best,
-            "reference_value": ref_value,
-            "is_in_range": is_in_range,
-        })
+        metric_rows.append(
+            {
+                "session_id": session_id,
+                "metric_name": mr.name,
+                "metric_value": mr.value,
+                "is_pr": is_pr,
+                "prev_best": prev_best,
+                "reference_value": ref_value,
+                "is_in_range": is_in_range,
+            }
+        )
 
     await bulk_create(db, metric_rows)
 
@@ -73,5 +76,6 @@ async def save_analysis_results(
     overall_score = in_range_count / len(metric_rows) if metric_rows else None
 
     # Update session
-    await update(db, session, status="done", overall_score=overall_score,
-                 recommendations=recommendations)
+    await update(
+        db, session, status="done", overall_score=overall_score, recommendations=recommendations
+    )

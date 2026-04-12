@@ -412,22 +412,16 @@ def process_video_pipeline(  # noqa: PLR0913
         if elem_def:
             # Phase detection
             phase_det = PhaseDetector()
-            phase_result = phase_det.detect_phases(
-                prepared.poses_norm, meta.fps, element_type
-            )
+            phase_result = phase_det.detect_phases(prepared.poses_norm, meta.fps, element_type)
             analysis_phases = phase_result.phases
 
             # Biomechanics analysis
             analyzer = BiomechanicsAnalyzer(element_def=elem_def)
-            analysis_metrics = analyzer.analyze(
-                prepared.poses_norm, analysis_phases, meta.fps
-            )
+            analysis_metrics = analyzer.analyze(prepared.poses_norm, analysis_phases, meta.fps)
 
             # Recommendations
             recommender = Recommender()
-            analysis_recommendations = recommender.recommend(
-                analysis_metrics, element_type
-            )
+            analysis_recommendations = recommender.recommend(analysis_metrics, element_type)
 
     return {
         "video_path": str(output_path),

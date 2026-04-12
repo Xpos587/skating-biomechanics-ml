@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
-from backend.app.auth.deps import CurrentUser
 from backend.app.config import get_settings
 from backend.app.storage import _client
+
+if TYPE_CHECKING:
+    from backend.app.auth.deps import CurrentUser
 
 router = APIRouter(tags=["uploads"])
 

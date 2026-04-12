@@ -89,7 +89,7 @@ async def get_detect_status(task_id: str):
         status=state["status"],
         progress=state["progress"],
         message=state.get("message", ""),
-        result=result,
+        result=result,  # type: ignore[reportArgumentType]
         error=state.get("error"),
     )
 

@@ -143,11 +143,13 @@ class TestExtractVideoTracked:
         mock_cap.read.side_effect = fake_read
 
         # Patch get_video_meta
-        with patch("skating_ml.pose_estimation.rtmlib_extractor.get_video_meta", return_value=meta):
-            with patch("cv2.VideoCapture", return_value=mock_cap):
-                # The extractor uses self.tracker which is None, so we need a different approach
-                # We need to mock the tracker property to return something that gives our frames
-                pass
+        with (
+            patch("skating_ml.pose_estimation.rtmlib_extractor.get_video_meta", return_value=meta),
+            patch("cv2.VideoCapture", return_value=mock_cap),
+        ):
+            # The extractor uses self.tracker which is None, so we need a different approach
+            # We need to mock the tracker property to return something that gives our frames
+            pass
 
         # Since the extractor has complex tracking logic, we test the basic interface
         # The actual extraction is tested via integration tests

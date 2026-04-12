@@ -117,9 +117,6 @@ class TestEnforceJointAngleLimits:
         t_pose = make_t_pose_3d()
         poses = np.stack([t_pose] * 3)
 
-        # Hyperextend right knee by pushing RFOOT past RKNEE (towards hip)
-        # RKNEE = pose[2] = [0.15, 0.45, 0]
-        # RFOOT = pose[3] = [0.15, 0.9, 0]
         # Push RFOOT up past the knee line to simulate hyperextension
         poses[1, 3] = [0.15, 0.3, 0.1]  # foot closer to hip than knee
 

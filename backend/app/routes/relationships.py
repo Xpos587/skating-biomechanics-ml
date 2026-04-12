@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 from datetime import UTC
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 
-from backend.app.auth.deps import CurrentUser, DbDep
 from backend.app.crud.relationship import (
     create as create_rel,
 )
@@ -22,8 +22,11 @@ from backend.app.crud.relationship import (
     list_pending_for_skater,
 )
 from backend.app.crud.user import get_by_email
-from backend.app.models.relationship import Relationship
 from backend.app.schemas import InviteRequest, RelationshipListResponse, RelationshipResponse
+
+if TYPE_CHECKING:
+    from backend.app.auth.deps import CurrentUser, DbDep
+    from backend.app.models.relationship import Relationship
 
 router = APIRouter(tags=["relationships"])
 
@@ -32,7 +35,11 @@ def _rel_to_response(rel: Relationship) -> RelationshipResponse:
     return RelationshipResponse.model_validate(rel)
 
 
-@router.post("/relationships/invite", response_model=RelationshipResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/relationships/invite",
+    response_model=RelationshipResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def invite(body: InviteRequest, user: CurrentUser, db: DbDep):
     """Coach invites a skater by email."""
     skater = await get_by_email(db, body.skater_email)
@@ -41,7 +48,9 @@ async def invite(body: InviteRequest, user: CurrentUser, db: DbDep):
 
     existing = await get_active_rel(db, coach_id=user.id, skater_id=skater.id)
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Relationship already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Relationship already exists"
+        )
 
     rel = await create_rel(db, coach_id=user.id, skater_id=skater.id, initiated_by=user.id)
     return _rel_to_response(rel)
@@ -69,10 +78,11 @@ async def accept_invite(rel_id: str, user: CurrentUser, db: DbDep):
 async def end_relationship(rel_id: str, user: CurrentUser, db: DbDep):
     """Either party ends the relationship."""
     from datetime import datetime
+
     rel = await get_rel_by_id(db, rel_id)
     if not rel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relationship not found")
-    if rel.coach_id != user.id and rel.skater_id != user.id:
+    if user.id not in (rel.coach_id, rel.skater_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     if rel.status == "ended":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already ended")

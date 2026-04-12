@@ -301,7 +301,12 @@ class TestBiomechanicsAnalyzer:
         analyzer = BiomechanicsAnalyzer(element_def)
 
         phases = ElementPhase(
-            name="waltz_jump", start=0, takeoff=0, peak=1, landing=2, end=2,
+            name="waltz_jump",
+            start=0,
+            takeoff=0,
+            peak=1,
+            landing=2,
+            end=2,
         )
 
         metrics = analyzer.analyze(sample_normalized_poses, phases, fps=30.0)
@@ -442,7 +447,6 @@ class TestBiomechanicsAnalyzer:
             # Parabolic jump at frames 2-7
             # Frame 2: takeoff, Frame 4-5: peak, Frame 7: landing
             if 2 <= i <= 7:
-                # Parabola: amplitude * (1 - 4 * ((t - mid) / width)^2)
                 mid = 4.5
                 width = 5.0
                 parabola = jump_amplitude * (1 - 4 * ((i - mid) / width) ** 2)

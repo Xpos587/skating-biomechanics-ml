@@ -1,5 +1,7 @@
 """Tests for PR tracker service."""
+
 import pytest
+
 from backend.app.services.pr_tracker import check_pr
 
 

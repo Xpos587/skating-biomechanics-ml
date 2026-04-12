@@ -13,7 +13,11 @@ if TYPE_CHECKING:
 
 
 async def create(
-    db: AsyncSession, *, coach_id: str, skater_id: str, initiated_by: str,
+    db: AsyncSession,
+    *,
+    coach_id: str,
+    skater_id: str,
+    initiated_by: str,
 ) -> Relationship:
     rel = Relationship(coach_id=coach_id, skater_id=skater_id, initiated_by=initiated_by)
     db.add(rel)
@@ -28,7 +32,9 @@ async def get_by_id(db: AsyncSession, rel_id: str) -> Relationship | None:
 
 
 async def get_active(
-    db: AsyncSession, coach_id: str, skater_id: str,
+    db: AsyncSession,
+    coach_id: str,
+    skater_id: str,
 ) -> Relationship | None:
     result = await db.execute(
         select(Relationship).where(
@@ -43,39 +49,47 @@ async def get_active(
 async def list_for_user(db: AsyncSession, user_id: str) -> list[Relationship]:
     """List all relationships where user is coach or skater."""
     result = await db.execute(
-        select(Relationship).where(
+        select(Relationship)
+        .where(
             (Relationship.coach_id == user_id) | (Relationship.skater_id == user_id),
-        ).order_by(Relationship.created_at.desc())
+        )
+        .order_by(Relationship.created_at.desc())
     )
     return list(result.scalars().all())
 
 
 async def list_pending_for_skater(db: AsyncSession, skater_id: str) -> list[Relationship]:
     result = await db.execute(
-        select(Relationship).where(
+        select(Relationship)
+        .where(
             Relationship.skater_id == skater_id,
             Relationship.status == "invited",
-        ).order_by(Relationship.created_at.desc())
+        )
+        .order_by(Relationship.created_at.desc())
     )
     return list(result.scalars().all())
 
 
 async def list_active_students(db: AsyncSession, coach_id: str) -> list[Relationship]:
     result = await db.execute(
-        select(Relationship).where(
+        select(Relationship)
+        .where(
             Relationship.coach_id == coach_id,
             Relationship.status == "active",
-        ).order_by(Relationship.created_at.desc())
+        )
+        .order_by(Relationship.created_at.desc())
     )
     return list(result.scalars().all())
 
 
 async def list_active_coaches(db: AsyncSession, skater_id: str) -> list[Relationship]:
     result = await db.execute(
-        select(Relationship).where(
+        select(Relationship)
+        .where(
             Relationship.skater_id == skater_id,
             Relationship.status == "active",
-        ).order_by(Relationship.created_at.desc())
+        )
+        .order_by(Relationship.created_at.desc())
     )
     return list(result.scalars().all())
 

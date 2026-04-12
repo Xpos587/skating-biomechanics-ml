@@ -686,9 +686,7 @@ class BiomechanicsAnalyzer:
         avg_asymmetry = float(np.mean(asymmetries))
         return float(max(0, 1 - avg_asymmetry))
 
-    def compute_relative_jump_height(
-        self, poses: NormalizedPose, phases: ElementPhase
-    ) -> float:
+    def compute_relative_jump_height(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute jump height normalized by spine length (camera-independent).
 
         This metric provides a camera-independent measure of jump height by

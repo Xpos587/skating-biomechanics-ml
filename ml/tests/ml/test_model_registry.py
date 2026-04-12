@@ -41,7 +41,9 @@ class TestModelRegistry:
         reg.register("depth_anything", vram_mb=200, path="/tmp/depth.onnx")
 
         mock_session = mock.MagicMock()
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
+        with mock.patch(
+            "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+        ):
             session = reg.get("depth_anything")
             assert session is mock_session
             assert reg.vram_used_mb == 200
@@ -54,7 +56,9 @@ class TestModelRegistry:
         reg.register("depth_anything", vram_mb=200, path="/tmp/depth.onnx")
 
         mock_session = mock.MagicMock()
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
+        with mock.patch(
+            "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+        ):
             s1 = reg.get("depth_anything")
             s2 = reg.get("depth_anything")
             assert s1 is s2
@@ -75,7 +79,9 @@ class TestModelRegistry:
         reg.register("depth_anything", vram_mb=200, path="/tmp/depth.onnx")
 
         mock_session = mock.MagicMock()
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
+        with mock.patch(
+            "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+        ):
             reg.get("depth_anything")
             reg.release("depth_anything")
             assert reg.vram_used_mb == 0
@@ -96,9 +102,13 @@ class TestModelRegistry:
         reg.register("big_model", vram_mb=200, path="/tmp/big.onnx")
 
         mock_session = mock.MagicMock()
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
-            with pytest.raises(RuntimeError, match="VRAM budget"):
-                reg.get("big_model")
+        with (
+            mock.patch(
+                "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+            ),
+            pytest.raises(RuntimeError, match="VRAM budget"),
+        ):
+            reg.get("big_model")
 
     def test_device_passed_to_session(self):
         """ONNX session created with correct providers from DeviceConfig."""
@@ -126,7 +136,9 @@ class TestModelRegistry:
         assert not reg.is_loaded("m")
 
         mock_session = mock.MagicMock()
-        with mock.patch("skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session):
+        with mock.patch(
+            "skating_ml.extras.model_registry.ort.InferenceSession", return_value=mock_session
+        ):
             reg.get("m")
             assert reg.is_loaded("m")
 

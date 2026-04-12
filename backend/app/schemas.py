@@ -100,6 +100,7 @@ class DetectResponse(BaseModel):
 @dataclass
 class MLModelFlags:
     """ML model feature flags for video processing."""
+
     depth: bool = False
     optical_flow: bool = False
     segment: bool = False
