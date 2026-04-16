@@ -14,22 +14,46 @@ const SessionMetricSchema = z.object({
   unit: z.string().optional(),
 })
 
+// Analysis data schemas (Task 6, 2026-04-16)
+const PoseDataSchema = z.object({
+  frames: z.array(z.number()),
+  poses: z.array(z.array(z.array(z.number()))), // [frame][keypoint][x,y,conf]
+  fps: z.number(),
+})
+
+const FrameMetricsSchema = z.object({
+  knee_angles_r: z.array(z.number().nullable()),
+  knee_angles_l: z.array(z.number().nullable()),
+  hip_angles_r: z.array(z.number().nullable()),
+  hip_angles_l: z.array(z.number().nullable()),
+  trunk_lean: z.array(z.number().nullable()),
+  com_height: z.array(z.number().nullable()),
+})
+
+const PhasesDataSchema = z.object({
+  takeoff: z.number().optional(),
+  peak: z.number().optional(),
+  landing: z.number().optional(),
+})
+
 const SessionSchema = z.object({
   id: z.string(),
   user_id: z.string(),
   element_type: z.string(),
   video_url: z.string().nullable(),
   processed_video_url: z.string().nullable(),
+  poses_url: z.string().optional().nullable(), // Deprecated
+  csv_url: z.string().optional().nullable(), // Deprecated
+  pose_data: PoseDataSchema.optional().nullable(), // New
+  frame_metrics: FrameMetricsSchema.optional().nullable(), // New
   status: z.string(),
   error_message: z.string().nullable(),
-  phases: z.record(z.string(), z.number()).nullable(),
+  phases: PhasesDataSchema.optional().nullable(), // Updated type
   recommendations: z.array(z.string()).nullable(),
   overall_score: z.number().nullable(),
   created_at: z.string(),
   processed_at: z.string().nullable(),
   metrics: z.array(SessionMetricSchema),
-  poses_url: z.string().nullable(),
-  csv_url: z.string().nullable(),
 })
 
 const SessionListSchema = z.object({ sessions: z.array(SessionSchema), total: z.number() })
