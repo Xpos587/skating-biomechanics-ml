@@ -198,8 +198,10 @@ class SessionResponse(BaseModel):
     element_type: str
     video_url: str | None
     processed_video_url: str | None
-    poses_url: str | None
-    csv_url: str | None
+    poses_url: str | None  # Deprecated: Replaced by pose_data
+    csv_url: str | None  # Deprecated: Replaced by frame_metrics
+    pose_data: dict | None  # New: Direct pose data storage (JSON)
+    frame_metrics: dict | None  # New: Frame-by-frame metrics (JSON)
     status: str
     error_message: str | None
     phases: dict | None
