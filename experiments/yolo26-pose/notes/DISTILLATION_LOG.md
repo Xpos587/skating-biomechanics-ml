@@ -254,4 +254,12 @@ Domain gap: SkatingVerse → MogaNet predictions = 47% valid, 0% high confidence
 - More robust across domains
 - COCO 17kp format (compatible)
 
-**Status:** 🔄 Testing RTMO pseudo-labeling
+**Status:** 🔄 Testing RTMO pseudo-labeling (2026-04-16 17:45 UTC)
+
+**Scripts Created:**
+- pseudo_label_rtmo.py: RTMO-based pseudo-labeling (direct rtmlib usage)
+- moganet_decode.py: Working MogaNet-B decoder reference
+- moganet_official.py: MogaNet feature extractor
+- compute_rtmo_map.py: RTMO MAP validation script
+
+**Finding:** RTMO more robust across domains than MogaNet-B for figure skating.
