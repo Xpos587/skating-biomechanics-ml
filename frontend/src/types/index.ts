@@ -43,6 +43,31 @@ export interface ProcessResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Analysis Data Types (Task 4, 2026-04-16)
+// ---------------------------------------------------------------------------
+
+export interface PoseData {
+  frames: number[] // Sampled frame indices (e.g., [0, 10, 20, ...])
+  poses: number[][][] // [frame][keypoint][x,y,conf] - (N_sampled, 17, 3)
+  fps: number // Video frame rate
+}
+
+export interface FrameMetrics {
+  knee_angles_r: (number | null)[] // Right knee angle per frame
+  knee_angles_l: (number | null)[] // Left knee angle per frame
+  hip_angles_r: (number | null)[] // Right hip angle per frame
+  hip_angles_l: (number | null)[] // Left hip angle per frame
+  trunk_lean: (number | null)[] // Spine lean from vertical per frame
+  com_height: (number | null)[] // Center of mass height per frame
+}
+
+export interface PhasesData {
+  takeoff?: number // Frame index of takeoff
+  peak?: number // Frame index of peak height
+  landing?: number // Frame index of landing
+}
+
+// ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
 
@@ -62,11 +87,13 @@ export interface Session {
   element_type: string
   video_url: string | null
   processed_video_url: string | null
-  poses_url: string | null
-  csv_url: string | null
+  poses_url?: string | null // Deprecated: Replaced by pose_data
+  csv_url?: string | null // Deprecated: Replaced by frame_metrics
+  pose_data?: PoseData | null // New: Direct pose data storage (JSON)
+  frame_metrics?: FrameMetrics | null // New: Frame-by-frame metrics (JSON)
   status: string
   error_message: string | null
-  phases: Record<string, number> | null
+  phases?: PhasesData | null // Typed phase markers
   recommendations: string[] | null
   overall_score: number | null
   created_at: string
