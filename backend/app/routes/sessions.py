@@ -6,7 +6,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.auth.deps import CurrentUser, DbDep
-from app.crud.relationship import is_coach_for_student
+from app.crud.connection import is_connected_as
+from app.models.connection import ConnectionType
 from app.crud.session import create, get_by_id, list_by_user, soft_delete, update
 from app.schemas import (
     CreateSessionRequest,
@@ -44,7 +45,7 @@ async def list_sessions(
     if (
         user_id
         and user_id != user.id
-        and not await is_coach_for_student(db, coach_id=user.id, skater_id=user_id)
+        and not await is_connected_as(db, from_user_id=user.id, to_user_id=user_id, connection_type=ConnectionType.COACHING)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user"
@@ -68,8 +69,8 @@ async def get_session(session_id: str, user: CurrentUser, db: DbDep):
     session = await get_by_id(db, session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-    if session.user_id != user.id and not await is_coach_for_student(
-        db, coach_id=user.id, skater_id=session.user_id
+    if session.user_id != user.id and not await is_connected_as(
+        db, from_user_id=user.id, to_user_id=session.user_id, connection_type=ConnectionType.COACHING
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     return _session_to_response(session)

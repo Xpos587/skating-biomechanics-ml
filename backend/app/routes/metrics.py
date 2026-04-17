@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from app.crud.relationship import is_coach_for_student
+from app.crud.connection import is_connected_as
+from app.models.connection import ConnectionType
 from app.metrics_registry import METRIC_REGISTRY
 from app.models.session import Session, SessionMetric
 
@@ -62,7 +63,7 @@ async def get_trend(
     if (
         user_id
         and user_id != user.id
-        and not await is_coach_for_student(db, coach_id=user.id, skater_id=user_id)
+        and not await is_connected_as(db, from_user_id=user.id, to_user_id=user_id, connection_type=ConnectionType.COACHING)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user"
@@ -149,7 +150,7 @@ async def get_prs(
     if (
         user_id
         and user_id != user.id
-        and not await is_coach_for_student(db, coach_id=user.id, skater_id=user_id)
+        and not await is_connected_as(db, from_user_id=user.id, to_user_id=user_id, connection_type=ConnectionType.COACHING)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user"
@@ -199,7 +200,7 @@ async def get_diagnostics(
     if (
         user_id
         and user_id != user.id
-        and not await is_coach_for_student(db, coach_id=user.id, skater_id=user_id)
+        and not await is_connected_as(db, from_user_id=user.id, to_user_id=user_id, connection_type=ConnectionType.COACHING)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user"
