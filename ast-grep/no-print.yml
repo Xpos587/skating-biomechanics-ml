@@ -1,0 +1,17 @@
+id: no-print
+language: python
+message: |
+  Don't use print() in production code. Use structlog for logging.
+
+  Instead of:  print(f"Result: {x}")
+  Use:         logger.info("Result", x=x)
+severity: warning
+note: |
+  Allowed in scripts, experiments, and CLI entry points.
+rule:
+  pattern: print($$$ARGS)
+ignores:
+  - "ml/scripts/**"
+  - "experiments/**"
+  - "data/**"
+  - "**/__main__.py"

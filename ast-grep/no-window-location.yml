@@ -1,0 +1,21 @@
+id: no-window-location
+language: tsx
+message: |
+  Don't use window.location for navigation. Use Next.js router.
+
+  Instead of:  window.location.href = "/dashboard"
+  Use:         import { useRouter } from "next/navigation"; router.push("/dashboard")
+
+  Instead of:  window.location.pathname
+  Use:         usePathname() from "next/navigation"
+
+  Instead of:  window.location.search
+  Use:         useSearchParams() from "next/navigation"
+severity: error
+note: |
+  window.location causes full page reload and breaks SPA navigation.
+  Allowed in non-Next contexts (e.g., utility scripts, SSR guards).
+rule:
+  pattern: window.location
+ignores:
+  - "frontend/src/components/auth-provider.tsx"

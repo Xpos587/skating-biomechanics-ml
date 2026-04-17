@@ -60,6 +60,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  ast-grep:
+    name: Lint (ast-grep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ast-grep
+        run: |
+          curl -L https://github.com/ast-grep/ast-grep/releases/latest/download/x86_64-unknown-linux-gnu.zip -o sg.zip
+          unzip sg.zip -d /tmp/sg
+          sudo mv /tmp/sg/sg /usr/local/bin/sg
+      - name: Scan Python rules
+        run: sg scan -c sgconfig.yml backend/ ml/
+      - name: Scan TypeScript rules
+        run: sg scan -c sgconfig.yml frontend/
+
   test:
     name: Tests
     runs-on: ubuntu-latest
@@ -118,7 +133,7 @@ jobs:
   ci-passed:
     name: CI Passed
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, gitleaks, test, fe-lint, fe-typecheck, fe-build]
+    needs: [lint, typecheck, gitleaks, ast-grep, test, fe-lint, fe-typecheck, fe-build]
     if: always()
     steps:
       - name: Check results
@@ -126,13 +141,14 @@ jobs:
           LINT: ${{ needs.lint.result }}
           TYPECHECK: ${{ needs.typecheck.result }}
           GITLEAKS: ${{ needs.gitleaks.result }}
+          AST_GREP: ${{ needs.ast-grep.result }}
           TEST: ${{ needs.test.result }}
           FE_LINT: ${{ needs.fe-lint.result }}
           FE_TYPECHECK: ${{ needs.fe-typecheck.result }}
           FE_BUILD: ${{ needs.fe-build.result }}
         run: |
           FAILED=0
-          for job in LINT TYPECHECK GITLEAKS TEST FE_LINT FE_TYPECHECK FE_BUILD; do
+          for job in LINT TYPECHECK GITLEAKS AST_GREP TEST FE_LINT FE_TYPECHECK FE_BUILD; do
             RESULT="${!job}"
             if [[ "$RESULT" != "success" ]]; then
               echo "::error::${job} failed (${RESULT})"

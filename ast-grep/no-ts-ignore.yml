@@ -1,0 +1,16 @@
+id: no-ts-ignore
+language: tsx
+message: |
+  Don't use @ts-ignore. Use @ts-expect-error instead.
+
+  @ts-ignore silently suppresses errors even when there are none.
+  @ts-expect-error fails if the next line doesn't actually have an error.
+
+  Instead of:  // @ts-ignore
+  Use:         // @ts-expect-error — [reason for suppression]
+severity: error
+note: |
+  Prefer fixing the type error over suppressing it.
+rule:
+  kind: comment
+  regex: "@ts-ignore"

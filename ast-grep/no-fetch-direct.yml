@@ -1,0 +1,18 @@
+id: no-fetch-direct
+language: tsx
+message: |
+  Don't call fetch() directly. Use apiFetch/apiPost/apiPatch/apiDelete from "@/lib/api-client".
+
+  The API client handles auth tokens, Zod validation, error formatting, and base URL.
+
+  Instead of:  const res = await fetch("/api/sessions")
+  Use:         import { apiFetch } from "@/lib/api-client"; const data = await apiFetch(schema, "/sessions")
+severity: error
+note: |
+  Allowed in api-client.ts itself, server components, and non-API fetches (e.g., CDN assets).
+rule:
+  pattern: fetch($$$ARGS)
+ignores:
+  - "frontend/src/lib/api-client.ts"
+  - "frontend/src/lib/api/**"
+  - "frontend/src/app/**"
