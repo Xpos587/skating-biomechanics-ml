@@ -1,8 +1,9 @@
-rule_dirs:
+ruleDirs:
   - ast-grep
-test_dirs:
-  - ast-grep/__tests__
-util_dirs: []
-language_globs:
-  tsx: "frontend/**/*.{ts,tsx}"
-  python: "{backend,ml}/**/*.py"
+testConfigs:
+  - testDir: sgtests
+languageGlobs:
+  tsx:
+    - "frontend/**/*.{ts,tsx}"
+  python:
+    - "{backend,ml}/**/*.py"

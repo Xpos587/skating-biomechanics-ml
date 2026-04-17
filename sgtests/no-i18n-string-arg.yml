@@ -1,0 +1,7 @@
+id: no-i18n-string-arg
+valid:
+  - "toast.success(t('invitation.sent'))"
+  - "console.error('debug')"
+invalid:
+  - "toast.success('Приглашение отправлено')"
+  - "toast.error('Ошибка отправки')"

@@ -1,0 +1,8 @@
+id: no-i18n-jsx-text
+valid:
+  - "<h1>{t('welcome')}</h1>"
+  - "<div className='flex' />"
+invalid:
+  - "<h1>Welcome</h1>"
+  - "<h2>Анализ видео</h2>"
+  - "<Button>Сохранить</Button>"

@@ -1,0 +1,14 @@
+id: no-use-effect-call
+snapshots:
+  useEffect(() => {}, []):
+    labels:
+    - source: useEffect(() => {}, [])
+      style: primary
+      start: 0
+      end: 23
+  useEffect(fn, [dep]):
+    labels:
+    - source: useEffect(fn, [dep])
+      style: primary
+      start: 0
+      end: 20

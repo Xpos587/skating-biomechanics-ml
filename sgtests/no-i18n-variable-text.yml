@@ -1,0 +1,7 @@
+id: no-i18n-variable-text
+valid:
+  - "const label = t('nav.progress')"
+  - "const url = 'https://example.com'"
+invalid:
+  - "const label = 'Прогресс'"
+  - "const title = 'Анализ видео'"

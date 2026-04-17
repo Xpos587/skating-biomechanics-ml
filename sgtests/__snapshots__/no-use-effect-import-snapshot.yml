@@ -1,0 +1,30 @@
+id: no-use-effect-import
+snapshots:
+  import { useEffect } from 'react':
+    labels:
+    - source: import { useEffect } from 'react'
+      style: primary
+      start: 0
+      end: 33
+    - source: useEffect
+      style: secondary
+      start: 9
+      end: 18
+    - source: useEffect
+      style: secondary
+      start: 9
+      end: 18
+  import { useState, useEffect } from 'react':
+    labels:
+    - source: import { useState, useEffect } from 'react'
+      style: primary
+      start: 0
+      end: 43
+    - source: useEffect
+      style: secondary
+      start: 19
+      end: 28
+    - source: useEffect
+      style: secondary
+      start: 19
+      end: 28

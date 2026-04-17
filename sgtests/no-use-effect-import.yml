@@ -1,0 +1,7 @@
+id: no-use-effect-import
+valid:
+  - "import { useMountEffect } from '@/lib/useMountEffect'"
+  - "import { useState } from 'react'"
+invalid:
+  - "import { useEffect } from 'react'"
+  - "import { useState, useEffect } from 'react'"

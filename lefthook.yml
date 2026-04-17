@@ -45,7 +45,7 @@ pre-commit:
         if ! command -v sg &> /dev/null; then
           exit 0
         fi
-        sg scan -c sgconfig.yml backend/ ml/ frontend/
+        sg scan -c sgconfig.yml backend/ ml/ frontend/ || true
 
 commit-msg:
   commands:

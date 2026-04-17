@@ -1,0 +1,32 @@
+id: no-i18n-jsx-text
+snapshots:
+  <Button>Сохранить</Button>:
+    labels:
+    - source: <Button>Сохранить</Button>
+      style: primary
+      start: 0
+      end: 35
+    - source: Сохранить
+      style: secondary
+      start: 8
+      end: 26
+  <h1>Welcome</h1>:
+    labels:
+    - source: <h1>Welcome</h1>
+      style: primary
+      start: 0
+      end: 16
+    - source: Welcome
+      style: secondary
+      start: 4
+      end: 11
+  <h2>Анализ видео</h2>:
+    labels:
+    - source: <h2>Анализ видео</h2>
+      style: primary
+      start: 0
+      end: 32
+    - source: Анализ видео
+      style: secondary
+      start: 4
+      end: 27

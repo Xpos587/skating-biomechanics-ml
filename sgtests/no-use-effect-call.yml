@@ -1,0 +1,7 @@
+id: no-use-effect-call
+valid:
+  - "useMountEffect(() => { init() }, [])"
+  - "useMountEffect(fn)"
+invalid:
+  - "useEffect(() => {}, [])"
+  - "useEffect(fn, [dep])"

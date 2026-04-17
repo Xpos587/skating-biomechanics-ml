@@ -1,0 +1,22 @@
+id: no-i18n-string-arg
+snapshots:
+  toast.error('Ошибка отправки'):
+    labels:
+    - source: toast.error('Ошибка отправки')
+      style: primary
+      start: 0
+      end: 44
+    - source: Ошибка отправки
+      style: secondary
+      start: 13
+      end: 42
+  toast.success('Приглашение отправлено'):
+    labels:
+    - source: toast.success('Приглашение отправлено')
+      style: primary
+      start: 0
+      end: 60
+    - source: Приглашение отправлено
+      style: secondary
+      start: 15
+      end: 58

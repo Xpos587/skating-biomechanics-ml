@@ -1,0 +1,22 @@
+id: no-i18n-variable-text
+snapshots:
+  const label = 'Прогресс':
+    labels:
+    - source: label = 'Прогресс'
+      style: primary
+      start: 6
+      end: 32
+    - source: Прогресс
+      style: secondary
+      start: 15
+      end: 31
+  const title = 'Анализ видео':
+    labels:
+    - source: title = 'Анализ видео'
+      style: primary
+      start: 6
+      end: 39
+    - source: Анализ видео
+      style: secondary
+      start: 15
+      end: 38
