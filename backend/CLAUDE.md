@@ -31,6 +31,8 @@ backend/
 │   ├── metrics_registry.py           # MetricDef definitions (12+ metrics, Russian labels, ideal ranges)
 │   ├── auth/                         # JWT auth (deps.py — CurrentUser, DbDep)
 │   └── main.py                       # FastAPI app factory
+│
+│   **Models:** user, session, connection (flexible user-to-user with connection_type)
 ├── alembic/                          # Database migrations
 ├── tests/                            # Backend tests
 └── pyproject.toml                    # Backend-only dependencies
@@ -66,16 +68,18 @@ backend/
 | GET | `/detect/{task_id}/status` | Poll detection job status |
 | GET | `/detect/{task_id}/result` | Get detection result |
 | POST | `/process` | Start ML pipeline processing (async) |
-| GET | `/relationships` | List relationships |
-| POST | `/relationships/invite` | Invite skater |
-| PATCH | `/relationships/{id}` | Accept/reject invitation |
+| POST | `/connections/invite` | Invite user (coaching/choreography) |
+| POST | `/connections/{id}/accept` | Accept connection invite |
+| POST | `/connections/{id}/end` | End connection |
+| GET | `/connections` | List all connections |
+| GET | `/connections/pending` | List pending invites |
 
 ## Auth Architecture
 
 - **JWT**: access token (15min) + refresh token (7d), stored in localStorage
 - **Cookie sync**: `sb_auth=1` cookie set by frontend for server-side gating
 - **CurrentUser**: dependency injection via `backend.app.auth.deps` (reads JWT from Authorization header)
-- **Coach access**: coaches can view students' sessions/metrics via `is_coach_for_student()` check
+- **Coach access**: coaches can view students' sessions/metrics via `is_connected_as(connection_type=COACHING)` check
 
 ## Metrics System
 

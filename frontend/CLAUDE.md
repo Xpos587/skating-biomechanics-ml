@@ -62,7 +62,7 @@ frontend/
 │   ├── api/
 │   │   ├── sessions.ts              # useSessions, useSession, useCreateSession, etc.
 │   │   ├── metrics.ts               # useTrend, useDiagnostics, useMetricRegistry, usePRs
-│   │   └── relationships.ts         # useRelationships
+│   │   └── connections.ts          # useConnections, useInviteConnection, etc.
 │   ├── constants.ts                  # ELEMENT_TYPE_KEYS, ElementType
 │   └── useMountEffect.ts            # Mount-only effect (no-use-effect skill)
 ├── i18n/
