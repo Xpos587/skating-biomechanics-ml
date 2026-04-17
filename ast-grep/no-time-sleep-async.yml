@@ -1,0 +1,16 @@
+id: no-time-sleep-async
+language: python
+message: |
+  Don't use time.sleep() in async functions — it blocks the entire event loop.
+
+  Instead of:  time.sleep(5)
+  Use:         await asyncio.sleep(5)
+severity: error
+rule:
+  all:
+    - pattern: time.sleep($$$ARGS)
+    - inside:
+        pattern: |
+          async def $NAME($$$PARAMS):
+              $$$BODY
+        stopBy: end

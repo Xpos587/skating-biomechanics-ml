@@ -1,0 +1,30 @@
+id: no-cpu-inference
+language: python
+message: |
+  GPU-only project. Don't hardcode device="cpu". Use DeviceConfig from skating_ml.device.
+
+  Instead of:  device="cpu"
+  Use:         DeviceConfig.default()  # auto-detects, prefers CUDA
+severity: error
+note: |
+  DeviceConfig resolves device at creation time with fallback logic.
+  Only DeviceConfig and its tests may reference device="cpu".
+rule:
+  any:
+    # device="cpu" as keyword arg
+    - kind: string_content
+      regex: "^cpu$"
+      inside:
+        kind: keyword_argument
+        stopBy: end
+    # torch.device("cpu") or similar positional
+    - kind: string_content
+      regex: "^cpu$"
+      inside:
+        kind: argument_list
+        stopBy: end
+ignores:
+  - "ml/skating_ml/device.py"
+  - "ml/tests/**"
+  - "experiments/**"
+  - "data/**"

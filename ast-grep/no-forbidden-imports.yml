@@ -1,0 +1,25 @@
+id: no-forbidden-imports
+language: python
+message: |
+  Forbidden import detected. This module must not be imported in this layer.
+
+  Customize the module list in this rule for your project's architecture boundaries.
+  Current config bans ML/heavy-compute imports in API/backend layers.
+severity: error
+note: |
+  Template rule — adapt the module list and ignores for your project.
+  Common patterns: ban ML imports in web layer, ban DB imports in API layer,
+  ban framework imports in domain layer.
+rule:
+  any:
+    - pattern: import torch
+    - pattern: import onnxruntime
+    - pattern: import rtmlib
+    - pattern: import torchvision
+    - pattern: import tensorflow
+    - pattern: from torch import $$$NAMES
+    - pattern: from onnxruntime import $$$NAMES
+    - pattern: from rtmlib import $$$NAMES
+ignores:
+  - "ml/**"
+  - "experiments/**"

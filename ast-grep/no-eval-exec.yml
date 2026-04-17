@@ -1,0 +1,15 @@
+id: no-eval-exec
+language: python
+message: |
+  Don't use eval()/exec(). They execute arbitrary code and are security risks.
+
+  Instead of:  eval("2 + 2")
+  Use:         ast.literal_eval() for safe literal evaluation.
+
+  Instead of:  exec("x = 1")
+  Use:         Refactor to direct function calls.
+severity: error
+rule:
+  any:
+    - pattern: eval($$$ARGS)
+    - pattern: exec($$$ARGS)

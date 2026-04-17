@@ -1,0 +1,19 @@
+id: no-assert-in-prod
+language: python
+message: |
+  Don't use assert for runtime validation. assert is stripped with -O flag.
+
+  Instead of:  assert x > 0
+  Use:         if not x > 0: raise ValueError("x must be positive")
+
+  Assert is fine in tests. Not fine in production code.
+severity: warning
+note: |
+  OK in test files. Not OK in production code paths, API handlers, or business logic.
+rule:
+  kind: assert_statement
+ignores:
+  - "**/test_*.py"
+  - "**/tests/**"
+  - "**/conftest.py"
+  - "experiments/**"

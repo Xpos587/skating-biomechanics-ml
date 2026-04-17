@@ -1,0 +1,24 @@
+id: no-bare-except
+language: python
+message: |
+  Don't use bare `except:` or `except Exception:`. Catch specific exceptions instead.
+
+  Instead of:  except Exception:
+  Use:         except (ValueError, IOError) as e:
+
+  Bare except silently swallows errors including KeyboardInterrupt and SystemExit.
+severity: warning
+note: |
+  Allowed in top-level error handlers where you genuinely need to catch everything.
+  Use `except BaseException` if you must, with explicit re-raise for KeyboardInterrupt.
+rule:
+  any:
+    - kind: except_clause
+      not:
+        has:
+          kind: identifier
+          stopBy: end
+    - kind: except_clause
+      has:
+        pattern: Exception
+        stopBy: end
