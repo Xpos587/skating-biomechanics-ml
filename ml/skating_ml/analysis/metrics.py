@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
+from numba import njit  # type: ignore
 
 from ..types import (
     ElementPhase,
@@ -24,6 +25,105 @@ from ..utils.geometry import (
 
 if TYPE_CHECKING:
     from .element_defs import ElementDef
+
+
+# Numba-jitted core functions (for performance)
+@njit(cache=True, fastmath=True)
+def _angle_3pt_rad_numba(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
+    """Calculate angle ABC in radians (jitted).
+
+    Args:
+        a: Point A (x, y).
+        b: Vertex B (x, y).
+        c: Point C (x, y).
+
+    Returns:
+        Angle in radians [0, π].
+    """
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-8)
+    cosine_angle = max(-1.0, min(1.0, cosine_angle))
+    angle = np.arccos(cosine_angle)
+
+    return angle
+
+
+@njit(cache=True, fastmath=True)
+def _compute_knee_angle_series_numba(
+    poses: np.ndarray,
+    hip_idx: int,
+    knee_idx: int,
+    foot_idx: int,
+) -> np.ndarray:
+    """Compute knee angle series (jitted).
+
+    Args:
+        poses: (num_frames, 17, 2) pose array.
+        hip_idx: Hip keypoint index (will be converted to int).
+        knee_idx: Knee keypoint index (will be converted to int).
+        foot_idx: Foot keypoint index (will be converted to int).
+
+    Returns:
+        (num_frames,) knee angles in degrees.
+    """
+    num_frames = poses.shape[0]
+    angles = np.zeros(num_frames, dtype=np.float32)
+    rad2deg = 180.0 / np.pi
+
+    # Convert to int for Numba compatibility
+    hip_i = int(hip_idx)
+    knee_i = int(knee_idx)
+    foot_i = int(foot_idx)
+
+    for i in range(num_frames):
+        pose = poses[i]
+        hip = pose[hip_i]
+        knee = pose[knee_i]
+        foot = pose[foot_i]
+
+        angle_rad = _angle_3pt_rad_numba(hip, knee, foot)
+        angles[i] = angle_rad * rad2deg
+
+    return angles
+
+
+@njit(cache=True, fastmath=True)
+def _compute_trunk_lean_series_numba(poses: np.ndarray) -> np.ndarray:
+    """Compute trunk lean angle series (jitted).
+
+    Args:
+        poses: (num_frames, 17, 2) pose array.
+
+    Returns:
+        (num_frames,) trunk lean angles in degrees.
+    """
+    num_frames = poses.shape[0]
+    leans = np.zeros(num_frames, dtype=np.float32)
+    rad2deg = 180.0 / np.pi
+
+    # H36Key indices (hardcoded for Numba compatibility)
+    # LHIP=4, RHIP=8, LSHOULDER=11, RSHOULDER=14
+    l_hip = 4
+    r_hip = 8
+    l_shoulder = 11
+    r_shoulder = 14
+
+    for i in range(num_frames):
+        pose = poses[i]
+        # Mid-hip to mid-shoulder vector
+        mid_hip = (pose[l_hip] + pose[r_hip]) * 0.5
+        mid_shoulder = (pose[l_shoulder] + pose[r_shoulder]) * 0.5
+
+        spine_vector = mid_shoulder - mid_hip
+
+        # Angle from vertical (0, -1) - upward in normalized coords
+        # atan2(x, -y) gives angle from vertical
+        lean = np.arctan2(spine_vector[0], -spine_vector[1])
+        leans[i] = lean * rad2deg
+
+    return leans
 
 
 class BiomechanicsAnalyzer:
@@ -510,31 +610,20 @@ class BiomechanicsAnalyzer:
     def compute_trunk_lean(self, poses: NormalizedPose) -> TimeSeries:
         """Compute trunk lean angle.
 
+        Uses Numba-jitted implementation for performance.
+
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
 
         Returns:
             Trunk angle in degrees (positive = forward lean).
         """
-        leans = np.zeros(len(poses), dtype=np.float32)
-
-        for i, pose in enumerate(poses):
-            # Compute mid-shoulder and mid-hip for this frame
-            mid_shoulder = (pose[H36Key.LSHOULDER] + pose[H36Key.RSHOULDER]) / 2
-            mid_hip = (pose[H36Key.LHIP] + pose[H36Key.RHIP]) / 2
-
-            # Vector from hip to shoulder
-            spine_vector = mid_shoulder - mid_hip
-
-            # In image coordinates, Y points down, so invert for proper angle
-            # Angle from vertical: atan2(x, -y) gives 0° for upright
-            angle = np.arctan2(spine_vector[0], -spine_vector[1])
-            leans[i] = float(np.degrees(angle))
-
-        return leans
+        return _compute_trunk_lean_series_numba(poses)
 
     def compute_knee_angle_series(self, poses: NormalizedPose, side: str = "left") -> TimeSeries:
         """Compute knee angle series for step elements.
+
+        Uses Numba-jitted implementation for performance.
 
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
@@ -548,10 +637,7 @@ class BiomechanicsAnalyzer:
         else:
             hip_idx, knee_idx, foot_idx = H36Key.RHIP, H36Key.RKNEE, H36Key.RFOOT
 
-        angles = np.zeros(len(poses), dtype=np.float32)
-        for i, pose in enumerate(poses):
-            angles[i] = angle_3pt(pose[hip_idx], pose[knee_idx], pose[foot_idx])
-        return angles
+        return _compute_knee_angle_series_numba(poses, hip_idx, knee_idx, foot_idx)
 
     def compute_edge_indicator(
         self,

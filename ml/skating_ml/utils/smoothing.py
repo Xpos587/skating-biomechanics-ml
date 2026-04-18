@@ -11,9 +11,124 @@ from dataclasses import dataclass
 from typing import Final
 
 import numpy as np
+from numba import njit  # type: ignore
 from numpy.typing import NDArray
 
 from ..types import NormalizedPose
+
+
+# Numba-jitted core functions (for performance)
+@njit(cache=True, fastmath=True)
+def _smoothing_factor_numba(te: float, cutoff: float) -> float:
+    """Compute smoothing factor alpha from time interval and cutoff frequency (jitted).
+
+    Args:
+        te: Time interval since last sample.
+        cutoff: Cutoff frequency in Hz.
+
+    Returns:
+        Smoothing factor alpha in [0, 1].
+    """
+    r = 2.0 * np.pi * cutoff * te
+    return r / (r + 1.0)
+
+
+@njit(cache=True, fastmath=True)
+def _exponential_smoothing_numba(alpha: float, x: float, x_prev: float) -> float:
+    """Apply exponential smoothing filter (jitted).
+
+    Args:
+        alpha: Smoothing factor.
+        x: Current input value.
+        x_prev: Previous filtered value.
+
+    Returns:
+        Filtered output value.
+    """
+    return alpha * x + (1.0 - alpha) * x_prev
+
+
+@njit(cache=True, fastmath=True)
+def _one_euro_filter_sequence_numba(
+    x: np.ndarray,
+    freq: float,
+    min_cutoff: float,
+    beta: float,
+    derivative_cutoff: float,
+) -> np.ndarray:
+    """Filter a complete sequence using One-Euro filter (jitted).
+
+    Args:
+        x: Input sequence (num_samples,).
+        freq: Sampling frequency in Hz.
+        min_cutoff: Minimum cutoff frequency in Hz.
+        beta: Speed coefficient.
+        derivative_cutoff: Cutoff for derivative filtering.
+
+    Returns:
+        Filtered sequence (num_samples,).
+    """
+    n = len(x)
+    filtered = np.zeros_like(x)
+    dt = 1.0 / freq
+
+    # Initialization
+    x_prev = x[0]
+    dx_prev = 0.0
+    filtered[0] = x_prev
+
+    for i in range(1, n):
+        # Compute derivative
+        dx = (x[i] - x_prev) / dt
+
+        # Filter derivative
+        alpha_d = _smoothing_factor_numba(dt, derivative_cutoff)
+        dx_filtered = _exponential_smoothing_numba(alpha_d, dx, dx_prev)
+
+        # Adaptive cutoff
+        cutoff = min_cutoff + beta * abs(dx_filtered)
+
+        # Filter signal
+        alpha = _smoothing_factor_numba(dt, cutoff)
+        x_filtered = _exponential_smoothing_numba(alpha, x[i], x_prev)
+
+        # Update state
+        filtered[i] = x_filtered
+        x_prev = x_filtered
+        dx_prev = dx_filtered
+
+    return filtered
+
+
+@njit(cache=True, fastmath=True)
+def smooth_trajectory_2d_numba(
+    trajectory: np.ndarray,
+    fps: float,
+    min_cutoff: float,
+    beta: float,
+    d_cutoff: float,
+) -> np.ndarray:
+    """Smooth 2D trajectory with OneEuro filter (jitted).
+
+    Args:
+        trajectory: (T, 2) array of (x, y) coordinates.
+        fps: Frame rate.
+        min_cutoff: Minimum cutoff frequency.
+        beta: Speed coefficient.
+        d_cutoff: Derivative cutoff frequency.
+
+    Returns:
+        (T, 2) smoothed trajectory.
+    """
+    t = trajectory.shape[0]
+    smoothed = np.empty_like(trajectory)
+
+    # Smooth x and y separately using jitted filter
+    for dim in range(2):
+        series = trajectory[:, dim]
+        smoothed[:, dim] = _one_euro_filter_sequence_numba(series, fps, min_cutoff, beta, d_cutoff)
+
+    return smoothed
 
 
 @dataclass(frozen=True)
@@ -79,6 +194,8 @@ class OneEuroFilter:
     def _smoothing_factor(te: float, cutoff: float) -> float:
         """Compute smoothing factor alpha from time interval and cutoff frequency.
 
+        Uses Numba-jitted implementation for performance.
+
         Args:
             te: Time interval since last sample.
             cutoff: Cutoff frequency in Hz.
@@ -86,12 +203,13 @@ class OneEuroFilter:
         Returns:
             Smoothing factor alpha in [0, 1].
         """
-        r = 2.0 * np.pi * cutoff * te
-        return r / (r + 1.0)
+        return _smoothing_factor_numba(te, cutoff)
 
     @staticmethod
     def _exponential_smoothing(alpha: float, x: float, x_prev: float) -> float:
         """Apply exponential smoothing filter.
+
+        Uses Numba-jitted implementation for performance.
 
         Args:
             alpha: Smoothing factor.
@@ -101,7 +219,7 @@ class OneEuroFilter:
         Returns:
             Filtered output value.
         """
-        return alpha * x + (1.0 - alpha) * x_prev
+        return _exponential_smoothing_numba(alpha, x, x_prev)
 
     def reset(self) -> None:
         """Reset filter state for new sequence."""

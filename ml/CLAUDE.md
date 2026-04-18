@@ -146,6 +146,22 @@ cfg.onnx_providers                  # ["CUDAExecutionProvider", "CPUExecutionPro
 # Environment override: SKATING_DEVICE=cpu
 ```
 
+## Numba JIT Optimizations
+
+Compute-intensive functions use Numba JIT for acceleration:
+
+- **Geometry:** `_angle_3pt_rad_numba()`, `angle_3pt_batch()` - 5M+ ops/sec
+- **Smoothing:** `_one_euro_filter_sequence_numba()`, `smooth_trajectory_2d_numba()` - 44M+ frames/sec
+- **Metrics:** `_compute_knee_angle_series_numba()`, `_compute_trunk_lean_series_numba()` - 50K+ ops/sec
+
+**Expected speedup:** 10-100x for repeated operations (after JIT compilation).
+
+**Usage:** Automatic - no API changes required. First call is slower (compilation), subsequent calls are fast.
+
+**Benchmark:** `uv run python ml/scripts/benchmark_numba.py`
+
+**Note:** TensorRT remains experimental (ONNX by default for serverless compatibility).
+
 ## Worker Jobs (`skating_ml.worker`)
 
 Two async jobs registered with arq:

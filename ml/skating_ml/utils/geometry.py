@@ -1,13 +1,54 @@
 """Geometric utilities for pose analysis."""
 
 import numpy as np
+from numba import njit  # type: ignore
 from numpy.typing import NDArray
 
 from ..types import FrameKeypoints, H36Key, NormalizedPose, TimeSeries
 
 
+# Numba-jitted core functions (for performance)
+@njit(cache=True, fastmath=True)
+def _angle_3pt_rad(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
+    """Calculate angle ABC in radians (jitted).
+
+    Args:
+        a: Point A (x, y).
+        b: Vertex B (x, y).
+        c: Point C (x, y).
+
+    Returns:
+        Angle in radians [0, π].
+    """
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-8)
+    # Manual clamp instead of np.clip for scalar
+    cosine_angle = max(-1.0, min(1.0, cosine_angle))
+    angle = np.arccos(cosine_angle)
+
+    return angle
+
+
+@njit(cache=True, fastmath=True)
+def _distance_numba(a: np.ndarray, b: np.ndarray) -> float:
+    """Calculate Euclidean distance (jitted).
+
+    Args:
+        a: Point A (x, y).
+        b: Point B (x, y).
+
+    Returns:
+        Distance.
+    """
+    return float(np.sqrt(np.sum((a - b) ** 2)))
+
+
 def angle_3pt(a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.float64]) -> float:
     """Calculate angle ABC in degrees.
+
+    Uses Numba-jitted core for performance.
 
     Args:
         a: Point A coordinates (x, y).
@@ -17,26 +58,18 @@ def angle_3pt(a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.floa
     Returns:
         Angle in degrees [0, 180].
     """
-    a = np.asarray(a)
-    b = np.asarray(b)
-    c = np.asarray(c)
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    c = np.asarray(c, dtype=np.float64)
 
-    # Vectors BA and BC
-    ba = a - b
-    bc = c - b
-
-    # Cosine of angle
-    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-8)
-
-    # Clamp to [-1, 1] to avoid numerical errors
-    cosine_angle = np.clip(cosine_angle, -1.0, 1.0)
-
-    angle = np.arccos(cosine_angle)
-    return float(np.degrees(angle))
+    angle_rad = _angle_3pt_rad(a, b, c)
+    return float(np.degrees(angle_rad))
 
 
 def distance(a: NDArray[np.float64], b: NDArray[np.float64]) -> float:
     """Euclidean distance between two points.
+
+    Uses Numba-jitted core for performance.
 
     Args:
         a: Point A coordinates (x, y).
@@ -45,7 +78,30 @@ def distance(a: NDArray[np.float64], b: NDArray[np.float64]) -> float:
     Returns:
         Distance in same units as input.
     """
-    return float(np.linalg.norm(np.asarray(a) - np.asarray(b)))
+    return _distance_numba(np.asarray(a, dtype=np.float64), np.asarray(b, dtype=np.float64))
+
+
+@njit(cache=True, fastmath=True)
+def angle_3pt_batch(abc_triplets: np.ndarray) -> np.ndarray:
+    """Calculate angles for multiple A-B-C triplets (jitted).
+
+    Args:
+        abc_triplets: (N, 3, 2) array of A-B-C triplets.
+
+    Returns:
+        (N,) array of angles in degrees.
+    """
+    n = abc_triplets.shape[0]
+    angles = np.empty(n, dtype=np.float64)
+    rad2deg = 180.0 / np.pi
+
+    for i in range(n):
+        a = abc_triplets[i, 0]
+        b = abc_triplets[i, 1]
+        c = abc_triplets[i, 2]
+        angles[i] = _angle_3pt_rad(a, b, c) * rad2deg
+
+    return angles
 
 
 def segment_angle(start: NDArray[np.float64], end: NDArray[np.float64]) -> float:

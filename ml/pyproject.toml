@@ -9,6 +9,7 @@ dependencies = [
     "nvidia-ml-py>=13.0.0",     # NVIDIA GPU management via NVML (replaces pynvml)
     "opencv-python>=4.10.0",
     "numpy>=2.0.0",
+    "numba>=0.60.0",
     "dtw-python>=1.5.0",
     "scipy>=1.14.0",
     "pillow>=12.1.1",
