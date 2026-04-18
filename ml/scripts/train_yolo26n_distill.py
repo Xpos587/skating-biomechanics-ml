@@ -19,10 +19,7 @@ from pathlib import Path
 import yaml
 
 
-def create_yolo_data_config(
-    pseudo_dir: Path,
-    output_path: Path
-) -> dict:
+def create_yolo_data_config(pseudo_dir: Path, output_path: Path) -> dict:
     """Create YOLO data.yaml config for pseudo-labels.
 
     Args:
@@ -39,7 +36,7 @@ def create_yolo_data_config(
         "nc": 1,  # Number of classes (person only)
         "names": ["person"],
         "kpt_shape": [17, 3],  # COCO format: 17 keypoints, (x, y, conf)
-        "flip_idx": [1, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]  # Left-right flip
+        "flip_idx": [1, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],  # Left-right flip
     }
 
     # Save to file
@@ -55,7 +52,7 @@ def create_distill_config(
     epochs: int,
     batch: int,
     devices: str,
-    distill_weight: float = 0.3
+    distill_weight: float = 0.3,
 ) -> dict:
     """Create distillation training config.
 
@@ -73,10 +70,8 @@ def create_distill_config(
     config = {
         # Model
         "model": "yolo26n-pose.pt",
-
         # Data
         "data": str(data_yaml),
-
         # Training
         "epochs": epochs,
         "batch": batch,
@@ -90,7 +85,6 @@ def create_distill_config(
         "warmup_epochs": 3,
         "warmup_momentum": 0.8,
         "warmup_bias_lr": 0.1,
-
         # Augmentation
         "hsv_h": 0.015,
         "hsv_s": 0.7,
@@ -104,89 +98,52 @@ def create_distill_config(
         "fliplr": 0.5,
         "mosaic": 1.0,
         "mixup": 0.15,
-
         # Validation (CRITICAL!)
         "val": True,
         "plots": True,
         "save": True,
         "save_period": 5,
         "patience": 15,
-
         # Hardware
         "device": devices,
         "workers": 8,
         "project": str(output_dir),
         "name": "distill",
         "exist_ok": True,
-
         # Logging
         "verbose": True,
         "seed": 42,
         "deterministic": False,
-
         # Distillation (custom - will be handled in training loop)
         "distill": {
             "enabled": True,
             "weight": distill_weight,
             "teacher": "moganet_b_ap2d_384x288.pth",
-            "temperature": 1.0
-        }
+            "temperature": 1.0,
+        },
     }
 
     return config
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Train YOLO26n with knowledge distillation"
-    )
-    parser.add_argument(
-        "--data",
-        type=Path,
-        required=True,
-        help="Path to pseudo-labels directory"
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="Path to output directory"
-    )
+    parser = argparse.ArgumentParser(description="Train YOLO26n with knowledge distillation")
+    parser.add_argument("--data", type=Path, required=True, help="Path to pseudo-labels directory")
+    parser.add_argument("--output", type=Path, required=True, help="Path to output directory")
     parser.add_argument(
         "--model",
         type=str,
         default="yolo26n-pose.pt",
-        help="YOLO model to train (default: yolo26n-pose.pt)"
+        help="YOLO model to train (default: yolo26n-pose.pt)",
+    )
+    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs (default: 100)")
+    parser.add_argument("--batch", type=int, default=64, help="Batch size (default: 64)")
+    parser.add_argument("--device", type=str, default="0", help="Device to use (default: 0)")
+    parser.add_argument(
+        "--distill-weight", type=float, default=0.3, help="Distillation loss weight (default: 0.3)"
     )
     parser.add_argument(
-        "--epochs",
-        type=int,
-        default=100,
-        help="Number of epochs (default: 100)"
-    )
-    parser.add_argument(
-        "--batch",
-        type=int,
-        default=64,
-        help="Batch size (default: 64)"
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="0",
-        help="Device to use (default: 0)"
-    )
-    parser.add_argument(
-        "--distill-weight",
-        type=float,
-        default=0.3,
-        help="Distillation loss weight (default: 0.3)"
-    )
-    parser.add_argument(
-        "--resume",
-        type=Path,
-        default=None,
-        help="Path to checkpoint to resume from"
+        "--resume", type=Path, default=None, help="Path to checkpoint to resume from"
     )
 
     args = parser.parse_args()
@@ -202,12 +159,7 @@ def main():
     # Create distillation config
     distill_config_path = args.output / "distill_config.yaml"
     distill_config = create_distill_config(
-        data_yaml_path,
-        args.output,
-        args.epochs,
-        args.batch,
-        args.device,
-        args.distill_weight
+        data_yaml_path, args.output, args.epochs, args.batch, args.device, args.distill_weight
     )
 
     # Save config
@@ -217,12 +169,12 @@ def main():
     print(f"Created distill config: {distill_config_path}")
 
     # Print training command
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TRAINING COMMAND:")
-    print("="*60)
+    print("=" * 60)
     cmd = f"yolo detect train data={data_yaml_path} model={args.model} epochs={args.epochs} batch={args.batch} device={args.device} project={args.output} name=distill val=True save_period=5 patience=15"
     print(cmd)
-    print("="*60)
+    print("=" * 60)
 
     # Save metadata
     metadata = {
@@ -230,7 +182,7 @@ def main():
         "args": vars(args),
         "data_config": str(data_yaml_path),
         "distill_config": str(distill_config_path),
-        "training_command": cmd
+        "training_command": cmd,
     }
 
     with open(args.output / "metadata.json", "w") as f:

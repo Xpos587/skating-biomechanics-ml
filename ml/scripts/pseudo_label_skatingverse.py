@@ -36,11 +36,14 @@ from pycocotools.cocoeval import COCOeval
 class XtcocoTools:
     class coco:
         COCO = COCO
+
     class cocoeval:
         COCOeval = COCOeval
+
     class mask:
         encode = cocomask.encode
         decode = cocomask.decode
+
 
 sys.modules["xtcocotools"] = XtcocoTools
 sys.modules["xtcocotools.coco"] = XtcocoTools.coco
@@ -51,18 +54,43 @@ from moganet_official import MogaNet_feat
 
 # COCO Keypoint mapping (17 keypoints)
 COCO_KEYPOINTS = [
-    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
-    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
-    "left_wrist", "right_wrist", "left_hip", "right_hip",
-    "left_knee", "right_knee", "left_ankle", "right_ankle"
+    "nose",
+    "left_eye",
+    "right_eye",
+    "left_ear",
+    "right_ear",
+    "left_shoulder",
+    "right_shoulder",
+    "left_elbow",
+    "right_elbow",
+    "left_wrist",
+    "right_wrist",
+    "left_hip",
+    "right_hip",
+    "left_knee",
+    "right_knee",
+    "left_ankle",
+    "right_ankle",
 ]
 
 # Skeleton connections for visualization
 COCO_SKELETON = [
-    [0, 1], [0, 2], [1, 3], [2, 4],  # Head
-    [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],  # Arms
-    [5, 11], [6, 12], [11, 12],  # Torso
-    [11, 13], [13, 15], [12, 14], [14, 16]  # Legs
+    [0, 1],
+    [0, 2],
+    [1, 3],
+    [2, 4],  # Head
+    [5, 6],
+    [5, 7],
+    [7, 9],
+    [6, 8],
+    [8, 10],  # Arms
+    [5, 11],
+    [6, 12],
+    [11, 12],  # Torso
+    [11, 13],
+    [13, 15],
+    [12, 14],
+    [14, 16],  # Legs
 ]
 
 
@@ -75,17 +103,17 @@ class DeconvHead(torch.nn.Module):
         self.deconv1 = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
             torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU(True)
+            torch.nn.ReLU(True),
         )
         self.deconv2 = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(256, 256, 4, 2, 1, bias=False),
             torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU(True)
+            torch.nn.ReLU(True),
         )
         self.deconv3 = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(256, 256, 4, 2, 1, bias=False),
             torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU(True)
+            torch.nn.ReLU(True),
         )
         self.final = torch.nn.Conv2d(256, 17, 1, 1)
 
@@ -116,27 +144,26 @@ def get_heatmap_maximum(heatmaps: np.ndarray):
     """Get maximum response location and value from heatmaps."""
     K, H, W = heatmaps.shape
     heatmaps_flatten = heatmaps.reshape(K, -1)
-    y_locs, x_locs = np.unravel_index(
-        np.argmax(heatmaps_flatten, axis=1), shape=(H, W))
+    y_locs, x_locs = np.unravel_index(np.argmax(heatmaps_flatten, axis=1), shape=(H, W))
     locs = np.stack((x_locs, y_locs), axis=-1).astype(np.float32)
     vals = np.amax(heatmaps_flatten, axis=1)
-    locs[vals <= 0.] = -1
+    locs[vals <= 0.0] = -1
     return locs, vals
 
 
-def refine_keypoints_dark_udp(keypoints: np.ndarray, heatmaps: np.ndarray,
-                              blur_kernel_size: int) -> np.ndarray:
+def refine_keypoints_dark_udp(
+    keypoints: np.ndarray, heatmaps: np.ndarray, blur_kernel_size: int
+) -> np.ndarray:
     """Refine keypoints using UDP DarkPose algorithm."""
     N, K = keypoints.shape[:2]
     H, W = heatmaps.shape[1:]
 
     # Modulate heatmaps
     heatmaps = gaussian_blur(heatmaps, blur_kernel_size)
-    np.clip(heatmaps, 1e-3, 50., heatmaps)
+    np.clip(heatmaps, 1e-3, 50.0, heatmaps)
     np.log(heatmaps, heatmaps)
 
-    heatmaps_pad = np.pad(
-        heatmaps, ((0, 0), (1, 1), (1, 1)), mode='edge').flatten()
+    heatmaps_pad = np.pad(heatmaps, ((0, 0), (1, 1), (1, 1)), mode="edge").flatten()
 
     for n in range(N):
         index = keypoints[n, :, 0] + 1 + (keypoints[n, :, 1] + 1) * (W + 2)
@@ -161,8 +188,7 @@ def refine_keypoints_dark_udp(keypoints: np.ndarray, heatmaps: np.ndarray,
         hessian = np.concatenate([dxx, dxy, dxy, dyy], axis=1)
         hessian = hessian.reshape(K, 2, 2)
         hessian = np.linalg.inv(hessian + np.finfo(np.float32).eps * np.eye(2))
-        keypoints[n] -= np.einsum('imn,ink->imk', hessian,
-                                  derivative).squeeze()
+        keypoints[n] -= np.einsum("imn,ink->imk", hessian, derivative).squeeze()
     return keypoints
 
 
@@ -240,7 +266,9 @@ class MogaNetInference:
 
         # Normalize
         img_tensor = torch.from_numpy(img_rgb).permute(2, 0, 1).float() / 255.0
-        img_tensor = (img_tensor - torch.tensor(self.mean).view(1, 3, 1, 1)) / torch.tensor(self.std).view(1, 3, 1, 1)
+        img_tensor = (img_tensor - torch.tensor(self.mean).view(1, 3, 1, 1)) / torch.tensor(
+            self.std
+        ).view(1, 3, 1, 1)
 
         return img_tensor.unsqueeze(0)  # Add batch dimension
 
@@ -274,7 +302,7 @@ class MogaNetInference:
 
         return {
             "keypoints": keypoints_flat,  # 51 values (17 * 3)
-            "score": float(np.mean(scores))  # Average confidence
+            "score": float(np.mean(scores)),  # Average confidence
         }
 
     @torch.no_grad()
@@ -297,58 +325,35 @@ class MogaNetInference:
 
 def create_coco_dict(images_info: list, annotations: list, categories: list) -> dict:
     """Create COCO format dictionary."""
-    return {
-        "images": images_info,
-        "annotations": annotations,
-        "categories": categories
-    }
+    return {"images": images_info, "annotations": annotations, "categories": categories}
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Pseudo-label SkatingVerse frames with MogaNet-B"
+    parser = argparse.ArgumentParser(description="Pseudo-label SkatingVerse frames with MogaNet-B")
+    parser.add_argument(
+        "--frames-dir", type=Path, required=True, help="Path to extracted frames directory"
     )
     parser.add_argument(
-        "--frames-dir",
-        type=Path,
-        required=True,
-        help="Path to extracted frames directory"
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        required=True,
-        help="Path to output pseudo-labels directory"
+        "--output-dir", type=Path, required=True, help="Path to output pseudo-labels directory"
     )
     parser.add_argument(
         "--model-path",
         type=str,
         default="/root/data/models/athletepose3d/moganet_b_ap2d_384x288.pth",
-        help="Path to MogaNet-B checkpoint"
+        help="Path to MogaNet-B checkpoint",
     )
     parser.add_argument(
         "--conf-thresh",
         type=float,
         default=0.5,
-        help="Confidence threshold for filtering (default: 0.5)"
+        help="Confidence threshold for filtering (default: 0.5)",
     )
     parser.add_argument(
-        "--val-split",
-        type=float,
-        default=0.2,
-        help="Validation split ratio (default: 0.2)"
+        "--val-split", type=float, default=0.2, help="Validation split ratio (default: 0.2)"
     )
+    parser.add_argument("--device", type=str, default="cuda", help="Device to use (default: cuda)")
     parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda",
-        help="Device to use (default: cuda)"
-    )
-    parser.add_argument(
-        "--max-videos",
-        type=int,
-        default=None,
-        help="Limit number of videos for testing"
+        "--max-videos", type=int, default=None, help="Limit number of videos for testing"
     )
 
     args = parser.parse_args()
@@ -365,13 +370,19 @@ def main():
     frame_dirs = sorted([d for d in args.frames_dir.iterdir() if d.is_dir()])
 
     if args.max_videos:
-        frame_dirs = frame_dirs[:args.max_videos]
+        frame_dirs = frame_dirs[: args.max_videos]
 
     print(f"Found {len(frame_dirs)} video frame directories")
 
     # COCO categories (COCO 17 keypoints)
     categories = [
-        {"id": 1, "name": "person", "supercategory": "person", "keypoints": COCO_KEYPOINTS, "skeleton": COCO_SKELETON}
+        {
+            "id": 1,
+            "name": "person",
+            "supercategory": "person",
+            "keypoints": COCO_KEYPOINTS,
+            "skeleton": COCO_SKELETON,
+        }
     ]
 
     # Process frames
@@ -398,7 +409,7 @@ def main():
                 "id": image_id,
                 "file_name": str(frame_path.relative_to(args.frames_dir)),
                 "width": w,
-                "height": h
+                "height": h,
             }
             all_images.append(image_info)
 
@@ -416,10 +427,10 @@ def main():
                 "category_id": 1,
                 "keypoints": result["keypoints"],
                 "score": result["score"],
-                "num_keypoints": sum(1 for i in range(0, 51, 3) if result["keypoints"][i+2] > 0),
+                "num_keypoints": sum(1 for i in range(0, 51, 3) if result["keypoints"][i + 2] > 0),
                 "area": 0,  # TODO: compute bbox area
                 "iscrowd": 0,
-                "bbox": [0, 0, w, h]  # TODO: compute bbox from keypoints
+                "bbox": [0, 0, w, h],  # TODO: compute bbox from keypoints
             }
             all_annotations.append(annotation)
             annotation_id += 1
@@ -431,6 +442,7 @@ def main():
     val_size = int(len(all_images) * args.val_split)
 
     import random
+
     random.seed(42)
     val_indices = set(random.sample(range(len(all_images)), val_size))
 
@@ -441,8 +453,8 @@ def main():
     val_annotations = [ann for ann in all_annotations if ann["image_id"] - 1 in val_indices]
 
     # Remap image IDs
-    val_id_map = {old_id: i+1 for i, old_id in enumerate([img["id"] for img in val_images])}
-    train_id_map = {old_id: i+1 for i, old_id in enumerate([img["id"] for img in train_images])}
+    val_id_map = {old_id: i + 1 for i, old_id in enumerate([img["id"] for img in val_images])}
+    train_id_map = {old_id: i + 1 for i, old_id in enumerate([img["id"] for img in train_images])}
 
     for ann in val_annotations:
         ann["image_id"] = val_id_map[ann["image_id"]]
@@ -479,7 +491,7 @@ def main():
         "total_images": len(all_images),
         "total_annotations": len(all_annotations),
         "train": {"images": len(train_images), "annotations": len(train_annotations)},
-        "val": {"images": len(val_images), "annotations": len(val_annotations)}
+        "val": {"images": len(val_images), "annotations": len(val_annotations)},
     }
 
     with open(args.output_dir / "metadata.json", "w") as f:

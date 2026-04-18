@@ -5,16 +5,16 @@ Revises: 1541cafaf37d
 Create Date: 2026-04-17 19:08:25.185111
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
-
 revision: str = "7e23d891c6d7"
-down_revision: Union[str, Sequence[str], None] = "1541cafaf37d"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "1541cafaf37d"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -31,7 +31,9 @@ def upgrade() -> None:
     # 4. Add connection_type column (default 'coaching' for existing rows)
     op.add_column(
         "connections",
-        sa.Column("connection_type", sa.String(length=20), nullable=False, server_default="coaching"),
+        sa.Column(
+            "connection_type", sa.String(length=20), nullable=False, server_default="coaching"
+        ),
     )
 
 

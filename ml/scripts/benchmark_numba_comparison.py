@@ -82,7 +82,9 @@ def benchmark_smoothing_before_after():
 
     start = time.perf_counter()
     for _ in range(runs):
-        _ = smooth_trajectory_2d_numba(trajectory, fps=30.0, min_cutoff=0.004, beta=0.7, d_cutoff=1.0)
+        _ = smooth_trajectory_2d_numba(
+            trajectory, fps=30.0, min_cutoff=0.004, beta=0.7, d_cutoff=1.0
+        )
     time_after = time.perf_counter() - start
     frames_after = 1000 * runs
     print(f"  Time: {time_after:.3f}s")
@@ -125,11 +127,15 @@ def benchmark_metrics_before_after():
     # AFTER: Numba JIT batch
     print("\n🟢 AFTER: Numba JIT _compute_knee_angle_series_numba")
     # Warmup
-    _ = _compute_knee_angle_series_numba(poses, int(H36Key.LHIP), int(H36Key.LKNEE), int(H36Key.LFOOT))
+    _ = _compute_knee_angle_series_numba(
+        poses, int(H36Key.LHIP), int(H36Key.LKNEE), int(H36Key.LFOOT)
+    )
 
     start = time.perf_counter()
     for _ in range(runs):
-        _ = _compute_knee_angle_series_numba(poses, int(H36Key.LHIP), int(H36Key.LKNEE), int(H36Key.LFOOT))
+        _ = _compute_knee_angle_series_numba(
+            poses, int(H36Key.LHIP), int(H36Key.LKNEE), int(H36Key.LFOOT)
+        )
     time_after = time.perf_counter() - start
     ops_after = 100 * runs
     print(f"  Time: {time_after:.3f}s")

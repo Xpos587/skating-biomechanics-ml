@@ -110,10 +110,12 @@ max-statements = 80
 known-first-party = ["backend", "skating_ml"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101"]
+"tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106"]
+"backend/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106"]
+"ml/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106"]
 "__init__.py" = ["F401"]  # unused imports
 "scripts/visualize_with_skeleton.py" = ["ARG001"]
-"ml/scripts/**/*.py" = ["T20", "S602"]
+"ml/scripts/**/*.py" = ["T20", "S602", "ERA", "E402", "S101", "B007", "PTH"]
 "experiments/**/*.py" = ["T20", "S", "ERA"]
 "ml/skating_ml/analysis/rules/*.py" = []
 "ml/skating_ml/visualization/**/*.py" = []

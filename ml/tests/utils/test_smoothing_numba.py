@@ -1,12 +1,11 @@
 """Tests for Numba-jitted smoothing functions."""
 
 import numpy as np
-import pytest
 
 from skating_ml.utils.smoothing import (
+    _exponential_smoothing_numba,
     _one_euro_filter_sequence_numba,
     _smoothing_factor_numba,
-    _exponential_smoothing_numba,
     smooth_trajectory_2d_numba,
 )
 
@@ -45,7 +44,9 @@ class TestSmoothingNumba:
     def test_one_euro_filter_sequence_constant(self):
         """Constant signal should pass through with minimal lag."""
         x = np.ones(100, dtype=np.float64)
-        filtered = _one_euro_filter_sequence_numba(x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0)
+        filtered = _one_euro_filter_sequence_numba(
+            x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0
+        )
 
         # First sample passes through unchanged
         assert filtered[0] == 1.0
@@ -56,7 +57,9 @@ class TestSmoothingNumba:
     def test_one_euro_filter_sequence_length(self):
         """Output length should match input."""
         x = np.random.randn(50).astype(np.float64)
-        filtered = _one_euro_filter_sequence_numba(x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0)
+        filtered = _one_euro_filter_sequence_numba(
+            x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0
+        )
 
         assert len(filtered) == len(x)
 
@@ -83,14 +86,18 @@ class TestSmoothingNumba:
     def test_smooth_trajectory_2d_shape(self):
         """Output shape should match input."""
         trajectory = np.random.randn(50, 2).astype(np.float64)
-        smoothed = smooth_trajectory_2d_numba(trajectory, fps=30.0, min_cutoff=1.0, beta=0.007, d_cutoff=1.0)
+        smoothed = smooth_trajectory_2d_numba(
+            trajectory, fps=30.0, min_cutoff=1.0, beta=0.007, d_cutoff=1.0
+        )
 
         assert smoothed.shape == trajectory.shape
 
     def test_smooth_trajectory_2d_first_unchanged(self):
         """First point should be unchanged (initialization)."""
         trajectory = np.random.randn(50, 2).astype(np.float64)
-        smoothed = smooth_trajectory_2d_numba(trajectory, fps=30.0, min_cutoff=1.0, beta=0.007, d_cutoff=1.0)
+        smoothed = smooth_trajectory_2d_numba(
+            trajectory, fps=30.0, min_cutoff=1.0, beta=0.007, d_cutoff=1.0
+        )
 
         assert np.allclose(smoothed[0], trajectory[0])
 
@@ -122,12 +129,16 @@ class TestSmoothingNumba:
         x = np.random.randn(100).astype(np.float64)
 
         # Compilation call
-        _ = _one_euro_filter_sequence_numba(x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0)
+        _ = _one_euro_filter_sequence_numba(
+            x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0
+        )
 
         # Compiled calls
         start = time.perf_counter()
         for _ in range(100):
-            _one_euro_filter_sequence_numba(x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0)
+            _one_euro_filter_sequence_numba(
+                x, freq=30.0, min_cutoff=1.0, beta=0.007, derivative_cutoff=1.0
+            )
         elapsed = time.perf_counter() - start
 
         # Should be fast

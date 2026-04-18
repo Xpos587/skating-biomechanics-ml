@@ -8,7 +8,7 @@ from app.crud.connection import (
     list_for_user,
     list_pending_for_user,
 )
-from app.models.connection import Connection, ConnectionStatus, ConnectionType
+from app.models.connection import ConnectionStatus, ConnectionType
 from app.models.user import User
 
 
@@ -194,12 +194,15 @@ async def test_is_connected_as_true(db_session):
     conn.status = ConnectionStatus.ACTIVE
     await db_session.flush()
 
-    assert await is_connected_as(
-        db_session,
-        from_user_id="user-1",
-        to_user_id="user-2",
-        connection_type=ConnectionType.COACHING,
-    ) is True
+    assert (
+        await is_connected_as(
+            db_session,
+            from_user_id="user-1",
+            to_user_id="user-2",
+            connection_type=ConnectionType.COACHING,
+        )
+        is True
+    )
 
 
 async def test_is_connected_as_false(db_session):
@@ -208,12 +211,15 @@ async def test_is_connected_as_false(db_session):
     _make_user(db_session, "user-2")
     await db_session.flush()
 
-    assert await is_connected_as(
-        db_session,
-        from_user_id="user-1",
-        to_user_id="user-2",
-        connection_type=ConnectionType.COACHING,
-    ) is False
+    assert (
+        await is_connected_as(
+            db_session,
+            from_user_id="user-1",
+            to_user_id="user-2",
+            connection_type=ConnectionType.COACHING,
+        )
+        is False
+    )
 
 
 async def test_is_connected_as_wrong_type(db_session):
@@ -232,9 +238,12 @@ async def test_is_connected_as_wrong_type(db_session):
     conn.status = ConnectionStatus.ACTIVE
     await db_session.flush()
 
-    assert await is_connected_as(
-        db_session,
-        from_user_id="user-1",
-        to_user_id="user-2",
-        connection_type=ConnectionType.CHOREOGRAPHY,
-    ) is False
+    assert (
+        await is_connected_as(
+            db_session,
+            from_user_id="user-1",
+            to_user_id="user-2",
+            connection_type=ConnectionType.CHOREOGRAPHY,
+        )
+        is False
+    )

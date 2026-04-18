@@ -9,8 +9,14 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.crud.connection import (
     create as create_conn,
+)
+from app.crud.connection import (
     get_active as get_active_conn,
+)
+from app.crud.connection import (
     get_by_id as get_conn_by_id,
+)
+from app.crud.connection import (
     list_for_user,
     list_pending_for_user,
 )
@@ -30,7 +36,9 @@ def _conn_to_response(conn: Connection) -> ConnectionResponse:
     return ConnectionResponse.model_validate(conn)
 
 
-@router.post("/connections/invite", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/connections/invite", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED
+)
 async def invite(body: InviteRequest, user: CurrentUser, db: DbDep):
     """User invites another user to a connection."""
     to_user = await get_by_email(db, body.to_user_email)
@@ -38,11 +46,21 @@ async def invite(body: InviteRequest, user: CurrentUser, db: DbDep):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     conn_type = ConnectionType(body.connection_type)
-    existing = await get_active_conn(db, from_user_id=user.id, to_user_id=to_user.id, connection_type=conn_type)
+    existing = await get_active_conn(
+        db, from_user_id=user.id, to_user_id=to_user.id, connection_type=conn_type
+    )
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Connection already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Connection already exists"
+        )
 
-    conn = await create_conn(db, from_user_id=user.id, to_user_id=to_user.id, connection_type=conn_type, initiated_by=user.id)
+    conn = await create_conn(
+        db,
+        from_user_id=user.id,
+        to_user_id=to_user.id,
+        connection_type=conn_type,
+        initiated_by=user.id,
+    )
     return _conn_to_response(conn)
 
 
