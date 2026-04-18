@@ -6,6 +6,35 @@
 
 ---
 
+## Task 0: Local Benchmark (DLPerf Reference)
+
+Measure local GPU performance to predict training time on Vast.ai BEFORE renting.
+
+**Why:** $150 budget is hard constraint. Must know if training fits before spending money.
+
+**Actions:**
+- [ ] Verify `yolo26n-pose.pt` weights exist locally (download if missing)
+- [ ] Run 1 epoch on 100 images, batch=16, imgsz=640 on local RTX 3050 Ti
+- [ ] Record: `t_ref` = time for 100 images × 1 epoch (seconds)
+- [ ] Record: `DLPerf_local` = DLPerf score for RTX 3050 Ti (~14)
+- [ ] Calculate `time_per_iter` = `t_ref / (100 / batch)` = seconds per iteration
+- [ ] Calculate training time for each target GPU:
+  ```
+  time_target = t_ref × (N_images / 100) × (DLPerf_local / DLPerf_target) × (batch_target / batch_local)
+  time_real = time_target × 2.0  # KD overhead (teacher ×1.5, dataloader ×1.2, val ×1.1)
+  cost = (time_real / 3600) × hourly_rate
+  ```
+- [ ] Verify: `cost < $150` for RTX 4090 ($0.28/hr, DLPerf≈55)
+- [ ] If over budget: reduce N_images via sampling (design spec Section 2)
+
+**Output:** Budget calculation with concrete numbers — hours and cost per GPU option.
+
+**Blocker:** Task 3-5 (data conversion) needed for actual N_images count. Run with N=1000 placeholder first, recalculate after data prep.
+
+**Validation:** `cost < $150` for primary GPU (RTX 4090).
+
+---
+
 ## Task 1: Project Structure & Dependencies
 
 Create experiment directory and install dependencies.
@@ -134,17 +163,37 @@ Merge all datasets into single Ultralytics-compatible dataset.
 
 ## Task 7: Vast.ai Environment Setup
 
-Prepare remote training environment.
+Prepare remote training environment on Vast.ai.
+
+**Prerequisite:** Task 0 benchmark complete, budget verified.
+
+**GPU Selection (DLPerf-based, from Task 0):**
+- Primary: RTX 4090 24GB (DLPerf≈55, $0.28/hr verified, best $/DLPerf-hr)
+- Fallback: A100 40GB (DLPerf≈52, $0.52/hr) if 24GB VRAM insufficient for teacher+student
+- Budget: $150 total, calculate max hours from Task 0 formula
+
+**Rental Requirements:**
+- Type: **On-Demand, Verified only** (unverified can be killed mid-training)
+- Disk: 200GB+ (datasets + checkpoints)
+- Image: CUDA 12.x + PyTorch compatible
 
 **Actions:**
-- [ ] Rent Vast.ai instance (RTX 4090 24GB, 200GB+ disk)
+- [ ] Rent Vast.ai instance (RTX 4090 24GB verified, 200GB+ disk, on-demand)
+- [ ] Verify DLPerf matches expected (~55 for 4090) — if significantly lower, recalculate budget
 - [ ] Install: Python 3.11+, PyTorch with CUDA, ultralytics, mmpose
-- [ ] Upload: all YOLO format datasets (rsync)
+- [ ] Upload: all YOLO format datasets (rsync, compress)
 - [ ] Upload: MogaNet-B weights (`moganet_b_ap2d_384x288.pth`)
 - [ ] Upload: pretrained YOLO26 weights (`yolo26n/s/m-pose.pt`)
 - [ ] Verify: MogaNet-B inference works on 1 test image
 - [ ] Verify: YOLO26 validation works on skating val set
+- [ ] Verify: Task 0 benchmark replicates on remote GPU (compare t_ref)
 - [ ] Set up persistent tmux/screen session
+- [ ] Set up checkpointing: best + every 10 epochs (required for interruptible recovery)
+
+**Budget Guard:**
+- Track cumulative cost after each stage
+- If cost > 80% budget with stages remaining: reduce epochs, skip optional stages, or switch to smaller student
+- If GPU gets killed: resume from last checkpoint (save_period=10)
 
 **Output:** Working remote environment with all data and models.
 
@@ -317,11 +366,12 @@ Document all results.
 ## Dependency Graph
 
 ```
+Task 0 (local benchmark) ──→ Task 7 (Vast.ai setup, needs budget calc)
+
 Task 1 (structure)
   ├── Task 2 (explore FineFS) ──→ Task 3 (FineFS converter)
   ├── Task 4 (FSAnno converter)
-  ├── Task 5 (FSC/MCFS converter)
-  └── Task 7 (Vast.ai setup)
+  └── Task 5 (FSC/MCFS converter)
 
 Task 3 + Task 4 + Task 5 ──→ Task 6 (data.yaml) ──→ Task 8 (baseline)
 
@@ -340,7 +390,8 @@ Task 9 + Task 10 + Task 12 ──→ Task 13 (KD training)
 
 | Group | Tasks | Can run in parallel? |
 |-------|-------|---------------------|
+| Benchmark + structure | 0, 1 | Yes |
 | Data converters | 2, 3, 4, 5 | Yes (after Task 1) |
-| Vast.ai setup | 7 | Yes (with data converters) |
+| Vast.ai setup | 7 | After Task 0 (needs budget calc) |
 | Baseline + teacher adaptation | 8, 10 | Partially (8 first, then 10) |
 | KD modules | 11, 12 | Yes (sequential, 11→12) |

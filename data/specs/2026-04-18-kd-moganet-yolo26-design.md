@@ -51,11 +51,34 @@ Figure skating pose estimator: YOLO26-Pose model optimized for figure skating, t
 
 ### Sampling Strategy
 
-FineFS alone has ~5M raw frames (1,167 × 4,350). This is likely too many. Sampling options:
-- **10fps from 30fps source** — 3x reduction, ~1.7M frames (may still be too many)
-- **Keyframe extraction** — detect scene changes, keep distinct poses only
-- **Random sampling** — fixed N frames per video (e.g., 100 frames/video = ~117K total)
-- **Decision required:** Measure actual conversion time and storage, then decide.
+FineFS alone has ~5M raw frames (1,167 × 4,350). Budget constraint ($150) limits training time.
+
+**Sampling is budget-driven.** Calculate max frames from budget:
+
+```
+time_per_epoch = t_ref × (N_images / 100) × (DLPerf_ref / DLPerf_target) × (batch_ref / batch_target)
+max_hours = $150 / hourly_rate
+max_N_images = (max_hours × 3600 × batch) / (time_per_iter × epochs × overhead)
+```
+
+Where:
+- `t_ref` = measured time for 100 images, 1 epoch on local GPU (RTX 3050 Ti, DLPerf≈6)
+- `overhead` = 2.0× (KD teacher ×1.5, DataLoader ×1.2, validation ×1.1)
+- `DLPerf` = Vast.ai DLPerf score (predicts iterations/sec for CNN training)
+- `hourly_rate` = Vast.ai verified on-demand price for target GPU
+
+**Decision process:**
+1. Measure `t_ref` on local GPU (100 images, batch=16, YOLO26n-pose)
+2. Calculate max_N for RTX 4090 ($0.28/hr, DLPerf≈55)
+3. Sample datasets proportionally to fit max_N
+4. Priority: FineFS > FSAnno > FSC > MCFS (by quality and diversity)
+
+**Priority order for sampling (best quality first):**
+- FineFS: highest quality (competition GT scores), 1,167 videos
+- FSAnno: competition data with 4D pose, 3,700 clips
+- FSC/MCFS: sequential data, no original video frames (may be excluded)
+- AP3D: already in YOLO format, 71K frames (include all)
+- COCO: 15% mix for domain diversity
 
 ### Preprocessing Steps
 
@@ -292,13 +315,44 @@ Parallel training of n/s/m with best KD config from Stage 3.
 
 ## 5. Infrastructure
 
+### Budget Constraint
+
+- **Budget:** $150 total
+- **GPU selection:** Based on DLPerf/$/hr ratio (higher is better)
+- **Rental type:** On-Demand, Verified only (unverified may be killed mid-training)
+
+### GPU Selection
+
+| GPU | DLPerf (est.) | $/hr (verified) | $/DLPerf-hr | Max hours on $150 |
+|-----|---------------|-----------------|-------------|-------------------|
+| RTX 4090 | ~55 | $0.28 | **0.005** | 536 hrs |
+| A100 PCIE 40GB | ~52 | $0.52 | 0.010 | 288 hrs |
+| A100 SXM 80GB | ~52 | $0.67 | 0.013 | 224 hrs |
+| H100 SXM 80GB | ~165 | $1.35 | 0.008 | 111 hrs |
+
+**Primary:** RTX 4090 (best $/DLPerf-hr). 24GB VRAM sufficient for YOLO26n/s + MogaNet-B teacher.
+**Fallback:** A100 40GB if VRAM insufficient. H100 only if RTX 4090 proves too slow.
+
+### DLPerf-based Time Estimation
+
+Before renting, calculate training time without spending money:
+
+1. **Benchmark locally:** Run 1 epoch on 100 images with local GPU (any GPU)
+2. **Calculate target time:**
+   ```
+   time_target = t_local × (DLPerf_local / DLPerf_target) × (batch_target / batch_local)
+   time_real = time_target × overhead  # overhead = 2.0 for KD training
+   ```
+3. **Verify budget fits:** `cost = time_real_hours × hourly_rate`
+
+DLPerf predicts iterations/second for CNN training (ResNet50-style). YOLO training is CNN work — DLPerf is a good predictor. Less accurate for unusual compute patterns.
+
 ### Training Environment
 
-- **Platform:** Vast.ai on-demand server
-- **GPU:** RTX 4090 24GB (primary) or A100 40GB (if 4090 insufficient for teacher+student)
+- **Platform:** Vast.ai on-demand
 - **Container:** Docker/Podman with CUDA, PyTorch, Ultralytics, MMPose
 - **Persistent storage:** Dataset + checkpoints
-- **Rationale:** Keep server running to handle inevitable issues
+- **Checkpointing:** Save best + every 10 epochs (required for interruptible recovery)
 
 ### Evaluation Protocol
 
