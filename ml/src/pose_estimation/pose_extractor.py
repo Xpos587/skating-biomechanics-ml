@@ -220,6 +220,12 @@ class PoseExtractor:
         if not cap.isOpened():
             raise RuntimeError(f"Failed to open video: {video_path}")
 
+        # Cache first frame for spatial reference
+        ret, first_frame = cap.read()
+        if not ret:
+            raise RuntimeError(f"Failed to read first frame from video: {video_path}")
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Reset to beginning
+
         # Initialize pbar before try block to avoid "possibly unbound" error
         pbar = tqdm(
             total=num_frames,
@@ -535,6 +541,7 @@ class PoseExtractor:
             target_track_id=target_track_id,
             fps=video_meta.fps,
             video_meta=video_meta,
+            first_frame=first_frame,
         )
 
     # ------------------------------------------------------------------

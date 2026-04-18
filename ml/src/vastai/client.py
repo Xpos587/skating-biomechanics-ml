@@ -10,6 +10,7 @@ Flow:
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -21,6 +22,11 @@ logger = logging.getLogger(__name__)
 ROUTE_URL = "https://run.vast.ai/route/"
 REQUEST_TIMEOUT = 600  # 10 min for video processing
 ROUTE_TIMEOUT = 30
+
+# Worker URL cache to avoid repeated HTTP calls
+_worker_url_cache: str | None = None
+_worker_url_cache_time: float = 0.0
+_WORKER_URL_TTL = 60  # Cache for 60 seconds
 
 
 @dataclass
@@ -36,6 +42,10 @@ class VastResult:
 
 def _get_worker_url(endpoint_name: str, api_key: str) -> str:
     """Route request to get a ready worker URL."""
+    global _worker_url_cache, _worker_url_cache_time
+    now = time.monotonic()
+    if _worker_url_cache and (now - _worker_url_cache_time) < _WORKER_URL_TTL:
+        return _worker_url_cache
     resp = httpx.post(
         ROUTE_URL,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -44,7 +54,10 @@ def _get_worker_url(endpoint_name: str, api_key: str) -> str:
     )
     resp.raise_for_status()
     data = resp.json()
-    return data["url"]
+    url = data["url"]
+    _worker_url_cache = url
+    _worker_url_cache_time = now
+    return url
 
 
 def process_video_remote(

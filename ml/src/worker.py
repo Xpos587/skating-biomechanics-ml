@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -29,6 +30,9 @@ from backend.app.task_manager import (
 from src.types import H36Key
 
 logger = logging.getLogger(__name__)
+
+# Configure OpenMP threads for better CPU performance
+os.environ.setdefault("OMP_NUM_THREADS", "2")
 
 
 def _sample_poses(
@@ -264,13 +268,12 @@ async def process_video_task(
                     poses = np.load(str(poses_path))
                     fps = vast_result.stats.get("fps", 30.0)
 
-                    # Sample poses for frontend
-                    sampled = _sample_poses(poses, sample_rate=10)
+                    # Run sampling and metrics computation in parallel
+                    sample_future = asyncio.to_thread(_sample_poses, poses, 10)
+                    metrics_future = asyncio.to_thread(_compute_frame_metrics, poses)
+                    sampled, frame_metrics = await asyncio.gather(sample_future, metrics_future)
                     sampled["fps"] = fps
                     pose_data = sampled
-
-                    # Compute frame metrics
-                    frame_metrics = _compute_frame_metrics(poses)
 
                     logger.info(
                         "Prepared pose_data: %d frames, %d metrics",

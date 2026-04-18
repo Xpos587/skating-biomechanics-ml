@@ -32,6 +32,8 @@ from typing import Literal
 
 # Suppress onnxruntime "Some nodes not assigned to preferred EP" warnings
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")  # 3 = ORT_LOGGING_LEVEL_ERROR
+# Enable cuDNN exhaustive search for optimal convolution algorithms
+os.environ.setdefault("ORT_CUDA_CUDNN_CONV_ALGO_SEARCH", "EXHAUSTIVE")
 
 logger = logging.getLogger(__name__)
 

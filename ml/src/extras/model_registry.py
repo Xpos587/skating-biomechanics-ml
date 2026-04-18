@@ -110,7 +110,12 @@ class ModelRegistry:
             entry.vram_mb,
             self._device.device,
         )
-        session = ort.InferenceSession(entry.path, providers=self._device.onnx_providers)
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = 1
+        opts.inter_op_num_threads = 2
+        session = ort.InferenceSession(
+            entry.path, sess_options=opts, providers=self._device.onnx_providers
+        )
         entry.session = session
         return session
 

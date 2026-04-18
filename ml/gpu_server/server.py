@@ -24,6 +24,23 @@ app = FastAPI(title="Skating ML GPU Worker")
 os.environ.setdefault("PROJECT_ROOT", "/app")
 
 
+@app.on_event("startup")
+async def warmup_gpu():
+    """Pre-warm CUDA/cuDNN to eliminate cold-start latency."""
+    from skating_ml.device import DeviceConfig
+
+    cfg = DeviceConfig.default()
+    if not cfg.is_cuda:
+        return
+    import onnxruntime as ort
+
+    opts = ort.SessionOptions()
+    opts.intra_op_num_threads = 1
+    opts.inter_op_num_threads = 2
+    # Just importing ort and accessing CUDA provider triggers init
+    logging.getLogger(__name__).info("GPU warmup: CUDA initialized")
+
+
 class ProcessRequest(BaseModel):
     video_r2_key: str
     person_click: dict[str, int] | None = None

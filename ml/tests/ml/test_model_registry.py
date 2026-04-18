@@ -120,10 +120,12 @@ class TestModelRegistry:
             "src.extras.model_registry.ort.InferenceSession", return_value=mock_session
         ) as mock_cls:
             reg.get("test_model")
-            mock_cls.assert_called_once_with(
-                "/tmp/test.onnx",
-                providers=["CPUExecutionProvider"],
-            )
+            # Check that InferenceSession was called with correct path and providers
+            # (sess_options is also passed but we don't check its exact value)
+            args, kwargs = mock_cls.call_args
+            assert args[0] == "/tmp/test.onnx"
+            assert kwargs["providers"] == ["CPUExecutionProvider"]
+            assert "sess_options" in kwargs
 
     def test_is_loaded(self):
         """is_loaded() returns correct state."""

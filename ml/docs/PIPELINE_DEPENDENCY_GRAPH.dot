@@ -1,0 +1,78 @@
+digraph PipelineDependencyGraph {
+    rankdir=TB;
+    node [shape=box, style=filled, fontname="Arial"];
+
+    // Colors
+    node [fillcolor="#E8F4F8"]; // Light blue for default
+
+    // Input
+    start [label="Video Input", shape=ellipse, fillcolor="#FFE6E6"];
+
+    // Stage 1: Extraction
+    extract [label="RTMO Pose Extraction\n(5.6s, 47%)\nGPU-bound", fillcolor="#FFE6E6"];
+
+    // Stage 2: Preprocessing
+    gap [label="Gap Filling\n(0.8s, 7%)\nCPU-bound", fillcolor="#E6FFE6"];
+    norm [label="Normalization\n(0.3s, 3%)\nCPU-bound", fillcolor="#E6FFE6"];
+    smooth [label="Smoothing\n(0.5s, 4%)\nCPU-bound\n(Numba-optimized)", fillcolor="#E6FFE6"];
+
+    // Stage 3: Parallel branches
+    lift [label="3D Lifting\n(1.5s, 13%)\nCPU/GPU-bound", fillcolor="#FFFFE6"];
+    phase [label="Phase Detection\n(0.8s, 7%)\nCPU-bound", fillcolor="#FFFFE6"];
+
+    // Stage 4: Analysis
+    metrics [label="Metrics\n(1.2s, 10%)\nCPU-bound", fillcolor="#E6F2FF"];
+    ref [label="Reference Loading\n(I/O-bound)", fillcolor="#E6FFE6"];
+    physics [label="Physics\n(0.9s, 8%)\nCPU-bound", fillcolor="#E6F2FF"];
+
+    // Stage 5: Alignment
+    dtw [label="DTW Alignment\n(0.9s, 8%)\nCPU-bound", fillcolor="#E6F2FF"];
+
+    // Stage 6: Output
+    rec [label="Recommendations\n(0.4s, 3%)\nCPU-bound", fillcolor="#E6FFE6"];
+    report [label="AnalysisReport", shape=ellipse, fillcolor="#FFE6E6"];
+
+    // Edges (sequential)
+    start -> extract;
+    extract -> gap;
+    gap -> norm;
+    norm -> smooth;
+
+    // Parallel branches
+    smooth -> lift;
+    smooth -> phase;
+
+    // Converge
+    lift -> physics;
+    phase -> metrics;
+    phase -> physics;
+
+    // Parallel analysis
+    metrics -> dtw;
+    ref -> dtw;
+
+    // Final stages
+    dtw -> rec;
+    metrics -> rec;
+    rec -> report;
+
+    // Legend
+    subgraph cluster_legend {
+        label = "Legend";
+        rank = sink;
+        style = dashed;
+
+        legend_gpu [label="GPU-bound\n(Already fast)", shape=note, fillcolor="#FFE6E6"];
+        legend_cpu [label="CPU-bound\n(Can parallelize)", shape=note, fillcolor="#E6FFE6"];
+        legend_io [label="I/O-bound\n(Async ideal)", shape=note, fillcolor="#E6F2FF"];
+        legend_parallel [label="Parallel stages\n(Current)", shape=note, fillcolor="#FFFFE6"];
+    }
+
+    // Annotations
+    {
+        rank=same;
+        lift;
+        phase;
+        annotation [label="PARALLEL BRANCH\n(Can run concurrently)", shape=note, fontsize=10, style=dashed];
+    }
+}

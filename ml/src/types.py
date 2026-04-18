@@ -824,6 +824,7 @@ class TrackedExtraction:
         target_track_id: The locked-on track ID, or None if tracking not used.
         fps: Video frame rate.
         video_meta: Full video metadata.
+        first_frame: First video frame (BGR) cached for spatial reference.
     """
 
     poses: np.ndarray
@@ -832,6 +833,7 @@ class TrackedExtraction:
     target_track_id: int | None
     fps: float
     video_meta: VideoMeta
+    first_frame: np.ndarray | None = None
 
     def valid_mask(self) -> np.ndarray:
         """Return boolean mask of frames with valid (non-NaN) poses.

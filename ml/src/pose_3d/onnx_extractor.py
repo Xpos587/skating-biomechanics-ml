@@ -49,7 +49,12 @@ class ONNXPoseExtractor:
             raise FileNotFoundError(f"ONNX model not found: {model_path}")
 
         cfg = DeviceConfig(device=device)
-        self.session = ort.InferenceSession(str(model_path), providers=cfg.onnx_providers)
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = 1
+        opts.inter_op_num_threads = 2
+        self.session = ort.InferenceSession(
+            str(model_path), sess_options=opts, providers=cfg.onnx_providers
+        )
         self.input_name = self.session.get_inputs()[0].name
 
         active = self.session.get_providers()[0]

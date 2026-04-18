@@ -121,6 +121,7 @@ class AnalysisPipeline:
         frame_offset = extraction.first_detection_frame
         poses = extraction.poses[frame_offset:]
         valid = extraction.valid_mask()[frame_offset:]
+        first_frame = extraction.first_frame
 
         # 4. Gap filling
         t0 = time.perf_counter()
@@ -146,19 +147,23 @@ class AnalysisPipeline:
                 video_height=meta.height,
             )
         else:
-            # Single-frame estimation (existing behavior)
+            # Single-frame estimation (use cached first_frame from extraction)
             import cv2
 
             from .detection.spatial_reference import CameraPose, SpatialReferenceDetector
 
             spatial_detector = SpatialReferenceDetector()
-            cap = cv2.VideoCapture(str(video_path))
-            ret, first_frame = cap.read()
-            if ret:
+            if first_frame is not None:
                 camera_pose = spatial_detector.estimate_pose(first_frame)
             else:
-                camera_pose = CameraPose()
-            cap.release()
+                # Fallback: read first frame from video
+                cap = cv2.VideoCapture(str(video_path))
+                ret, first_frame_fallback = cap.read()
+                if ret:
+                    camera_pose = spatial_detector.estimate_pose(first_frame_fallback)
+                else:
+                    camera_pose = CameraPose()
+                cap.release()
 
             if camera_pose.confidence > 0.1:
                 # Convert to pixels, compensate, convert back
