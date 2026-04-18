@@ -18,7 +18,7 @@ WORKDIR /app
 # ============================================
 FROM base AS builder
 
-COPY --from=ghcr.io/oven-sh/bun:latest /bun /usr/local/bin/bun
+COPY --from=docker.io/oven/bun:latest /bun /usr/local/bin/bun
 
 COPY package.json bun.lock* ./
 
