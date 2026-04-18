@@ -1,6 +1,7 @@
 "use client"
 
-import { Image, RotateCcw, VideoOff } from "lucide-react"
+import { Image as LucideImage, RotateCcw, VideoOff } from "lucide-react"
+import NextImage from "next/image"
 import { useCallback, useRef, useState } from "react"
 import { useTranslations } from "@/i18n"
 import { useMountEffect } from "@/lib/useMountEffect"
@@ -121,9 +122,15 @@ export function CameraRecorder({
             aria-label={t("chooseFile")}
           >
             {previewUrl ? (
-              <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+              <NextImage
+                src={previewUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                width={200}
+                height={200}
+              />
             ) : (
-              <Image className="h-5 w-5 text-white" />
+              <LucideImage className="h-5 w-5 text-white" />
             )}
           </button>
 

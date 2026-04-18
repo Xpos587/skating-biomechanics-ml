@@ -23,7 +23,7 @@ def _run_analysis(audio_path: str) -> dict:
 
     Returns dict with: bpm, duration_sec, peaks, structure, energy_curve.
     """
-    import librosa
+    import librosa  # type: ignore[import-untyped]
     import numpy as np
 
     y, sr = librosa.load(audio_path, sr=22050, mono=True)
@@ -32,14 +32,14 @@ def _run_analysis(audio_path: str) -> dict:
     # --- BPM via madmom ---
     bpm = None
     try:
-        from madmom.features.beats import DBNBeatTracker
+        from madmom.features.beats import DBNBeatTracker  # type: ignore[import-untyped]
 
         act = DBNBeatTracker.preprocess(y, sr=sr)
         beat_frames = DBNBeatTracker.detect(act, fps=sr / 512)
         if len(beat_frames) > 1:
             intervals = np.diff(beat_frames) * 512 / sr
             bpm = float(60.0 / np.median(intervals))
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("madmom beat tracking failed, using librosa fallback")
 
     if bpm is None:
@@ -59,13 +59,13 @@ def _run_analysis(audio_path: str) -> dict:
         rms_normalized = (rms - rms.min()) / (rms.max() - rms.min() + 1e-8)
         peak_indices, _ = find_peaks(rms_normalized, height=0.6, distance=4)
         peaks = [timestamps[i] for i in peak_indices]
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("Peak detection failed")
 
     # --- Structure analysis (MSAF, optional) ---
     structure: list[dict] = []
     try:
-        import msaf
+        import msaf  # type: ignore[import-untyped]
 
         boundaries, labels = msaf.process(audio_path, boundaries_id="sf", labels_id="foote")
         for i in range(len(boundaries) - 1):
@@ -76,7 +76,7 @@ def _run_analysis(audio_path: str) -> dict:
                     "end": float(boundaries[i + 1]),
                 }
             )
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("MSAF structure analysis failed -- using empty structure")
 
     return {
