@@ -11,6 +11,13 @@ ML-based AI coach for figure skating. Analyzes video, compares attempts to profe
 
 **Vision:** AI-тренер по фигурному катанию — анализ видео и рекомендации на русском.
 
+## Coding Principles
+
+- **Think first** — state assumptions explicitly. If unclear, ask before coding. Present tradeoffs when multiple approaches exist.
+- **Minimum code** — no speculative features, abstractions, or "flexibility" not requested. If 200 lines could be 50, rewrite.
+- **Surgical changes** — every changed line must trace to the request. Don't refactor working code or "improve" adjacent code. Match existing style even if you'd do it differently.
+- **Verifiable goals** — transform tasks into testable outcomes. "Fix the bug" → write a failing test first, then fix. State a verify step for each plan step.
+
 ## Directory Structure
 
 ```
