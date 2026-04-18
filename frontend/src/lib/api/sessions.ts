@@ -40,7 +40,9 @@ const SessionSchema = z.object({
   id: z.string(),
   user_id: z.string(),
   element_type: z.string(),
+  video_key: z.string().nullable().optional(),
   video_url: z.string().nullable(),
+  processed_video_key: z.string().nullable().optional(),
   processed_video_url: z.string().nullable(),
   poses_url: z.string().optional().nullable(), // Deprecated
   csv_url: z.string().optional().nullable(), // Deprecated
@@ -68,18 +70,20 @@ export function useSessions(userId?: string, elementType?: string) {
   })
 }
 
-export function useSession(id: string) {
+export function useSession(id: string, opts?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ["session", id],
     queryFn: () => apiFetch(`/sessions/${id}`, SessionSchema),
     enabled: !!id,
+    refetchInterval: opts?.refetchInterval,
   })
 }
 
 export function useCreateSession() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { element_type: string }) => apiPost("/sessions", SessionSchema, body),
+    mutationFn: (body: { element_type: string; video_key?: string }) =>
+      apiPost("/sessions", SessionSchema, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions"] }),
   })
 }

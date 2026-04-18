@@ -17,7 +17,6 @@ from app.routes import (
     misc,
     models,
     process,
-    relationships,
     sessions,
     uploads,
     users,

@@ -27,7 +27,9 @@ class Session(TimestampMixin, Base):
         index=True,
     )
     element_type: Mapped[str] = mapped_column(String(50), index=True)
+    video_key: Mapped[str | None] = mapped_column(String(500))
     video_url: Mapped[str | None] = mapped_column(String(500))
+    processed_video_key: Mapped[str | None] = mapped_column(String(500))
     processed_video_url: Mapped[str | None] = mapped_column(String(500))
     # Deprecated: poses_url and csv_url replaced by pose_data and frame_metrics
     poses_url: Mapped[str | None] = mapped_column(String(500))

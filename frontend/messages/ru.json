@@ -178,7 +178,10 @@
   "sessions": {
     "notFound": "Сессия не найдена",
     "metrics": "Метрики",
-    "recommendations": "Рекомендации"
+    "recommendations": "Рекомендации",
+    "analyzing": "Анализ видео...",
+    "analyzingHint": "Обычно занимает 1-3 минуты",
+    "analysisFailed": "Ошибка анализа"
   },
   "students": {
     "title": "Ученики",

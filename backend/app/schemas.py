@@ -130,6 +130,7 @@ class ProcessRequest(BaseModel):
     layer: int = 3
     tracking: str = "auto"
     export: bool = True
+    session_id: str | None = None
     depth: bool = False
     optical_flow: bool = False
     segment: bool = False
@@ -174,6 +175,7 @@ class TaskStatusResponse(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     element_type: str = Field(..., min_length=1, max_length=50)
+    video_key: str | None = Field(default=None, max_length=500)
 
 
 class PatchSessionRequest(BaseModel):
@@ -237,7 +239,9 @@ class SessionResponse(BaseModel):
     id: str
     user_id: str
     element_type: str
+    video_key: str | None = None
     video_url: str | None
+    processed_video_key: str | None = None
     processed_video_url: str | None
     poses_url: str | None  # Deprecated: Replaced by pose_data
     csv_url: str | None  # Deprecated: Replaced by frame_metrics

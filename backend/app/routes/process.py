@@ -66,6 +66,7 @@ async def enqueue_process(req: ProcessRequest):
             tracking=req.tracking,
             export=req.export,
             ml_flags=ml_flags,
+            session_id=req.session_id,
         )
     finally:
         await arq_pool.close()

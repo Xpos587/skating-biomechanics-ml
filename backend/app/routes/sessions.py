@@ -3,30 +3,69 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.auth.deps import CurrentUser, DbDep
 from app.crud.connection import is_connected_as
-from app.models.connection import ConnectionType
 from app.crud.session import create, get_by_id, list_by_user, soft_delete, update
+from app.models.connection import ConnectionType
 from app.schemas import (
     CreateSessionRequest,
     PatchSessionRequest,
     SessionListResponse,
     SessionResponse,
 )
+from app.storage import get_object_url
+
+if TYPE_CHECKING:
+    from app.auth.deps import CurrentUser, DbDep
 
 router = APIRouter(tags=["sessions"])
 
 
 def _session_to_response(session) -> SessionResponse:
-    """Convert ORM Session to response schema."""
-    return SessionResponse.model_validate(session)
+    """Convert ORM Session to response schema with presigned URLs."""
+    return SessionResponse.model_validate(
+        {
+            "id": session.id,
+            "user_id": session.user_id,
+            "element_type": session.element_type,
+            "video_key": session.video_key,
+            "video_url": get_object_url(session.video_key)
+            if session.video_key
+            else session.video_url,
+            "processed_video_key": session.processed_video_key,
+            "processed_video_url": (
+                get_object_url(session.processed_video_key)
+                if session.processed_video_key
+                else session.processed_video_url
+            ),
+            "poses_url": session.poses_url,
+            "csv_url": session.csv_url,
+            "pose_data": session.pose_data,
+            "frame_metrics": session.frame_metrics,
+            "status": session.status,
+            "error_message": session.error_message,
+            "phases": session.phases,
+            "recommendations": session.recommendations,
+            "overall_score": session.overall_score,
+            "created_at": session.created_at,
+            "processed_at": session.processed_at,
+            "metrics": session.metrics,
+        }
+    )
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(body: CreateSessionRequest, user: CurrentUser, db: DbDep):
-    session = await create(db, user_id=user.id, element_type=body.element_type)
+    session = await create(
+        db,
+        user_id=user.id,
+        element_type=body.element_type,
+        video_key=body.video_key,
+        status="queued" if body.video_key else "uploading",
+    )
     return _session_to_response(session)
 
 
@@ -45,7 +84,9 @@ async def list_sessions(
     if (
         user_id
         and user_id != user.id
-        and not await is_connected_as(db, from_user_id=user.id, to_user_id=user_id, connection_type=ConnectionType.COACHING)
+        and not await is_connected_as(
+            db, from_user_id=user.id, to_user_id=user_id, connection_type=ConnectionType.COACHING
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a coach for this user"
@@ -70,7 +111,10 @@ async def get_session(session_id: str, user: CurrentUser, db: DbDep):
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
     if session.user_id != user.id and not await is_connected_as(
-        db, from_user_id=user.id, to_user_id=session.user_id, connection_type=ConnectionType.COACHING
+        db,
+        from_user_id=user.id,
+        to_user_id=session.user_id,
+        connection_type=ConnectionType.COACHING,
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     return _session_to_response(session)

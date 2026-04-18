@@ -49,10 +49,12 @@ export function SessionCard({ session }: { session: Session }) {
           </div>
         </div>
 
-        {session.status !== "done" ? (
+        {session.status !== "completed" ? (
           <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            {session.status === "processing" ? "Анализ..." : "Загрузка..."}
+            {session.status === "running" || session.status === "processing"
+              ? "Анализ..."
+              : "Ожидание..."}
           </div>
         ) : (
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

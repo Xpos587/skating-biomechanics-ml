@@ -1,5 +1,6 @@
 "use client"
 
+import { Loader2 } from "lucide-react"
 import { useParams } from "next/navigation"
 import { PhaseTimeline } from "@/components/analysis/phase-timeline"
 import { ThreeJSkeletonViewer } from "@/components/analysis/threejs-skeleton-viewer"
@@ -9,20 +10,43 @@ import { useTranslations } from "@/i18n"
 import { useSession } from "@/lib/api/sessions"
 import { useAnalysisStore } from "@/stores/analysis"
 
+const POLLING_STATUSES = new Set(["queued", "uploading", "running", "pending"])
+
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { data: session, isLoading } = useSession(id)
+  const isProcessing = POLLING_STATUSES.has(useSession(id).data?.status ?? "")
+  const { data: session, isLoading } = useSession(id, {
+    refetchInterval: isProcessing ? 3000 : false,
+  })
   const te = useTranslations("elements")
   const tc = useTranslations("common")
   const ts = useTranslations("sessions")
 
-  // Calculate total frames from pose_data
-  const totalFrames = session?.pose_data ? Math.max(...session.pose_data.frames) : 300 // Fallback estimate
+  const totalFrames = session?.pose_data ? Math.max(...session.pose_data.frames) : 300
 
   if (isLoading)
     return <div className="py-20 text-center text-muted-foreground">{tc("loading")}</div>
   if (!session)
     return <div className="py-20 text-center text-muted-foreground">{ts("notFound")}</div>
+
+  if (POLLING_STATUSES.has(session.status)) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 px-4 py-20">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="nike-h3">{ts("analyzing")}</p>
+        <p className="text-sm text-muted-foreground">{ts("analyzingHint")}</p>
+      </div>
+    )
+  }
+
+  if (session.status === "failed" || session.error_message) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4 px-4 py-20 text-center">
+        <p className="nike-h3 text-destructive">{ts("analysisFailed")}</p>
+        <p className="text-sm text-muted-foreground">{session.error_message}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 sm:max-w-3xl">
@@ -35,7 +59,6 @@ export default function SessionDetailPage() {
         </p>
       </div>
 
-      {/* 2D Video + Skeleton */}
       {session.processed_video_url && session.pose_data && (
         <VideoWithSkeleton
           videoUrl={session.processed_video_url}
@@ -46,7 +69,6 @@ export default function SessionDetailPage() {
         />
       )}
 
-      {/* Timeline */}
       {session.pose_data && (
         <PhaseTimeline totalFrames={totalFrames} phases={session.phases ?? {}} />
       )}
@@ -57,7 +79,12 @@ export default function SessionDetailPage() {
         </video>
       )}
 
-      {/* 3D Skeleton Viewer */}
+      {!session.processed_video_url && session.video_url && (
+        <video src={session.video_url} controls className="w-full rounded-xl">
+          <track kind="captions" />
+        </video>
+      )}
+
       {session.pose_data && session.frame_metrics && (
         <ThreeJSkeletonViewer
           poseData={session.pose_data}

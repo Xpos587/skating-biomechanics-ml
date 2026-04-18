@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { CameraRecorder } from "@/components/upload/camera-recorder"
 import { ElementPicker } from "@/components/upload/element-picker"
 import { useTranslations } from "@/i18n"
+import { enqueueProcess } from "@/lib/api/process"
 import { useCreateSession } from "@/lib/api/sessions"
 import { ChunkedUploader } from "@/lib/api/uploads"
 
@@ -43,12 +44,21 @@ export default function UploadPage() {
       const uploader = new ChunkedUploader(file, (loaded, total) => {
         setProgress(Math.round((loaded / total) * 100))
       })
-      await uploader.upload()
-      await createSession.mutateAsync({
+      const videoKey = await uploader.upload()
+      const session = await createSession.mutateAsync({
         element_type: elementType ?? "auto",
+        video_key: videoKey,
+      })
+      await enqueueProcess({
+        video_key: videoKey,
+        person_click: { x: -1, y: -1 },
+        session_id: session.id,
       })
       setStep("done")
       toast.success(t("videoUploaded"))
+      if (session?.id) {
+        window.location.href = `/sessions/${session.id}`
+      }
     } catch {
       toast.error(t("uploadError"))
       setStep("picked")
