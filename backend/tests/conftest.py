@@ -1,6 +1,11 @@
 """Shared test fixtures for backend tests."""
 
+import sys
 from collections.abc import AsyncGenerator
+from pathlib import Path
+
+# Add backend to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest_asyncio
 from app.models import Base
