@@ -39,6 +39,12 @@ def test_vast_result_fields():
 
 @patch("src.vastai.client.httpx.post")
 def test_process_video_remote_passes_r2_key(mock_post):
+    # Reset global worker URL cache (may be set by earlier tests)
+    import src.vastai.client as _vc
+
+    _vc._worker_url_cache = None
+    _vc._worker_url_cache_time = 0.0
+
     mock_route_resp = MagicMock()
     mock_route_resp.status_code = 200
     mock_route_resp.json.return_value = {"url": "https://worker.vast.ai:8000"}
