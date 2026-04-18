@@ -69,118 +69,92 @@ def _compute_frame_metrics(poses: np.ndarray) -> dict:
     Returns:
         dict with metric arrays (knee angles, hip angles, trunk lean, CoM height)
     """
-    knee_angles_r = []
-    knee_angles_l = []
-    hip_angles_r = []
-    hip_angles_l = []
-    trunk_lean = []
-    com_height = []
+    # Extract keypoint arrays (vectorized)
+    # H36Key indices: RHIP=1, RKNEE=2, RFOOT=3, LHIP=4, LKNEE=5, LFOOT=6
+    # SPINE=7, THORAX=8, NECK=9, HIP_CENTER=0
+    r_hip = poses[:, H36Key.RHIP]  # (N, 3)
+    r_knee = poses[:, H36Key.RKNEE]
+    r_foot = poses[:, H36Key.RFOOT]
+    l_hip = poses[:, H36Key.LHIP]
+    l_knee = poses[:, H36Key.LKNEE]
+    l_foot = poses[:, H36Key.LFOOT]
+    thorax = poses[:, H36Key.THORAX]
+    spine = poses[:, H36Key.SPINE]
+    neck = poses[:, H36Key.NECK]
+    hip_center = poses[:, H36Key.HIP_CENTER]
 
-    for pose in poses:
-        # Knee angles (hip-knee-ankle)
-        r_knee = pose[H36Key.RHIP]
-        r_knee_joint = pose[H36Key.RKNEE]
-        r_ankle = pose[H36Key.RFOOT]
+    # Helper function to compute angles between vectors
+    def compute_angles_batch(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
+        """Compute angles at point b for vectors (a->b) and (b->c).
 
-        l_knee = pose[H36Key.LHIP]
-        l_knee_joint = pose[H36Key.LKNEE]
-        l_ankle = pose[H36Key.LFOOT]
+        Args:
+            a, b, c: (N, 3) arrays of keypoints
 
-        # Right knee angle
-        if not (np.isnan(r_knee).any() or np.isnan(r_knee_joint).any() or np.isnan(r_ankle).any()):
-            vec1 = r_knee_joint - r_knee
-            vec2 = r_ankle - r_knee_joint
-            angle = np.degrees(
-                np.arccos(
-                    np.clip(
-                        np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-8),
-                        -1,
-                        1,
-                    )
-                )
-            )
-            knee_angles_r.append(angle)
-        else:
-            knee_angles_r.append(float("nan"))
+        Returns:
+            (N,) array of angles in degrees, with NaN for invalid frames
+        """
+        vec1 = b - a  # (N, 3)
+        vec2 = c - b  # (N, 3)
 
-        # Left knee angle
-        if not (np.isnan(l_knee).any() or np.isnan(l_knee_joint).any() or np.isnan(l_ankle).any()):
-            vec1 = l_knee_joint - l_knee
-            vec2 = l_ankle - l_knee_joint
-            angle = np.degrees(
-                np.arccos(
-                    np.clip(
-                        np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-8),
-                        -1,
-                        1,
-                    )
-                )
-            )
-            knee_angles_l.append(angle)
-        else:
-            knee_angles_l.append(float("nan"))
+        # Compute norms
+        norm1 = np.linalg.norm(vec1, axis=1)
+        norm2 = np.linalg.norm(vec2, axis=1)
 
-        # Hip angles (thorax-hip-knee)
-        r_thorax = pose[H36Key.THORAX]
-        l_thorax = pose[H36Key.THORAX]
+        # Dot product
+        dot = np.sum(vec1 * vec2, axis=1)
 
-        # Right hip angle
-        if not (np.isnan(r_thorax).any() or np.isnan(r_knee).any() or np.isnan(r_knee_joint).any()):
-            vec1 = r_knee - r_thorax
-            vec2 = r_knee_joint - r_knee
-            angle = np.degrees(
-                np.arccos(
-                    np.clip(
-                        np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-8),
-                        -1,
-                        1,
-                    )
-                )
-            )
-            hip_angles_r.append(angle)
-        else:
-            hip_angles_r.append(float("nan"))
+        # Cosine with clipping
+        cos = np.clip(dot / (norm1 * norm2 + 1e-8), -1, 1)
 
-        # Left hip angle
-        if not (np.isnan(l_thorax).any() or np.isnan(l_knee).any() or np.isnan(l_knee_joint).any()):
-            vec1 = l_knee - l_thorax
-            vec2 = l_knee_joint - l_knee
-            angle = np.degrees(
-                np.arccos(
-                    np.clip(
-                        np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-8),
-                        -1,
-                        1,
-                    )
-                )
-            )
-            hip_angles_l.append(angle)
-        else:
-            hip_angles_l.append(float("nan"))
+        # Convert to degrees
+        angles = np.degrees(np.arccos(cos))
 
-        # Trunk lean (spine angle from vertical)
-        spine = pose[H36Key.SPINE]
-        neck = pose[H36Key.NECK]
-        if not (np.isnan(spine).any() or np.isnan(neck).any()):
-            spine_vec = neck - spine
-            spine_vec[1] = 0  # Project to horizontal plane
-            lean = np.degrees(np.arctan2(spine_vec[0], spine_vec[2])) if spine_vec[2] != 0 else 0
-            trunk_lean.append(lean)
-        else:
-            trunk_lean.append(float("nan"))
+        # Mark invalid frames (where any keypoint is NaN)
+        valid_mask = ~(np.isnan(a).any(axis=1) | np.isnan(b).any(axis=1) | np.isnan(c).any(axis=1))
+        angles[~valid_mask] = np.nan
 
-        # CoM height (hip center y)
-        hip_center = pose[H36Key.HIP_CENTER]
-        com_height.append(hip_center[1] if not np.isnan(hip_center[1]) else float("nan"))
+        return angles
 
-    # Convert to lists for JSON
+    # Knee angles (hip-knee-ankle)
+    knee_angles_r = compute_angles_batch(r_hip, r_knee, r_foot)
+    knee_angles_l = compute_angles_batch(l_hip, l_knee, l_foot)
+
+    # Hip angles (thorax-hip-knee)
+    hip_angles_r = compute_angles_batch(thorax, r_hip, r_knee)
+    hip_angles_l = compute_angles_batch(thorax, l_hip, l_knee)
+
+    # Trunk lean (spine angle from vertical)
+    spine_vec = neck - spine  # (N, 3)
+    spine_vec[:, 1] = 0  # Project to horizontal plane (set y to 0)
+
+    # Compute lean angle: arctan2(x, z)
+    trunk_lean = np.degrees(np.arctan2(spine_vec[:, 0], spine_vec[:, 2]))
+
+    # Handle division by zero (when z=0)
+    z_zero = spine_vec[:, 2] == 0
+    trunk_lean[z_zero] = 0.0
+
+    # Mark invalid frames
+    valid_spine = ~(np.isnan(spine).any(axis=1) | np.isnan(neck).any(axis=1))
+    trunk_lean[~valid_spine] = np.nan
+
+    # CoM height (hip center y-coordinate)
+    com_height = hip_center[:, 1].copy()
+    valid_hip = ~np.isnan(hip_center[:, 1])
+    com_height[~valid_hip] = np.nan
+
+    # Convert to lists for JSON (NaN -> None)
+    def to_list(arr: np.ndarray) -> list:
+        """Convert numpy array to list, replacing NaN with None."""
+        return [float(x) if not np.isnan(x) else None for x in arr]
+
     return {
-        "knee_angles_r": [float(x) if not np.isnan(x) else None for x in knee_angles_r],
-        "knee_angles_l": [float(x) if not np.isnan(x) else None for x in knee_angles_l],
-        "hip_angles_r": [float(x) if not np.isnan(x) else None for x in hip_angles_r],
-        "hip_angles_l": [float(x) if not np.isnan(x) else None for x in hip_angles_l],
-        "trunk_lean": [float(x) if not np.isnan(x) else None for x in trunk_lean],
-        "com_height": [float(x) if not np.isnan(x) else None for x in com_height],
+        "knee_angles_r": to_list(knee_angles_r),
+        "knee_angles_l": to_list(knee_angles_l),
+        "hip_angles_r": to_list(hip_angles_r),
+        "hip_angles_l": to_list(hip_angles_l),
+        "trunk_lean": to_list(trunk_lean),
+        "com_height": to_list(com_height),
     }
 
 

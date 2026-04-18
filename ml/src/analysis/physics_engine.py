@@ -97,58 +97,65 @@ class PhysicsEngine:
         """
         from ..pose_estimation import H36Key
 
+        # Extract all keypoints as (N, 3) arrays
+        head = poses_3d[:, H36Key.HEAD]
+        spine = poses_3d[:, H36Key.SPINE]
+        thorax = poses_3d[:, H36Key.THORAX]
+        l_shoulder = poses_3d[:, H36Key.LSHOULDER]
+        l_elbow = poses_3d[:, H36Key.LELBOW]
+        l_wrist = poses_3d[:, H36Key.LWRIST]
+        r_shoulder = poses_3d[:, H36Key.RSHOULDER]
+        r_elbow = poses_3d[:, H36Key.RELBOW]
+        r_wrist = poses_3d[:, H36Key.RWRIST]
+        l_hip = poses_3d[:, H36Key.LHIP]
+        l_knee = poses_3d[:, H36Key.LKNEE]
+        l_foot = poses_3d[:, H36Key.LFOOT]
+        r_hip = poses_3d[:, H36Key.RHIP]
+        r_knee = poses_3d[:, H36Key.RKNEE]
+        r_foot = poses_3d[:, H36Key.RFOOT]
+
+        # Initialize CoM trajectory
         n_frames = poses_3d.shape[0]
-        com_trajectory = np.zeros((n_frames, 3))
+        com_trajectory = np.zeros((n_frames, 3), dtype=np.float32)
 
-        for frame_idx in range(n_frames):
-            pose = poses_3d[frame_idx]
+        # Head: direct keypoint
+        com_trajectory += self.segment_masses["head"] * head
 
-            # Segment center positions (simplified from keypoints)
-            # Head: nose/head approximation
-            head_pos = pose[H36Key.HEAD]
-            com_trajectory[frame_idx] += self.segment_masses["head"] * head_pos
+        # Torso: weighted average of spine and thorax
+        torso_pos = (spine + thorax) / 2
+        com_trajectory += self.segment_masses["torso"] * torso_pos
 
-            # Torso: weighted average of spine, thorax
-            spine_pos = pose[H36Key.SPINE]
-            thorax_pos = pose[H36Key.THORAX]
-            torso_pos = (spine_pos + thorax_pos) / 2
-            com_trajectory[frame_idx] += self.segment_masses["torso"] * torso_pos
+        # Upper arm: shoulder to elbow midpoint
+        l_upper_arm = (l_shoulder + l_elbow) / 2
+        r_upper_arm = (r_shoulder + r_elbow) / 2
+        com_trajectory += self.segment_masses["left_upper_arm"] * l_upper_arm
+        com_trajectory += self.segment_masses["right_upper_arm"] * r_upper_arm
 
-            # Process arm segments
-            for side, prefix in [("left", "l"), ("right", "r")]:
-                shoulder_idx = getattr(H36Key, f"{prefix.upper()}SHOULDER")
-                elbow_idx = getattr(H36Key, f"{prefix.upper()}ELBOW")
-                wrist_idx = getattr(H36Key, f"{prefix.upper()}WRIST")
+        # Forearm: elbow to wrist midpoint
+        l_forearm = (l_elbow + l_wrist) / 2
+        r_forearm = (r_elbow + r_wrist) / 2
+        com_trajectory += self.segment_masses["left_forearm"] * l_forearm
+        com_trajectory += self.segment_masses["right_forearm"] * r_forearm
 
-                # Upper arm: shoulder to elbow midpoint
-                upper_arm_pos = (pose[shoulder_idx] + pose[elbow_idx]) / 2
-                com_trajectory[frame_idx] += (
-                    self.segment_masses[f"{side}_upper_arm"] * upper_arm_pos
-                )
+        # Hands: wrist position
+        com_trajectory += self.segment_masses["left_hand"] * l_wrist
+        com_trajectory += self.segment_masses["right_hand"] * r_wrist
 
-                # Forearm: elbow to wrist midpoint
-                forearm_pos = (pose[elbow_idx] + pose[wrist_idx]) / 2
-                com_trajectory[frame_idx] += self.segment_masses[f"{side}_forearm"] * forearm_pos
+        # Thigh: hip to knee midpoint
+        l_thigh = (l_hip + l_knee) / 2
+        r_thigh = (r_hip + r_knee) / 2
+        com_trajectory += self.segment_masses["left_thigh"] * l_thigh
+        com_trajectory += self.segment_masses["right_thigh"] * r_thigh
 
-                # Hand: wrist position
-                com_trajectory[frame_idx] += self.segment_masses[f"{side}_hand"] * pose[wrist_idx]
+        # Shin: knee to ankle midpoint
+        l_shin = (l_knee + l_foot) / 2
+        r_shin = (r_knee + r_foot) / 2
+        com_trajectory += self.segment_masses["left_shin"] * l_shin
+        com_trajectory += self.segment_masses["right_shin"] * r_shin
 
-            # Process leg segments
-            for side, prefix in [("left", "l"), ("right", "r")]:
-                hip_idx = getattr(H36Key, f"{prefix.upper()}HIP")
-                knee_idx = getattr(H36Key, f"{prefix.upper()}KNEE")
-                ankle_idx = getattr(H36Key, f"{prefix.upper()}FOOT")
-
-                # Thigh: hip to knee midpoint
-                thigh_pos = (pose[hip_idx] + pose[knee_idx]) / 2
-                com_trajectory[frame_idx] += self.segment_masses[f"{side}_thigh"] * thigh_pos
-
-                # Shin: knee to ankle midpoint
-                shin_pos = (pose[knee_idx] + pose[ankle_idx]) / 2
-                com_trajectory[frame_idx] += self.segment_masses[f"{side}_shin"] * shin_pos
-
-                # Foot: ankle position
-                com_trajectory[frame_idx] += self.segment_masses[f"{side}_foot"] * pose[ankle_idx]
+        # Feet: ankle position
+        com_trajectory += self.segment_masses["left_foot"] * l_foot
+        com_trajectory += self.segment_masses["right_foot"] * r_foot
 
         # Normalize by total mass
         com_trajectory /= self.body_mass
@@ -177,56 +184,82 @@ class PhysicsEngine:
         """
         from ..pose_estimation import H36Key
 
-        n_frames = poses_3d.shape[0]
-        inertia = np.zeros(n_frames)
-
         # Calculate CoM for each frame (reference point)
         com_trajectory = self.calculate_center_of_mass(poses_3d)
 
-        for frame_idx in range(n_frames):
-            pose = poses_3d[frame_idx]
-            com = com_trajectory[frame_idx]
+        # Extract all keypoints as (N, 3) arrays
+        head = poses_3d[:, H36Key.HEAD]
+        spine = poses_3d[:, H36Key.SPINE]
+        thorax = poses_3d[:, H36Key.THORAX]
+        l_shoulder = poses_3d[:, H36Key.LSHOULDER]
+        l_elbow = poses_3d[:, H36Key.LELBOW]
+        l_wrist = poses_3d[:, H36Key.LWRIST]
+        r_shoulder = poses_3d[:, H36Key.RSHOULDER]
+        r_elbow = poses_3d[:, H36Key.RELBOW]
+        r_wrist = poses_3d[:, H36Key.RWRIST]
+        l_hip = poses_3d[:, H36Key.LHIP]
+        l_knee = poses_3d[:, H36Key.LKNEE]
+        l_foot = poses_3d[:, H36Key.LFOOT]
+        r_hip = poses_3d[:, H36Key.RHIP]
+        r_knee = poses_3d[:, H36Key.RKNEE]
+        r_foot = poses_3d[:, H36Key.RFOOT]
 
-            # Calculate distance from each segment to CoM
-            # Simplified: use keypoint positions as segment centers
+        # Initialize inertia array
+        n_frames = poses_3d.shape[0]
+        inertia = np.zeros(n_frames, dtype=np.float32)
 
-            # Head
-            r = np.linalg.norm(pose[H36Key.HEAD] - com)
-            inertia[frame_idx] += self.segment_masses["head"] * r**2
+        # Helper function to compute squared distances
+        def add_segment_inertia(segments: list[tuple[np.ndarray, float]]) -> None:
+            """Add inertia contribution from segments.
 
-            # Torso
-            spine_pos = (pose[H36Key.SPINE] + pose[H36Key.THORAX]) / 2
-            r = np.linalg.norm(spine_pos - com)
-            inertia[frame_idx] += self.segment_masses["torso"] * r**2
+            Args:
+                segments: List of (position, mass) tuples
+            """
+            for pos, mass in segments:
+                # Distance from CoM: ||pos - com||
+                r = np.linalg.norm(pos - com_trajectory, axis=1)
+                inertia[:] += mass * r**2
 
-            # Process all limb segments
-            for side, prefix in [("left", "l"), ("right", "r")]:
-                shoulder_idx = getattr(H36Key, f"{prefix.upper()}SHOULDER")
-                elbow_idx = getattr(H36Key, f"{prefix.upper()}ELBOW")
-                wrist_idx = getattr(H36Key, f"{prefix.upper()}WRIST")
-                hip_idx = getattr(H36Key, f"{prefix.upper()}HIP")
-                knee_idx = getattr(H36Key, f"{prefix.upper()}KNEE")
-                ankle_idx = getattr(H36Key, f"{prefix.upper()}FOOT")
+        # Head
+        add_segment_inertia([(head, self.segment_masses["head"])])
 
-                # Upper arm
-                upper_arm_pos = (pose[shoulder_idx] + pose[elbow_idx]) / 2
-                r = np.linalg.norm(upper_arm_pos - com)
-                inertia[frame_idx] += self.segment_masses[f"{side}_upper_arm"] * r**2
+        # Torso: weighted average of spine and thorax
+        torso_pos = (spine + thorax) / 2
+        add_segment_inertia([(torso_pos, self.segment_masses["torso"])])
 
-                # Forearm
-                forearm_pos = (pose[elbow_idx] + pose[wrist_idx]) / 2
-                r = np.linalg.norm(forearm_pos - com)
-                inertia[frame_idx] += self.segment_masses[f"{side}_forearm"] * r**2
+        # Arms (left and right)
+        l_upper_arm = (l_shoulder + l_elbow) / 2
+        r_upper_arm = (r_shoulder + r_elbow) / 2
+        l_forearm = (l_elbow + l_wrist) / 2
+        r_forearm = (r_elbow + r_wrist) / 2
 
-                # Thigh
-                thigh_pos = (pose[hip_idx] + pose[knee_idx]) / 2
-                r = np.linalg.norm(thigh_pos - com)
-                inertia[frame_idx] += self.segment_masses[f"{side}_thigh"] * r**2
+        add_segment_inertia(
+            [
+                (l_upper_arm, self.segment_masses["left_upper_arm"]),
+                (r_upper_arm, self.segment_masses["right_upper_arm"]),
+                (l_forearm, self.segment_masses["left_forearm"]),
+                (r_forearm, self.segment_masses["right_forearm"]),
+                (l_wrist, self.segment_masses["left_hand"]),
+                (r_wrist, self.segment_masses["right_hand"]),
+            ]
+        )
 
-                # Shin
-                shin_pos = (pose[knee_idx] + pose[ankle_idx]) / 2
-                r = np.linalg.norm(shin_pos - com)
-                inertia[frame_idx] += self.segment_masses[f"{side}_shin"] * r**2
+        # Legs (left and right)
+        l_thigh = (l_hip + l_knee) / 2
+        r_thigh = (r_hip + r_knee) / 2
+        l_shin = (l_knee + l_foot) / 2
+        r_shin = (r_knee + r_foot) / 2
+
+        add_segment_inertia(
+            [
+                (l_thigh, self.segment_masses["left_thigh"]),
+                (r_thigh, self.segment_masses["right_thigh"]),
+                (l_shin, self.segment_masses["left_shin"]),
+                (r_shin, self.segment_masses["right_shin"]),
+                (l_foot, self.segment_masses["left_foot"]),
+                (r_foot, self.segment_masses["right_foot"]),
+            ]
+        )
 
         return inertia
 

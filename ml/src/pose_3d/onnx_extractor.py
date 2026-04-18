@@ -77,23 +77,78 @@ class ONNXPoseExtractor:
 
         # Sliding window with stride = w // 2
         stride = w // 2
-        results = np.zeros((n_frames, 17, 3), dtype=np.float32)
-        counts = np.zeros(n_frames, dtype=np.float32)
+
+        # Collect all windows for batched inference
+        windows = []
+        window_starts = []
 
         start = 0
         while start < n_frames:
             end = min(start + w, n_frames)
+            window_starts.append((start, end))
             window = poses_2d[start:end]
-            out = self._infer_window(window)
-            results[start:end] += out[: end - start]
-            counts[start:end] += 1
+            windows.append(window)
             if end == n_frames:
                 break
             start += stride
 
+        # Batch inference (process all windows at once)
+        batch_results = self._infer_batch(windows)
+
+        # Scatter results back to frame array
+        results = np.zeros((n_frames, 17, 3), dtype=np.float32)
+        counts = np.zeros(n_frames, dtype=np.float32)
+
+        for (start, end), out in zip(window_starts, batch_results, strict=True):
+            frame_count = end - start
+            results[start:end] += out[:frame_count]
+            counts[start:end] += 1
+
         # Average overlapping regions
         counts = np.maximum(counts, 1)[:, np.newaxis, np.newaxis]
         results /= counts
+        return results
+
+    def _infer_batch(self, windows: list[NDArray[np.float32]]) -> list[NDArray[np.float32]]:
+        """Run batched inference on multiple windows.
+
+        Args:
+            windows: List of (N_i, 17, 2) arrays, where N_i <= temporal_window
+
+        Returns:
+            List of (N_i, 17, 3) result arrays
+        """
+        w = self.temporal_window
+        batch_size = len(windows)
+
+        # Pad all windows to temporal_window size
+        padded_windows = []
+        for window in windows:
+            n = len(window)
+            if n < w:
+                # Repeat last frame for padding
+                pad_count = w - n
+                padded = np.concatenate([window, np.tile(window[-1:], (pad_count, 1, 1))], axis=0)
+            else:
+                padded = window
+            padded_windows.append(padded)
+
+        # Stack into batch: (batch_size, w, 17, 2)
+        batch_input = np.stack(padded_windows, axis=0)
+
+        # Add confidence channel: (batch_size, w, 17, 3)
+        conf = np.ones((batch_size, w, 17, 1), dtype=np.float32)
+        batch_input = np.concatenate([batch_input, conf], axis=3)
+
+        # Run batched inference
+        result = self.session.run(None, {self.input_name: batch_input})[0]
+
+        # Extract results, truncating to original window lengths
+        results = []
+        for i, window in enumerate(windows):
+            n = len(window)
+            results.append(result[i][:n])
+
         return results
 
     def _infer_window(self, poses_2d: NDArray[np.float32]) -> NDArray[np.float32]:

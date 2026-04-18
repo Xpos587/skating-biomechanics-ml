@@ -48,7 +48,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: frontend
-          file: frontend/Dockerfile
+          file: frontend/Containerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/skating-frontend:latest
@@ -91,7 +91,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: backend/Dockerfile
+          file: backend/Containerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/skating-backend:latest

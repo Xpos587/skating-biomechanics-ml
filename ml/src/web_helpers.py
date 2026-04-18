@@ -6,6 +6,7 @@ All functions are stateless and testable without a running Gradio server.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -317,6 +318,18 @@ def process_video_pipeline(  # noqa: PLR0913
     cap = cv2.VideoCapture(str(video_path))
     writer = H264Writer(output_path, meta.width, meta.height, meta.fps)
 
+    # --- Start biomechanics analysis in parallel (before render loop) ---
+    analysis_future = None
+    if element_type and prepared.n_valid > 0:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            # Submit analysis task to thread pool
+            analysis_future = executor.submit(
+                _run_analysis,
+                prepared.poses_norm,
+                meta.fps,
+                element_type,
+            )
+
     # --- Render loop ---
     frame_idx = 0
     pose_idx = 0
@@ -396,31 +409,18 @@ def process_video_pipeline(  # noqa: PLR0913
         pipe.save_exports(output_path) if export else {"poses_path": None, "csv_path": None}
     )
 
-    # Run biomechanics analysis if element_type was provided
+    # --- Collect biomechanics analysis results (after render loop) ---
     analysis_metrics = []
     analysis_phases = None
     analysis_recommendations = []
 
-    if element_type and prepared.n_valid > 0:
-        from src.analysis.element_defs import get_element_def
-        from src.analysis.metrics import BiomechanicsAnalyzer
-        from src.analysis.phase_detector import PhaseDetector
-        from src.analysis.recommender import Recommender
-
-        elem_def = get_element_def(element_type)
-        if elem_def:
-            # Phase detection
-            phase_det = PhaseDetector()
-            phase_result = phase_det.detect_phases(prepared.poses_norm, meta.fps, element_type)
-            analysis_phases = phase_result.phases
-
-            # Biomechanics analysis
-            analyzer = BiomechanicsAnalyzer(element_def=elem_def)
-            analysis_metrics = analyzer.analyze(prepared.poses_norm, analysis_phases, meta.fps)
-
-            # Recommendations
-            recommender = Recommender()
-            analysis_recommendations = recommender.recommend(analysis_metrics, element_type)
+    if analysis_future is not None:
+        try:
+            analysis_metrics, analysis_phases, analysis_recommendations = analysis_future.result(
+                timeout=30
+            )
+        except Exception as e:
+            logger.warning("Analysis failed: %s", e)
 
     return {
         "video_path": str(output_path),
@@ -436,3 +436,43 @@ def process_video_pipeline(  # noqa: PLR0913
         "phases": analysis_phases,
         "recommendations": analysis_recommendations,
     }
+
+
+def _run_analysis(
+    poses_norm: np.ndarray,
+    fps: float,
+    element_type: str,
+) -> tuple:
+    """Run biomechanics analysis in a thread pool.
+
+    Args:
+        poses_norm: Normalized pose array (N, 17, 2)
+        fps: Video frame rate
+        element_type: Type of skating element
+
+    Returns:
+        Tuple of (metrics, phases, recommendations)
+    """
+    from src.analysis.element_defs import get_element_def
+    from src.analysis.metrics import BiomechanicsAnalyzer
+    from src.analysis.phase_detector import PhaseDetector
+    from src.analysis.recommender import Recommender
+
+    elem_def = get_element_def(element_type)
+    if not elem_def:
+        return [], None, []
+
+    # Phase detection
+    phase_det = PhaseDetector()
+    phase_result = phase_det.detect_phases(poses_norm, fps, element_type)
+    phases = phase_result.phases
+
+    # Biomechanics analysis
+    analyzer = BiomechanicsAnalyzer(element_def=elem_def)
+    metrics = analyzer.analyze(poses_norm, phases, fps)
+
+    # Recommendations
+    recommender = Recommender()
+    recommendations = recommender.recommend(metrics, element_type)
+
+    return metrics, phases, recommendations

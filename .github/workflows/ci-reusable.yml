@@ -136,7 +136,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: backend/Dockerfile
+          file: backend/Containerfile
           push: false
           cache-from: type=gha,scope=backend-ci
           cache-to: type=gha,scope=backend-ci,mode=max
@@ -153,7 +153,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: frontend
-          file: frontend/Dockerfile
+          file: frontend/Containerfile
           push: false
           cache-from: type=gha,scope=frontend-ci-v2
           cache-to: type=gha,scope=frontend-ci-v2,mode=max
