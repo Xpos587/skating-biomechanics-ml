@@ -10,9 +10,9 @@ import pytest
 
 # Mock aiobotocore before importing app.storage (it's a top-level import)
 _mock_aiobotocore = ModuleType("aiobotocore")
-_mock_aiobotocore_session = ModuleType("aiobotocore.session")
+_mock_aiobotocore.session = ModuleType("aiobotocore.session")
 sys.modules["aiobotocore"] = _mock_aiobotocore
-sys.modules["aiobotocore.session"] = _mock_aiobotocore_session
+sys.modules["aiobotocore.session"] = _mock_aiobotocore.session
 
 from app.storage import (  # noqa: E402
     delete_object,
