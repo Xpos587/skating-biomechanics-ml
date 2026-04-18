@@ -16,6 +16,7 @@ Pipeline stages:
     8. Recommendations
 """
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -562,3 +563,274 @@ class AnalysisPipeline:
         lines.append("=" * 60)
 
         return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Async pipeline with parallel stage execution
+    # ------------------------------------------------------------------
+
+    async def analyze_async(
+        self,
+        video_path: Path,
+        element_type: str | None = None,
+        manual_phases: ElementPhase | None = None,
+        reference_path: Path | None = None,
+    ) -> AnalysisReport:
+        """Async version of analyze with parallel stage execution.
+
+        Parallelizes independent operations:
+        - 3D lifting and blade detection run in parallel with phase detection
+        - Metrics computation runs in parallel with reference loading
+
+        Args:
+            video_path: Path to user's video file.
+            element_type: Type of skating element (e.g., 'three_turn', 'waltz_jump').
+            manual_phases: Optional manual phase boundaries (auto-detect if None).
+            reference_path: Optional path to reference video (use store if None).
+
+        Returns:
+            AnalysisReport with metrics, recommendations, and scores.
+        """
+        # Validate element type
+        from .analysis import element_defs
+
+        element_def = None
+        if element_type is not None:
+            element_def = element_defs.get_element_def(element_type)
+            if element_def is None:
+                raise ValueError(f"Unknown element type: {element_type}")
+
+        # Get video metadata
+        meta = get_video_meta(video_path)
+
+        # Stage 1-2.6: Extract poses with tracking (must be sequential)
+        compensated_h36m, _frame_offset = self._extract_and_track(video_path, meta)
+
+        # Stage 3: Normalize poses (fast, run in main)
+        normalized = self._get_normalizer().normalize(compensated_h36m)
+
+        # Stage 3.5: Smooth poses (fast, run in main)
+        if self._enable_smoothing:
+            if manual_phases is not None:
+                boundaries = [manual_phases.takeoff, manual_phases.peak, manual_phases.landing]
+                boundaries = [b for b in boundaries if b > 0]
+                smoothed = self._get_smoother(meta.fps).smooth_phase_aware(normalized, boundaries)
+            else:
+                smoothed = self._get_smoother(meta.fps).smooth(normalized)
+        else:
+            smoothed = normalized
+
+        # Parallel stages: 3D lifting AND phase detection
+        poses_3d_future = asyncio.create_task(self._lift_poses_3d_async(smoothed, meta.fps))
+
+        if element_type is not None:
+            phases_future = asyncio.create_task(
+                self._detect_phases_async(smoothed, meta.fps, element_type, manual_phases)
+            )
+        else:
+            phases_future = None
+
+        # Wait for parallel stages
+        poses_3d, blade_summaries = await poses_3d_future
+
+        if element_type is not None:
+            phases = await phases_future  # type: ignore[assignment]
+        else:
+            phases = ElementPhase(name="unknown", start=0, takeoff=0, peak=0, landing=0, end=0)
+
+        # Element-specific analysis
+        if element_type is not None and element_def is not None:
+            # Parallel stages: metrics AND reference loading
+            metrics_future = asyncio.create_task(
+                self._compute_metrics_async(smoothed, phases, meta.fps, element_def)
+            )
+
+            if self._reference_store is not None:
+                ref_future = asyncio.create_task(self._load_reference_async(element_type))
+            else:
+                ref_future = None
+
+            metrics = await metrics_future
+
+            if ref_future is not None:
+                reference = await ref_future
+            else:
+                reference = None
+
+            # DTW alignment (if reference available)
+            dtw_distance = None
+            if reference is not None:
+                aligner = self._get_aligner()
+                dtw_distance = aligner.compute_distance(
+                    normalized[phases.start : phases.end],
+                    reference.poses[reference.phases.start : reference.phases.end],
+                )
+
+            # Physics calculations
+            physics_dict: dict = {}
+            if poses_3d is not None:
+                try:
+                    from .analysis.physics_engine import PhysicsEngine
+
+                    physics_engine = PhysicsEngine(body_mass=60.0)
+
+                    if phases.takeoff > 0 and phases.landing > 0:
+                        trajectory = physics_engine.fit_jump_trajectory(
+                            poses_3d, phases.takeoff, phases.landing
+                        )
+                        physics_dict["jump_height"] = trajectory["height"]
+                        physics_dict["flight_time"] = trajectory["flight_time"]
+                        physics_dict["takeoff_velocity"] = trajectory["takeoff_velocity"]
+                        physics_dict["fit_quality"] = trajectory["fit_quality"]
+
+                    inertia = physics_engine.calculate_moment_of_inertia(
+                        poses_3d[phases.start : phases.end]
+                    )
+                    physics_dict["avg_inertia"] = float(np.mean(inertia))
+                except Exception:
+                    pass
+
+            recommender = self._get_recommender()
+            recommendations = recommender.recommend(metrics, element_type)
+            overall_score = self._compute_overall_score(metrics)
+        else:
+            # No element type specified
+            metrics = []
+            recommendations = []
+            overall_score = None
+            dtw_distance = None
+            physics_dict = {}
+
+        # Extract blade summaries
+        blade_summary_left = blade_summaries[0] if blade_summaries and blade_summaries[0] else {}
+        blade_summary_right = blade_summaries[1] if blade_summaries and blade_summaries[1] else {}
+
+        return AnalysisReport(
+            element_type=element_type or "unknown",
+            phases=phases,
+            metrics=metrics,
+            recommendations=recommendations,
+            overall_score=overall_score if overall_score is not None else 0.0,
+            dtw_distance=dtw_distance if dtw_distance is not None else 0.0,
+            blade_summary_left=blade_summary_left,
+            blade_summary_right=blade_summary_right,
+            physics=physics_dict,
+        )
+
+    async def _lift_poses_3d_async(
+        self,
+        poses_2d: np.ndarray,
+        fps: float,
+    ) -> tuple[np.ndarray | None, tuple[dict, dict] | None]:
+        """Async 3D pose lifting with blade detection.
+
+        Args:
+            poses_2d: (N, 17, 2) normalized 2D poses.
+            fps: Video frame rate.
+
+        Returns:
+            Tuple of (poses_3d, (blade_summary_left, blade_summary_right)).
+        """
+        extractor = self._get_pose_3d_extractor()
+        if extractor is None:
+            return None, None
+
+        # Run in thread pool (NumPy/ONNX are CPU-bound)
+        loop = asyncio.get_event_loop()
+        poses_3d = await loop.run_in_executor(None, extractor.extract_sequence, poses_2d)
+
+        # Blade detection (also CPU-bound)
+        if poses_3d is not None:
+            from .detection.blade_edge_detector_3d import BladeEdgeDetector3D
+
+            detector = BladeEdgeDetector3D(fps=fps)
+            blade_states_left = []
+            blade_states_right = []
+            for i, pose_3d in enumerate(poses_3d):
+                left_state = detector.detect_frame(pose_3d, i, foot="left")
+                right_state = detector.detect_frame(pose_3d, i, foot="right")
+                blade_states_left.append(left_state)
+                blade_states_right.append(right_state)
+
+            blade_summary_left = {
+                "inside": sum(1 for s in blade_states_left if s.blade_type.value == "inside"),
+                "outside": sum(1 for s in blade_states_left if s.blade_type.value == "outside"),
+                "flat": sum(1 for s in blade_states_left if s.blade_type.value == "flat"),
+            }
+            blade_summary_right = {
+                "inside": sum(1 for s in blade_states_right if s.blade_type.value == "inside"),
+                "outside": sum(1 for s in blade_states_right if s.blade_type.value == "outside"),
+                "flat": sum(1 for s in blade_states_right if s.blade_type.value == "flat"),
+            }
+            return poses_3d, (blade_summary_left, blade_summary_right)
+
+        return None, None
+
+    async def _detect_phases_async(
+        self,
+        poses: np.ndarray,
+        fps: float,
+        element_type: str,
+        manual_phases: ElementPhase | None,
+    ) -> ElementPhase:
+        """Async phase detection.
+
+        Args:
+            poses: (N, 17, 2) normalized poses.
+            fps: Video frame rate.
+            element_type: Element type for detection.
+            manual_phases: Manual phases if provided.
+
+        Returns:
+            ElementPhase with detected boundaries.
+        """
+        if manual_phases is not None:
+            return manual_phases
+
+        # Run in thread pool
+        loop = asyncio.get_event_loop()
+        detector = self._get_phase_detector()
+        result = await loop.run_in_executor(None, detector.detect_phases, poses, fps, element_type)
+        return result.phases
+
+    async def _compute_metrics_async(
+        self,
+        poses: np.ndarray,
+        phases: ElementPhase,
+        fps: float,
+        element_def,
+    ) -> list:
+        """Async biomechanics metrics computation.
+
+        Args:
+            poses: (N, 17, 2) normalized poses.
+            phases: Element phases.
+            fps: Video frame rate.
+            element_def: Element definition.
+
+        Returns:
+            List of MetricResult.
+        """
+        # Run in thread pool
+        loop = asyncio.get_event_loop()
+        analyzer = self._get_analyzer_factory()(element_def)
+        metrics = await loop.run_in_executor(None, analyzer.analyze, poses, phases, fps)
+        return metrics
+
+    async def _load_reference_async(self, element_type: str):
+        """Async reference loading from store.
+
+        Args:
+            element_type: Element type to load reference for.
+
+        Returns:
+            ReferenceData or None.
+        """
+        if self._reference_store is None:
+            return None
+
+        # Run in thread pool
+        loop = asyncio.get_event_loop()
+        reference = await loop.run_in_executor(
+            None, self._reference_store.get_best_match, element_type
+        )
+        return reference

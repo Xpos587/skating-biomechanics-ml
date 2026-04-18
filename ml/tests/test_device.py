@@ -203,3 +203,102 @@ class TestGetOnnxProviders:
                 "CUDAExecutionProvider",
                 "CPUExecutionProvider",
             ]
+
+
+class TestMultiGPUConfig:
+    """Tests for MultiGPUConfig."""
+
+    def test_init_auto_detect(self):
+        """Config should auto-detect available GPUs."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig()
+        assert config.num_gpus >= 0
+        assert isinstance(config.enabled_gpus, list)
+
+    def test_init_specific_gpu_ids(self):
+        """Specific GPU IDs should filter enabled GPUs."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig(gpu_ids=[0])
+        # Should only enable GPU 0 if available
+        assert config.num_gpus <= 1
+
+    def test_init_empty_gpu_ids(self):
+        """Empty GPU IDs list should result in no GPUs."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig(gpu_ids=[])
+        assert config.num_gpus == 0
+        assert not config.has_gpu
+
+    def test_memory_reserve(self):
+        """Memory reserve should be reflected in GPUInfo."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig(memory_reserve_mb=1024)
+        for gpu in config.enabled_gpus:
+            assert gpu.memory_reserve_mb == 1024
+
+    def test_get_device_for_worker_no_gpu(self):
+        """Should return 'cpu' when no GPUs available."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig(gpu_ids=[])
+        device = config.get_device_for_worker(0)
+        assert device == "cpu"
+
+    def test_get_device_for_worker_with_gpu(self):
+        """Should return 'cuda' when GPUs available."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig()
+        if config.num_gpus > 0:
+            device = config.get_device_for_worker(0)
+            assert device == "cuda"
+
+    def test_has_gpu_property(self):
+        """has_gpu property should reflect GPU availability."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig()
+        assert config.has_gpu == (config.num_gpus > 0)
+
+    def test_round_robin_assignment(self):
+        """Workers should be assigned in round-robin fashion."""
+        from skating_ml.device import MultiGPUConfig
+
+        config = MultiGPUConfig()
+        if config.num_gpus >= 2:
+            # Both should return cuda (actual GPU ID handled by CUDA_VISIBLE_DEVICES)
+            device0 = config.get_device_for_worker(0)
+            device4 = config.get_device_for_worker(4)
+            assert device0 == "cuda"
+            assert device4 == "cuda"
+
+
+class TestGPUInfo:
+    """Tests for GPUInfo dataclass."""
+
+    def test_available_memory(self):
+        """Available memory should subtract reserve."""
+        from skating_ml.device import GPUInfo
+
+        gpu = GPUInfo(device_id=0, total_memory_mb=8192, memory_reserve_mb=512)
+        assert gpu.available_memory_mb == 7680
+
+    def test_available_memory_clamped_at_zero(self):
+        """Available memory should not go negative."""
+        from skating_ml.device import GPUInfo
+
+        gpu = GPUInfo(device_id=0, total_memory_mb=256, memory_reserve_mb=512)
+        assert gpu.available_memory_mb == 0
+
+    def test_gpu_info_properties(self):
+        """GPUInfo properties should be accessible."""
+        from skating_ml.device import GPUInfo
+
+        gpu = GPUInfo(device_id=1, total_memory_mb=4096, memory_reserve_mb=256)
+        assert gpu.device_id == 1
+        assert gpu.total_memory_mb == 4096
+        assert gpu.memory_reserve_mb == 256

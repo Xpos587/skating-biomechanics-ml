@@ -6,13 +6,17 @@ Uses onnxruntime for CUDA detection (no torch dependency).
 Default: CUDA when available, CPU otherwise.
 
 Usage:
-    from skating_ml.device import DeviceConfig
+    from skating_ml.device import DeviceConfig, MultiGPUConfig
 
     # Simple — auto-detect best device
     cfg = DeviceConfig.default()
 
     # Explicit
     cfg = DeviceConfig(device="cpu")
+
+    # Multi-GPU configuration
+    multi_cfg = MultiGPUConfig()  # Auto-detect all GPUs
+    multi_cfg = MultiGPUConfig(gpu_ids=[0, 1])  # Specific GPUs
 
     # Pass to components
     extractor = PoseExtractor(device=cfg.device)
@@ -159,3 +163,162 @@ def get_onnx_providers(device: str = "auto") -> list[str]:
     """Get ONNX Runtime providers for device. Convenience wrapper."""
     cfg = DeviceConfig(device=device)
     return cfg.onnx_providers
+
+
+# ------------------------------------------------------------------
+# Multi-GPU Configuration
+# ------------------------------------------------------------------
+
+
+def _get_gpu_count() -> int:
+    """Get number of available GPUs using NVML.
+
+    Returns:
+        Number of GPUs, or 0 if query fails.
+    """
+    try:
+        from pynvml import nvmlDeviceGetCount, nvmlInit, nvmlShutdown
+
+        nvmlInit()
+        count = nvmlDeviceGetCount()
+        nvmlShutdown()
+        return count
+    except Exception:
+        return 0
+
+
+def _get_gpu_memory_mb(gpu_id: int) -> int:
+    """Get total GPU memory in MB using NVML.
+
+    Args:
+        gpu_id: GPU device ID.
+
+    Returns:
+        Total memory in MB, or 0 if query fails.
+    """
+    try:
+        from pynvml import (
+            nvmlDeviceGetHandleByIndex,
+            nvmlDeviceGetMemoryInfo,
+            nvmlInit,
+            nvmlShutdown,
+        )
+
+        nvmlInit()
+        handle = nvmlDeviceGetHandleByIndex(gpu_id)
+        memory_info = nvmlDeviceGetMemoryInfo(handle)
+        nvmlShutdown()
+
+        # Convert bytes to MB
+        return memory_info.total // (1024 * 1024)
+    except Exception:
+        return 0
+
+
+@dataclass
+class GPUInfo:
+    """Information about a single GPU.
+
+    Attributes:
+        device_id: GPU device ID (0-based index).
+        total_memory_mb: Total GPU memory in MB.
+        memory_reserve_mb: Memory to reserve in MB.
+    """
+
+    device_id: int
+    total_memory_mb: int
+    memory_reserve_mb: int = 512
+
+    @property
+    def available_memory_mb(self) -> int:
+        """Available memory after reserve."""
+        return max(0, self.total_memory_mb - self.memory_reserve_mb)
+
+
+@dataclass
+class MultiGPUConfig:
+    """Configuration for multi-GPU processing.
+
+    Auto-detects available GPUs via nvidia-smi and provides
+    device assignment for parallel workers.
+
+    Attributes:
+        gpu_ids: List of GPU IDs to use (None = all available).
+        memory_reserve_mb: Memory to reserve per GPU in MB.
+        enabled_gpus: List of GPUInfo for enabled GPUs.
+
+    Example:
+        # Auto-detect all GPUs
+        config = MultiGPUConfig()
+
+        # Use specific GPUs
+        config = MultiGPUConfig(gpu_ids=[0, 2])
+
+        # Get device for worker
+        device = config.get_device_for_worker(worker_id=0)
+    """
+
+    gpu_ids: list[int] | None = None
+    memory_reserve_mb: int = 512
+    enabled_gpus: list[GPUInfo] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Detect GPUs and populate enabled_gpus."""
+        # Detect available GPUs using NVML
+        all_gpus: list[GPUInfo] = []
+
+        gpu_count = _get_gpu_count()
+        for i in range(gpu_count):
+            memory_mb = _get_gpu_memory_mb(i)
+            all_gpus.append(
+                GPUInfo(
+                    device_id=i,
+                    total_memory_mb=memory_mb,
+                    memory_reserve_mb=self.memory_reserve_mb,
+                )
+            )
+
+        # Filter by gpu_ids if specified
+        if self.gpu_ids is not None:
+            enabled = [gpu for gpu in all_gpus if gpu.device_id in self.gpu_ids]
+        else:
+            enabled = all_gpus
+
+        object.__setattr__(self, "enabled_gpus", enabled)
+
+        if not enabled:
+            logger.warning("No GPUs detected, falling back to CPU-only mode")
+
+    def get_device_for_worker(self, worker_id: int) -> str:
+        """Get device string for a specific worker.
+
+        Distributes workers across available GPUs in round-robin fashion.
+
+        Args:
+            worker_id: Worker index (0-based).
+
+        Returns:
+            "cuda" if GPUs available, "cpu" otherwise.
+        """
+        if not self.enabled_gpus:
+            return "cpu"
+
+        # Round-robin assignment
+        gpu_idx = worker_id % len(self.enabled_gpus)
+        gpu_info = self.enabled_gpus[gpu_idx]
+
+        # Set CUDA device for this worker
+        gpu_device_id = gpu_info.device_id
+
+        # Return device string (caller handles CUDA_VISIBLE_DEVICES)
+        return "cuda"
+
+    @property
+    def num_gpus(self) -> int:
+        """Number of enabled GPUs."""
+        return len(self.enabled_gpus)
+
+    @property
+    def has_gpu(self) -> bool:
+        """Whether at least one GPU is available."""
+        return self.num_gpus > 0
