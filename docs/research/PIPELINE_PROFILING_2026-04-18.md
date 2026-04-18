@@ -80,6 +80,21 @@ TOTAL                               70.6401   100.0%
 
 **Per-frame RTMO inference: 375.2ms/frame (CPU)**
 
+### Run 3: Ultra-deep (ONNX hook, DeepSORT hook)
+
+Monkey-patched `onnxruntime.InferenceSession.run()` and `DeepSORTTracker.update()` to isolate inference vs tracking vs overhead.
+
+| Component | Time (s) | % of pipeline | Per-frame |
+|-----------|----------|---------------|-----------|
+| **ONNX RTMO inference** | 50.5 | 74.9% | 271.5ms |
+| **DeepSORT tracking** | 12.1 | 17.9% | 71.4ms |
+| Other (cv2 decode, resize, coco2h36m, rtmlib IoU) | 4.9 | 7.2% | 26.3ms |
+| **Total** | **67.5** | **100%** | **362.7ms** |
+
+ONNX inference details: 186 calls, min=171ms, max=549ms, std=70ms. First few frames slower (ONNX session warmup / thread pool init).
+
+**DeepSORT = 17.9% of pipeline** — second largest consumer. Uses PyTorch MobileNet embedder for appearance-based Re-ID. Runs 169/186 frames (skipped when no detections).
+
 ## Full Pipeline Breakdown (Warm Run)
 
 ```
@@ -99,19 +114,20 @@ physics            ▏                                                0.0%
 
 ## Analysis
 
-### Bottleneck: RTMO per-frame inference = 98.8% of total time
+### Bottleneck: RTMO inference + DeepSORT = 92.8% of total time
 
-375ms/frame on CPU for RTMO-M (balanced) at 640x640. For 186 frames = 69.8s.
+362.7ms/frame on CPU for 186 frames = 67.5s.
 
-Inside `rtmo_inference_loop`, every frame runs:
-1. `cv2.VideoCapture.read()` — frame decode
+Inside the per-frame loop (`extract_video_tracked`), every frame runs:
+1. `cv2.VideoCapture.read()` — 4.6ms (frame decode)
 2. Optional resize (if > 1920px)
-3. `tracker(frame_ds)` — RTMO ONNX inference + built-in tracking
-4. COCO→H3.6M conversion + normalization
-5. Track association (Sports2D/DeepSORT/custom)
-6. Biometric validation (anti-steal)
+3. `tracker(frame_ds)` — RTMO ONNX inference (271.5ms) + rtmlib IoU tracking
+4. `DeepSORTTracker.update()` — PyTorch MobileNet embedder (71.4ms)
+5. COCO→H3.6M conversion + normalization + biometric anti-steal
 
-The RTMO ONNX inference itself dominates. Tracking overhead (Sports2D centroid association, biometric validation) is negligible compared to the neural network forward pass.
+**Two neural networks run per frame on CPU:**
+- RTMO (ONNX, 271.5ms) — pose estimation
+- DeepSORT embedder (PyTorch, 71.4ms) — appearance Re-ID
 
 ### Everything else combined: 1.2%
 
@@ -137,12 +153,13 @@ First run took 1130s vs warm 70.6s. Difference = 1059s, almost entirely RTMO mod
 
 ## Recommendations
 
-1. **RTMO inference is the only bottleneck.** 98.8% of pipeline time.
-2. **GPU acceleration is the primary lever.** Previously measured 7x speedup on GPU. With 375ms/frame → ~54ms/frame, 186 frames → ~10s total.
-3. **Frame skip for analysis.** Already available (`frame_skip` parameter). Skipping every other frame halves inference time with linear interpolation recovering skipped poses.
-4. **Lighter RTMO variant.** `rtmo-s` (small, 8xb32) vs current `rtmo-m` (medium, 16xb16). Trade accuracy for speed.
-5. **Batch inference.** Currently processes one frame at a time. ONNX Runtime supports batching — processing N frames per batch could improve GPU utilization.
-6. **Do NOT optimize Numba targets.** 0.4% of pipeline time. Numba JIT cold-start compilation may exceed saved time for single-run analysis.
+1. **Two bottlenecks: RTMO (74.9%) + DeepSORT (17.9%).** Combined 92.8% of pipeline.
+2. **GPU acceleration is the primary lever.** Both RTMO (ONNX) and DeepSORT (PyTorch) benefit. Previously measured 7x speedup for RTMO on GPU. DeepSORT embedder also GPU-accelerated via PyTorch CUDA.
+3. **Disable DeepSORT for single-person videos.** DeepSORT embedder runs even when only 1 person is detected. For single-skater analysis (most use cases), appearance Re-ID is unnecessary — rtmlib's built-in IoU tracking suffices. Use `tracking_backend="rtmlib"` or `tracking_mode="rtmlib"` to skip DeepSORT entirely. Expected savings: 71.4ms/frame (19.7%).
+4. **Frame skip for analysis.** Already available (`frame_skip` parameter). Skipping every other frame halves both RTMO and DeepSORT time.
+5. **Lighter RTMO variant.** `rtmo-s` (small) vs current `rtmo-m` (medium). Trade accuracy for speed.
+6. **Batch inference.** Currently one frame at a time. ONNX Runtime supports batching.
+7. **Do NOT optimize Numba targets.** 0.4% of pipeline time. Numba JIT cold-start compilation may exceed saved time for single-run analysis.
 
 ## Reproduction
 
