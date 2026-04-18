@@ -17,7 +17,6 @@ __pycache__
 .pytest_cache
 
 # Containers
-Dockerfile
 Containerfile
 compose.yaml
 compose*.yaml
