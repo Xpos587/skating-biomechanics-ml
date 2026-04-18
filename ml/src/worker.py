@@ -227,7 +227,7 @@ async def process_video_task(
 
         from backend.app.crud.session import get_by_id
         from backend.app.database import async_session  # type: ignore[import-untyped]
-        from src.vastai.client import process_video_remote
+        from src.vastai.client import process_video_remote_async
 
         # Fetch element_type from session if session_id provided
         element_type = None
@@ -238,10 +238,9 @@ async def process_video_task(
                     element_type = session.element_type
 
         logger.info("Dispatching task %s to Vast.ai (video_key=%s)", task_id, video_key)
-        vast_result = await asyncio.to_thread(
-            process_video_remote,
+        vast_result = await process_video_remote_async(
             video_key=video_key,
-            person_click={"x": person_click["x"], "y": person_click["y"]},
+            person_click={"x": person_click["x"], "y": person_click["y"]} if person_click else None,
             frame_skip=frame_skip,
             layer=layer,
             tracking=tracking,
@@ -457,7 +456,12 @@ class WorkerSettings:
     """arq worker configuration."""
 
     queue_name: str = "skating:queue"
-    max_jobs: int = _settings.app.worker_max_jobs
+    # Use higher max_jobs for remote GPU (5x concurrent), 1 for local GPU
+    max_jobs: int = (
+        _settings.app.worker_max_jobs_remote
+        if _settings.vastai.api_key.get_secret_value()
+        else _settings.app.worker_max_jobs
+    )
     retry_jobs: bool = True
     retry_delays: ClassVar[list[int]] = _settings.app.worker_retry_delays
 

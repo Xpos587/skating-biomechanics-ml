@@ -5,12 +5,16 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import aiobotocore.session
 import boto3
 from botocore.config import Config as BotoConfig
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Async session factory
+_async_session = aiobotocore.session.get_session()
 
 
 def _client():
@@ -94,3 +98,47 @@ def list_objects(prefix: str) -> list[str]:
     bucket = get_settings().r2.bucket
     resp = _client().list_objects_v2(Bucket=bucket, Prefix=prefix)
     return [obj["Key"] for obj in resp.get("Contents", [])]
+
+
+# ============ Async versions for GPU server ============
+
+
+async def _async_client():
+    """Async S3 client factory."""
+    s = get_settings()
+    return _async_session.create_client(
+        "s3",
+        endpoint_url=s.r2.endpoint_url or None,
+        aws_access_key_id=s.r2.access_key_id.get_secret_value(),
+        aws_secret_access_key=s.r2.secret_access_key.get_secret_value(),
+        config=BotoConfig(signature_version="s3v4"),
+        region_name="auto",
+    )
+
+
+async def upload_file_async(local_path: str | Path, key: str) -> str:
+    """Upload file to R2 asynchronously. Returns the key."""
+    bucket = get_settings().r2.bucket
+    logger.info("Uploading %s -> s3://%s/%s (async)", local_path, bucket, key)
+    async with await _async_client() as s3:
+        await s3.upload_file(str(local_path), bucket, key)
+    return key
+
+
+async def download_file_async(key: str, local_path: str | Path) -> str:
+    """Download file from R2 asynchronously. Returns the local path."""
+    bucket = get_settings().r2.bucket
+    logger.info("Downloading s3://%s/%s -> %s (async)", bucket, key, local_path)
+    Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+    async with await _async_client() as s3:
+        await s3.download_file(bucket, key, str(local_path))
+    return str(local_path)
+
+
+async def upload_bytes_async(data: bytes, key: str) -> str:
+    """Upload bytes to R2 asynchronously. Returns the key."""
+    bucket = get_settings().r2.bucket
+    logger.info("Uploading %d bytes -> s3://%s/%s (async)", len(data), bucket, key)
+    async with await _async_client() as s3:
+        await s3.put_object(Bucket=bucket, Key=key, Body=data)
+    return key

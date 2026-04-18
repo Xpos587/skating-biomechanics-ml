@@ -23,6 +23,7 @@ dependencies = [
     "redis>=5.0.0",
     "structlog>=25.5.0",
     "skating-backend @ file:///home/michael/Github/skating-biomechanics-ml/backend",
+    "aiobotocore>=3.4.0",
 ]
 
 [build-system]
