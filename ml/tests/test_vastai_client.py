@@ -56,7 +56,7 @@ def test_process_video_remote_passes_r2_key(mock_post):
 
     mock_post.side_effect = [mock_route_resp, mock_process_resp]
 
-    with patch("backend.app.config.get_settings") as mock_settings:
+    with patch("src.vastai.client.get_settings") as mock_settings:
         s = MagicMock()
         s.vastai.api_key.get_secret_value.return_value = "test-key"
         s.vastai.endpoint_name = "skating-ml-gpu"
