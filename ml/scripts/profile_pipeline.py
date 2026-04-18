@@ -86,25 +86,36 @@ def main() -> int:
 
         total_extract = rtmo_inference + extractor_init + gap_fill + spatial_ref
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("DEEP PROFILE: extract_and_track breakdown")
-        print(f"{'='*60}")
-        print(f"  extractor_init (lazy load):       {extractor_init:>10.3f}s  ({extractor_init/total_extract*100:>5.1f}%)")
-        print(f"  RTMO model download + ONNX init:  {tracker_init_time_s:>10.3f}s  ({tracker_init_time_s/total_extract*100:>5.1f}%)")
-        print(f"  rtmo_inference_loop:              {rtmo_inference:>10.3f}s  ({rtmo_inference/total_extract*100:>5.1f}%)")
-        print(f"  gap_filling:                      {gap_fill:>10.3f}s  ({gap_fill/total_extract*100:>5.1f}%)")
-        print(f"  spatial_reference:                {spatial_ref:>10.3f}s  ({spatial_ref/total_extract*100:>5.1f}%)")
-        print(f"  {'─'*46}")
+        print(f"{'=' * 60}")
+        print(
+            f"  extractor_init (lazy load):       {extractor_init:>10.3f}s  ({extractor_init / total_extract * 100:>5.1f}%)"
+        )
+        print(
+            f"  RTMO model download + ONNX init:  {tracker_init_time_s:>10.3f}s  ({tracker_init_time_s / total_extract * 100:>5.1f}%)"
+        )
+        print(
+            f"  rtmo_inference_loop:              {rtmo_inference:>10.3f}s  ({rtmo_inference / total_extract * 100:>5.1f}%)"
+        )
+        print(
+            f"  gap_filling:                      {gap_fill:>10.3f}s  ({gap_fill / total_extract * 100:>5.1f}%)"
+        )
+        print(
+            f"  spatial_reference:                {spatial_ref:>10.3f}s  ({spatial_ref / total_extract * 100:>5.1f}%)"
+        )
+        print(f"  {'─' * 46}")
         print(f"  total extract_and_track:          {total_extract:>10.3f}s")
 
         # Compute avg per-frame
         pure_inference = rtmo_inference - tracker_init_time_s
         from skating_ml.utils.video import get_video_meta
+
         video_meta = get_video_meta(args.video)
         num_frames = video_meta.num_frames
         avg_per_frame_ms = (pure_inference / max(num_frames, 1)) * 1000
         print(f"\n  Per-frame inference: {avg_per_frame_ms:.1f}ms/frame ({num_frames} frames)")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         deep_data = {
             "extractor_init_s": round(extractor_init, 3),
