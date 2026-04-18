@@ -2,7 +2,7 @@
 
 import { AlertCircle, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useMemo, useRef, useState } from "react"
 import { DownloadSection } from "@/components/dashboard/download-section"
 import { StatsCards } from "@/components/dashboard/stats-cards"
 import { VideoPlayer } from "@/components/dashboard/video-player"
@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { useTranslations } from "@/i18n"
 import { cancelQueuedProcess, enqueueProcess, pollTaskStatus } from "@/lib/api"
 import { toastError, toastSuccess } from "@/lib/toast"
+import { useMountEffect } from "@/lib/useMountEffect"
 import type { PersonClick, ProcessResponse } from "@/types"
 
 type Phase = "processing" | "done" | "error"
@@ -112,10 +113,10 @@ function AnalyzeContent() {
     setPhase("error")
   }, [taskId, stopPolling])
 
-  useEffect(() => {
+  useMountEffect(() => {
     if (videoKey) startProcessing()
     return () => stopPolling()
-  }, [videoKey, startProcessing, stopPolling])
+  })
 
   const videoUrl = result ? `/api/v1/outputs/${result.video_path}` : ""
   const posesUrl = result?.poses_path ? `/api/v1/outputs/${result.poses_path}` : null

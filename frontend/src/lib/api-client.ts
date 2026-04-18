@@ -2,6 +2,7 @@
  * Shared API infrastructure: base URL, token storage, typed fetch helper.
  */
 
+import { redirect } from "next/navigation"
 import type { z } from "zod"
 
 export const API_BASE = "/api/v1"
@@ -74,7 +75,7 @@ export async function apiFetch<T>(
   if (!res.ok) {
     if (res.status === 401) {
       clearTokens()
-      window.location.href = "/login"
+      redirect("/login")
       throw new ApiError("Unauthorized", res.status)
     }
     const body = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))

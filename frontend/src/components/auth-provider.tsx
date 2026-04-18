@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { createContext, type ReactNode, useContext, useState } from "react"
 import type { UserResponse } from "@/lib/auth"
 import * as auth from "@/lib/auth"
@@ -17,6 +18,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter()
   const [user, setUser] = useState<UserResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -34,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const refresh = auth.getRefreshToken()
         if (!refresh) {
           auth.clearTokens()
-          window.location.href = "/login"
+          router.push("/login")
           return
         }
         try {
@@ -44,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(u)
         } catch {
           auth.clearTokens()
-          window.location.href = "/login"
+          router.push("/login")
         }
       })
       .finally(() => setIsLoading(false))

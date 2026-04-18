@@ -54,7 +54,10 @@ export function VideoWithSkeleton({
   if (!poseData) {
     // Fallback: show video without skeleton
     return (
-      <div className={`relative bg-black ${className}`}>
+      <div
+        className={`relative ${className}`}
+        style={{ backgroundColor: "oklch(var(--background))" }}
+      >
         {/* biome-ignore lint/a11y/useMediaCaption: Skating analysis video has no captions */}
         <video
           ref={videoRef}
@@ -71,7 +74,8 @@ export function VideoWithSkeleton({
     // biome-ignore lint/a11y/useSemanticElements: div maintains aspect-video CSS
     <div
       ref={containerRef}
-      className={`relative aspect-video bg-black ${className}`}
+      className={`relative aspect-video ${className}`}
+      style={{ backgroundColor: "oklch(var(--background))" }}
       onClick={handleSeek}
       onKeyDown={e => e.key === "Enter" && handleSeek(e)}
       role="button"

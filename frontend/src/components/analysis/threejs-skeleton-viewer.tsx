@@ -80,18 +80,33 @@ export function ThreeJSkeletonViewer({
       </Canvas>
 
       {/* Legend */}
-      <div className="absolute bottom-2 left-2 rounded-lg bg-black/60 p-2 text-xs text-white">
+      <div
+        className="absolute bottom-2 left-2 rounded-lg p-2 text-xs"
+        style={{
+          backgroundColor: "oklch(var(--background) / 0.6)",
+          color: "oklch(var(--foreground))",
+        }}
+      >
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-green-500" />
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: "oklch(var(--score-good))" }}
+            />
             <span>90-170°</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-yellow-500" />
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: "oklch(var(--score-mid))" }}
+            />
             <span>60-190°</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-red-500" />
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: "oklch(var(--score-bad))" }}
+            />
             <span className="text-xs">&lt;60° / &gt;190°</span>
           </div>
         </div>

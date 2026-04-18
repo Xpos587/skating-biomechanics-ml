@@ -52,46 +52,54 @@ export function PhaseTimeline({ totalFrames, phases }: PhaseTimelineProps) {
       {/* Phase zones */}
       {takeoffPercent !== null && peakPercent !== null && (
         <div
-          className="absolute top-0 bottom-0 bg-green-500/20"
-          style={{ left: `${takeoffPercent}%`, right: `${100 - peakPercent}%` }}
+          className="absolute top-0 bottom-0"
+          style={{
+            left: `${takeoffPercent}%`,
+            right: `${100 - peakPercent}%`,
+            backgroundColor: "oklch(var(--score-good) / 0.2)",
+          }}
         />
       )}
 
       {peakPercent !== null && landingPercent !== null && (
         <div
-          className="absolute top-0 bottom-0 bg-yellow-500/20"
-          style={{ left: `${peakPercent}%`, right: `${100 - landingPercent}%` }}
+          className="absolute top-0 bottom-0"
+          style={{
+            left: `${peakPercent}%`,
+            right: `${100 - landingPercent}%`,
+            backgroundColor: "oklch(var(--score-mid) / 0.2)",
+          }}
         />
       )}
 
       {landingPercent !== null && (
         <div
-          className="absolute top-0 bottom-0 bg-red-500/20"
-          style={{ left: `${landingPercent}%` }}
+          className="absolute top-0 bottom-0"
+          style={{ left: `${landingPercent}%`, backgroundColor: "oklch(var(--score-bad) / 0.2)" }}
         />
       )}
 
       {/* Phase markers */}
       {takeoffPercent !== null && (
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-green-500"
-          style={{ left: `${takeoffPercent}%` }}
+          className="absolute top-0 bottom-0 w-0.5"
+          style={{ left: `${takeoffPercent}%`, backgroundColor: "oklch(var(--score-good))" }}
           title="Takeoff"
         />
       )}
 
       {peakPercent !== null && (
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-yellow-500"
-          style={{ left: `${peakPercent}%` }}
+          className="absolute top-0 bottom-0 w-0.5"
+          style={{ left: `${peakPercent}%`, backgroundColor: "oklch(var(--score-mid))" }}
           title="Peak"
         />
       )}
 
       {landingPercent !== null && (
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-red-500"
-          style={{ left: `${landingPercent}%` }}
+          className="absolute top-0 bottom-0 w-0.5"
+          style={{ left: `${landingPercent}%`, backgroundColor: "oklch(var(--score-bad))" }}
           title="Landing"
         />
       )}

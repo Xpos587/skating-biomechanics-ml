@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 import type { PoseData } from "@/types"
 
 interface SkeletonCanvasProps {
@@ -59,7 +59,7 @@ const JOINT_COLORS = [
 export function SkeletonCanvas({ poseData, currentFrame, width, height }: SkeletonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 

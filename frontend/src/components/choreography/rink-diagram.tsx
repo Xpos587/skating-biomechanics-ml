@@ -30,7 +30,8 @@ export function RinkDiagram({ svgHtml, isLoading }: RinkDiagramProps) {
 
   return (
     <div
-      className="rounded-2xl border border-border bg-white p-2 dark:bg-card"
+      className="rounded-2xl border border-border p-2"
+      style={{ backgroundColor: "oklch(var(--background))" }}
       // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from trusted server-side renderer
       dangerouslySetInnerHTML={{ __html: svgHtml }}
     />

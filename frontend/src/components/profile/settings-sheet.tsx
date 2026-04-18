@@ -59,7 +59,8 @@ export function SettingsSheet() {
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <button
             type="button"
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0"
+            style={{ backgroundColor: "oklch(var(--background) / 0.5)" }}
             onClick={() => setOpen(false)}
             aria-label="Close settings modal"
           />

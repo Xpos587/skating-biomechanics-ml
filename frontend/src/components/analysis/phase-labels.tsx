@@ -20,24 +20,36 @@ export function PhaseLabels({ phases, currentFrame, width }: PhaseLabelsProps) {
     <div className="absolute top-2 left-0 right-0 flex justify-between px-4">
       {takeoffX !== null && (
         <div
-          className="absolute top-0 rounded-full bg-green-500/80 px-2 py-1 text-xs font-medium text-white"
-          style={{ left: `${takeoffX}px` }}
+          className="absolute top-0 rounded-full px-2 py-1 text-xs font-medium"
+          style={{
+            left: `${takeoffX}px`,
+            backgroundColor: "oklch(var(--score-good) / 0.8)",
+            color: "oklch(var(--background))",
+          }}
         >
           Takeoff
         </div>
       )}
       {peakX !== null && (
         <div
-          className="absolute top-0 rounded-full bg-yellow-500/80 px-2 py-1 text-xs font-medium text-white"
-          style={{ left: `${peakX}px` }}
+          className="absolute top-0 rounded-full px-2 py-1 text-xs font-medium"
+          style={{
+            left: `${peakX}px`,
+            backgroundColor: "oklch(var(--score-mid) / 0.8)",
+            color: "oklch(var(--background))",
+          }}
         >
           Peak
         </div>
       )}
       {landingX !== null && (
         <div
-          className="absolute top-0 rounded-full bg-red-500/80 px-2 py-1 text-xs font-medium text-white"
-          style={{ left: `${landingX}px` }}
+          className="absolute top-0 rounded-full px-2 py-1 text-xs font-medium"
+          style={{
+            left: `${landingX}px`,
+            backgroundColor: "oklch(var(--score-bad) / 0.8)",
+            color: "oklch(var(--background))",
+          }}
         >
           Landing
         </div>

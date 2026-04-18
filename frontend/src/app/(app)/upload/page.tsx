@@ -1,6 +1,7 @@
 "use client"
 
 import { CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { CameraRecorder } from "@/components/upload/camera-recorder"
@@ -13,6 +14,7 @@ import { ChunkedUploader } from "@/lib/api/uploads"
 type Step = "ready" | "picked" | "uploading" | "done"
 
 export default function UploadPage() {
+  const router = useRouter()
   const createSession = useCreateSession()
   const t = useTranslations("upload")
 
@@ -57,7 +59,7 @@ export default function UploadPage() {
       setStep("done")
       toast.success(t("videoUploaded"))
       if (session?.id) {
-        window.location.href = `/sessions/${session.id}`
+        router.push(`/sessions/${session.id}`)
       }
     } catch {
       toast.error(t("uploadError"))
@@ -111,7 +113,10 @@ export default function UploadPage() {
   if (step === "picked" && file && previewUrl) {
     return (
       <div className="mx-auto max-w-lg space-y-5 px-4 py-4">
-        <div className="relative overflow-hidden rounded-2xl bg-black">
+        <div
+          className="relative overflow-hidden rounded-2xl"
+          style={{ backgroundColor: "oklch(var(--background))" }}
+        >
           {/* biome-ignore lint/a11y/useMediaCaption: user recording, no captions */}
           <video
             src={previewUrl}
