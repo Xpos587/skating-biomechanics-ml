@@ -227,7 +227,7 @@ class PhysicsEngine:
         torso_pos = (spine + thorax) / 2
         add_segment_inertia([(torso_pos, self.segment_masses["torso"])])
 
-        # Arms (left and right)
+        # Arm segments
         l_upper_arm = (l_shoulder + l_elbow) / 2
         r_upper_arm = (r_shoulder + r_elbow) / 2
         l_forearm = (l_elbow + l_wrist) / 2
@@ -244,7 +244,7 @@ class PhysicsEngine:
             ]
         )
 
-        # Legs (left and right)
+        # Leg segments
         l_thigh = (l_hip + l_knee) / 2
         r_thigh = (r_hip + r_knee) / 2
         l_shin = (l_knee + l_foot) / 2
