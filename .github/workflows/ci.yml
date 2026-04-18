@@ -65,20 +65,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Cache ast-grep binary
-        id: cache-sg
-        uses: actions/cache@v5
+      - uses: ast-grep/action@v0.42.1
         with:
-          path: /usr/local/bin/sg
-          key: sg-0.42.1
-      - name: Install ast-grep
-        if: steps.cache-sg.outputs.cache-hit != 'true'
-        run: |
-          curl -L https://github.com/ast-grep/ast-grep/releases/download/0.42.1/x86_64-unknown-linux-gnu.zip -o sg.zip
-          unzip sg.zip -d /tmp/sg
-          sudo mv /tmp/sg/sg /usr/local/bin/sg
-      - name: Scan all rules
-        run: sg scan -c sgconfig.yml backend/ ml/ frontend/
+          config: sgconfig.yml
+          paths: "backend/ ml/ frontend/"
 
   test:
     name: Tests
