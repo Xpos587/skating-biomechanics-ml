@@ -20,7 +20,7 @@ declare global {
       sphereGeometry: Object3DNode<SphereGeometry, typeof SphereGeometry>
       cylinderGeometry: Object3DNode<CylinderGeometry, typeof CylinderGeometry>
       meshStandardMaterial: Object3DNode<MeshStandardMaterial, typeof MeshStandardMaterial>
-      primitive: { object?: Object3D; [key: string]: unknown } // biome-ignorelint: lint/suspicious/noExplicitAny
+      primitive: { object?: Object3D; [key: string]: unknown }
     }
   }
 }
