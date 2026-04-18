@@ -1,70 +1,69 @@
-"""Profile ML pipeline to find optimization targets."""
+#!/usr/bin/env python3
+"""Profile the full ML pipeline on a real video.
 
-import cProfile
-import pstats
-import io
+Usage:
+    cd ml && .venv/bin/python scripts/profile_pipeline.py /path/to/video.mp4 [--element waltz_jump] [--json output.json]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-def profile_extraction(video_path: str, device: str = "cuda"):
-    """Profile pose extraction."""
-    print(f"Profiling pose extraction on {device}...")
-
-    from skating_ml.pose_estimation import PoseExtractor
-
-    profiler = cProfile.Profile()
-    profiler.enable()
-
-    extractor = PoseExtractor(device=device)
-    poses = extractor.extract_video(video_path)
-
-    profiler.disable()
-
-    s = io.StringIO()
-    ps = pstats.Stats(profiler, stream=s).sort_stats("cumulative")
-    ps.print_stats(20)  # Top 20 functions
-
-    print(s.getvalue())
-    return poses
+from skating_ml.pipeline import AnalysisPipeline
+from skating_ml.utils.profiling import PipelineProfiler
 
 
-def profile_analysis(poses, fps: float = 30.0):
-    """Profile biomechanics analysis."""
-    print("\nProfiling biomechanics analysis...")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Profile ML pipeline on a video")
+    parser.add_argument("video", type=Path, help="Path to video file")
+    parser.add_argument("--element", type=str, default=None, help="Element type")
+    parser.add_argument("--json", type=Path, default=None, help="Output JSON path")
+    parser.add_argument("--no-smoothing", action="store_true", help="Disable smoothing")
+    args = parser.parse_args()
 
-    from skating_ml.analysis import BiomechanicsAnalyzer
+    if not args.video.exists():
+        print(f"Error: video not found: {args.video}", file=sys.stderr)
+        return 1
 
-    profiler = cProfile.Profile()
-    profiler.enable()
+    print(f"Video: {args.video}")
+    print(f"Element: {args.element or 'poses only'}")
+    print()
 
-    analyzer = BiomechanicsAnalyzer()
-    results = analyzer.analyze(poses, fps=fps)
+    profiler = PipelineProfiler()
+    pipeline = AnalysisPipeline(
+        profiler=profiler,
+        enable_smoothing=not args.no_smoothing,
+    )
 
-    profiler.disable()
+    with profiler:
+        report = pipeline.analyze(
+            video_path=args.video,
+            element_type=args.element,
+        )
 
-    s = io.StringIO()
-    ps = pstats.Stats(profiler, stream=s).sort_stats("cumulative")
-    ps.print_stats(20)
+    print(profiler.summary_table())
+    print()
+    print(f"Element: {report.element_type}")
+    print(f"Frames: {report.phases.end if report.phases else 'N/A'}")
+    print(f"Score: {report.overall_score}/10")
+    print(f"Metrics: {len(report.metrics)}")
 
-    print(s.getvalue())
-    return results
+    if args.json:
+        data = profiler.to_dict()
+        data["video"] = str(args.video)
+        data["element"] = args.element
+        data["score"] = report.overall_score
+        with open(args.json, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"\nJSON saved to {args.json}")
+
+    return 0
 
 
 if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Usage: profile_pipeline.py <video_path> [device]")
-        print("  video_path: Path to video file for profiling")
-        print("  device: 'cuda' or 'cpu' (default: cuda)")
-        sys.exit(1)
-
-    video_path = sys.argv[1]
-    device = sys.argv[2] if len(sys.argv) > 2 else "cuda"
-
-    if not Path(video_path).exists():
-        print(f"Error: Video file not found: {video_path}")
-        sys.exit(1)
-
-    poses = profile_extraction(video_path, device)
-    profile_analysis(poses)
+    sys.exit(main())
