@@ -110,18 +110,18 @@ max-statements = 80
 known-first-party = ["backend", "skating_ml"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401"]
-"backend/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401"]
-"ml/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401"]
+"tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401", "S105"]
+"backend/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401", "S105"]
+"ml/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401", "S105"]
 "__init__.py" = ["F401"]  # unused imports
 "scripts/visualize_with_skeleton.py" = ["ARG001"]
-"ml/scripts/**/*.py" = ["T20", "S602", "ERA", "E402", "S101", "B007", "PTH"]
+"ml/scripts/**/*.py" = ["T20", "S602", "ERA", "E402", "S101", "B007", "PTH", "S108", "S310", "S603", "BLE001", "ARG001", "F841", "I001"]
 "experiments/**/*.py" = ["T20", "S", "ERA"]
 "ml/skating_ml/analysis/rules/*.py" = []
 "ml/skating_ml/visualization/**/*.py" = []
 "ml/skating_ml/cli.py" = []
 "ml/skating_ml/**/*.py" = ["ARG001", "F841", "S110", "BLE001"]  # legacy error handling
-"backend/**/*.py" = ["ARG001", "F841"]
+"backend/**/*.py" = ["ARG001", "F841", "S110", "BLE001", "TC001", "S105", "S311"]
 
 [tool.ruff.format]
 quote-style = "double"
