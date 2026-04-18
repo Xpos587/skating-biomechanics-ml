@@ -19,35 +19,13 @@ from ..types import (
     TimeSeries,
 )
 from ..utils.geometry import (
+    _angle_3pt_rad,
     angle_3pt,
     calculate_com_trajectory,
 )
 
 if TYPE_CHECKING:
     from .element_defs import ElementDef
-
-
-# Numba-jitted core functions (for performance)
-@njit(cache=True, fastmath=True)
-def _angle_3pt_rad_numba(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
-    """Calculate angle ABC in radians (jitted).
-
-    Args:
-        a: Point A (x, y).
-        b: Vertex B (x, y).
-        c: Point C (x, y).
-
-    Returns:
-        Angle in radians [0, π].
-    """
-    ba = a - b
-    bc = c - b
-
-    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-8)
-    cosine_angle = max(-1.0, min(1.0, cosine_angle))
-    angle = np.arccos(cosine_angle)
-
-    return angle
 
 
 @njit(cache=True, fastmath=True)
@@ -78,7 +56,7 @@ def _compute_knee_angle_series_numba(
         knee = pose[knee_idx]
         foot = pose[foot_idx]
 
-        angle_rad = _angle_3pt_rad_numba(hip, knee, foot)
+        angle_rad = _angle_3pt_rad(hip, knee, foot)
         angles[i] = angle_rad * rad2deg
 
     return angles

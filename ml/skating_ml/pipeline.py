@@ -16,7 +16,10 @@ Pipeline stages:
     8. Recommendations
 """
 
+from __future__ import annotations
+
 import asyncio
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,6 +27,7 @@ import numpy as np
 
 from .device import DeviceConfig
 from .types import AnalysisReport, ElementPhase, PersonClick, SegmentationResult
+from .utils.profiling import PipelineProfiler
 from .utils.video import VideoMeta, get_video_meta
 
 if TYPE_CHECKING:
@@ -48,12 +52,13 @@ class AnalysisPipeline:
 
     def __init__(
         self,
-        reference_store: "ReferenceStore | None" = None,  # type: ignore[valid-type]
+        reference_store: ReferenceStore | None = None,  # type: ignore[valid-type]
         device: str | DeviceConfig = "auto",
         enable_smoothing: bool = True,
-        smoothing_config: "OneEuroFilterConfig | None" = None,  # type: ignore[valid-type]
+        smoothing_config: OneEuroFilterConfig | None = None,  # type: ignore[valid-type]
         person_click: PersonClick | None = None,
         reestimate_camera: bool = False,
+        profiler: PipelineProfiler | None = None,
     ) -> None:
         """Initialize analysis pipeline.
 
@@ -65,6 +70,7 @@ class AnalysisPipeline:
             smoothing_config: Optional custom smoothing configuration.
             person_click: Optional click point to select target person in multi-person videos.
             reestimate_camera: Enable per-frame camera re-estimation for moving cameras.
+            profiler: Optional PipelineProfiler for recording stage timings.
         """
         self._reference_store = reference_store
         self._device_config = DeviceConfig(device) if isinstance(device, str) else device
@@ -72,6 +78,7 @@ class AnalysisPipeline:
         self._smoothing_config = smoothing_config
         self._person_click = person_click
         self._reestimate_camera = reestimate_camera
+        self._profiler = profiler or PipelineProfiler()
 
         # Components will be lazy-loaded
         self._detector: PersonDetector | None = None  # type: ignore[valid-type]
@@ -98,24 +105,33 @@ class AnalysisPipeline:
             (compensated_h36m, frame_offset) — poses (N, 17, 3) normalized,
             frame_offset = first_detection_frame index.
         """
-        # 1. Tracked extraction
+        # 1. Lazy-init extractor (model download + ONNX session)
+        t0 = time.perf_counter()
         extractor = self._get_pose_2d_extractor()
         if extractor is None:
             raise RuntimeError("2D pose extractor not initialized")
-        extraction = extractor.extract_video_tracked(video_path, person_click=self._person_click)
+        self._profiler.record("extractor_init", time.perf_counter() - t0)
 
-        # 2. Skip pre-roll (trim leading NaN frames before first detection)
+        # 2. Tracked extraction (per-frame RTMO inference + tracking)
+        t0 = time.perf_counter()
+        extraction = extractor.extract_video_tracked(video_path, person_click=self._person_click)
+        self._profiler.record("rtmo_inference_loop", time.perf_counter() - t0)
+
+        # 3. Skip pre-roll (trim leading NaN frames before first detection)
         frame_offset = extraction.first_detection_frame
         poses = extraction.poses[frame_offset:]
         valid = extraction.valid_mask()[frame_offset:]
 
-        # 3. Gap filling
+        # 4. Gap filling
+        t0 = time.perf_counter()
         from .utils.gap_filling import GapFiller
 
         filler = GapFiller()
         filled, _report = filler.fill_gaps(poses, valid)
+        self._profiler.record("gap_filling", time.perf_counter() - t0)
 
-        # 4. Spatial reference / camera compensation
+        # 5. Spatial reference / camera compensation
+        t0 = time.perf_counter()
         if self._reestimate_camera:
             from .detection.spatial_reference import (
                 compensate_poses_per_frame,
@@ -153,6 +169,7 @@ class AnalysisPipeline:
                 compensated = np.dstack([compensated, compensated_px[:, :, 2:3]])
             else:
                 compensated = filled
+        self._profiler.record("spatial_reference", time.perf_counter() - t0)
 
         return compensated, frame_offset
 
@@ -188,17 +205,20 @@ class AnalysisPipeline:
             if element_def is None:
                 raise ValueError(f"Unknown element type: {element_type}")
 
-        # Get video metadata
+        t0 = time.perf_counter()
         meta = get_video_meta(video_path)
+        self._profiler.record("video_meta", time.perf_counter() - t0)
 
-        # Stage 1-2.6: Extract poses with tracking, gap filling, spatial compensation
+        t0 = time.perf_counter()
         compensated_h36m, _frame_offset = self._extract_and_track(video_path, meta)
+        self._profiler.record("extract_and_track", time.perf_counter() - t0)
 
-        # Stage 3: Normalize poses
-
+        t0 = time.perf_counter()
         normalized = self._get_normalizer().normalize(compensated_h36m)
+        self._profiler.record("normalize", time.perf_counter() - t0)
 
         # Stage 3.5: Smooth poses (temporal filtering)
+        t0 = time.perf_counter()
         if self._enable_smoothing:
             if manual_phases is not None:
                 boundaries = [manual_phases.takeoff, manual_phases.peak, manual_phases.landing]
@@ -208,8 +228,10 @@ class AnalysisPipeline:
                 smoothed = self._get_smoother(meta.fps).smooth(normalized)
         else:
             smoothed = normalized
+        self._profiler.record("smooth", time.perf_counter() - t0)
 
         # Stage 3.6: 3D pose estimation (for blade detection & physics)
+        t0 = time.perf_counter()
         poses_3d = None
         blade_summary_left = None
         blade_summary_right = None
@@ -242,10 +264,12 @@ class AnalysisPipeline:
         except Exception:
             # 3D lifting is optional, don't fail if it errors
             pass
+        self._profiler.record("3d_lift_and_blade", time.perf_counter() - t0)
 
         # Stage 4-7: Element-specific analysis (only when element_type provided)
         if element_type is not None and element_def is not None:
             # Stage 4: Detect phases (or use manual)
+            t0 = time.perf_counter()
             if manual_phases is not None:
                 phases = manual_phases
             else:
@@ -253,12 +277,16 @@ class AnalysisPipeline:
                     smoothed, meta.fps, element_type
                 )
                 phases = phase_result.phases
+            self._profiler.record("phase_detection", time.perf_counter() - t0)
 
             # Stage 5: Compute biomechanics metrics
+            t0 = time.perf_counter()
             analyzer = self._get_analyzer_factory()(element_def)
             metrics = analyzer.analyze(smoothed, phases, meta.fps)
+            self._profiler.record("metrics", time.perf_counter() - t0)
 
             # Stage 6: Load reference and align (if available)
+            t0 = time.perf_counter()
             dtw_distance: float | None = None
             if self._reference_store is not None:
                 reference = self._reference_store.get_best_match(element_type)
@@ -268,8 +296,10 @@ class AnalysisPipeline:
                         normalized[phases.start : phases.end],
                         reference.poses[reference.phases.start : reference.phases.end],
                     )
+            self._profiler.record("dtw_alignment", time.perf_counter() - t0)
 
             # Stage 6.5: Physics calculations (3D pose + biomechanics)
+            t0 = time.perf_counter()
             physics_dict: dict = {}
             if poses_3d is not None:
                 try:
@@ -292,10 +322,13 @@ class AnalysisPipeline:
                     physics_dict["avg_inertia"] = float(np.mean(inertia))
                 except Exception:
                     pass
+            self._profiler.record("physics", time.perf_counter() - t0)
 
             # Stage 7: Generate recommendations
+            t0 = time.perf_counter()
             recommender = self._get_recommender()
             recommendations = recommender.recommend(metrics, element_type)
+            self._profiler.record("recommendations", time.perf_counter() - t0)
 
             # Stage 8: Compute overall score
             overall_score = self._compute_overall_score(metrics)
@@ -318,6 +351,7 @@ class AnalysisPipeline:
             blade_summary_left=blade_summary_left if blade_summary_left is not None else {},
             blade_summary_right=blade_summary_right if blade_summary_right is not None else {},
             physics=physics_dict,
+            profiling=self._profiler.to_dict(),
         )
 
     def segment_video(
@@ -358,7 +392,7 @@ class AnalysisPipeline:
 
         return segmentation
 
-    def _get_detector(self) -> "PersonDetector":  # type: ignore[valid-type]
+    def _get_detector(self) -> PersonDetector:  # type: ignore[valid-type]
         """Lazy-load person detector."""
         if self._detector is None:
             from .detection import person_detector
@@ -368,7 +402,7 @@ class AnalysisPipeline:
             self._detector = PersonDetector(model_size="n", confidence=0.5)
         return self._detector
 
-    def _get_pose_2d_extractor(self) -> "PoseExtractor":  # type: ignore[valid-type]
+    def _get_pose_2d_extractor(self) -> PoseExtractor:  # type: ignore[valid-type]
         """Lazy-load PoseExtractor (sole 2D pose backend)."""
         if self._pose_2d_extractor is None:
             from .pose_estimation.pose_extractor import PoseExtractor
@@ -379,7 +413,7 @@ class AnalysisPipeline:
             )
         return self._pose_2d_extractor  # type: ignore[return-value]
 
-    def _get_pose_3d_extractor(self) -> "AthletePose3DExtractor | None":  # type: ignore[valid-type]
+    def _get_pose_3d_extractor(self) -> AthletePose3DExtractor | None:  # type: ignore[valid-type]
         """Lazy-load 3D pose lifter (MotionAGFormer). Returns None if model not found."""
         if self._pose_3d_extractor is None:
             model_path = Path("data/models/motionagformer-s-ap3d.onnx")
@@ -393,7 +427,7 @@ class AnalysisPipeline:
             )
         return self._pose_3d_extractor
 
-    def _get_normalizer(self) -> "PoseNormalizer":  # type: ignore[valid-type]
+    def _get_normalizer(self) -> PoseNormalizer:  # type: ignore[valid-type]
         """Lazy-load pose normalizer."""
         if self._normalizer is None:
             from .pose_estimation import normalizer
@@ -403,7 +437,7 @@ class AnalysisPipeline:
             self._normalizer = PoseNormalizer(target_spine_length=0.4)
         return self._normalizer
 
-    def _get_smoother(self, fps: float = 30.0) -> "PoseSmoother":  # type: ignore[valid-type]
+    def _get_smoother(self, fps: float = 30.0) -> PoseSmoother:  # type: ignore[valid-type]
         """Lazy-load pose smoother with One-Euro Filter."""
         if not self._enable_smoothing:
             from .utils.smoothing import OneEuroFilterConfig, PoseSmoother
@@ -421,7 +455,7 @@ class AnalysisPipeline:
             self._smoother = PoseSmoother(config=config, freq=fps)
         return self._smoother
 
-    def _get_phase_detector(self) -> "PhaseDetector":  # type: ignore[valid-type]
+    def _get_phase_detector(self) -> PhaseDetector:  # type: ignore[valid-type]
         """Lazy-load phase detector."""
         if self._phase_detector is None:
             from .analysis import phase_detector
@@ -441,7 +475,7 @@ class AnalysisPipeline:
             self._analyzer_factory = BiomechanicsAnalyzer
         return self._analyzer_factory
 
-    def _get_aligner(self) -> "MotionAligner | MotionDTWAligner":  # type: ignore[valid-type]
+    def _get_aligner(self) -> MotionAligner | MotionDTWAligner:  # type: ignore[valid-type]
         """Lazy-load motion aligner (using phase-aware MotionDTW)."""
         if self._aligner is None:
             from .alignment import motion_dtw
@@ -451,7 +485,7 @@ class AnalysisPipeline:
             self._aligner = MotionDTWAligner(window_type="sakoechiba", window_size=0.2)
         return self._aligner
 
-    def _get_recommender(self) -> "Recommender":  # type: ignore[valid-type]
+    def _get_recommender(self) -> Recommender:  # type: ignore[valid-type]
         """Lazy-load recommender."""
         if self._recommender is None:
             from .analysis import recommender

@@ -11,6 +11,7 @@ from skating_ml.utils.geometry import (
     normalize_poses,
     smooth_signal,
 )
+from skating_ml.utils.profiling import PipelineProfiler, StageTiming, profile_stage
 from skating_ml.utils.smoothing import OneEuroFilter, OneEuroFilterConfig, PoseSmoother
 from skating_ml.utils.subtitles import ElementEvent, SubtitleParser
 from skating_ml.utils.video import VideoMeta, extract_frames, get_video_meta, open_video
@@ -21,7 +22,9 @@ __all__ = [
     "GapReport",
     "OneEuroFilter",
     "OneEuroFilterConfig",
+    "PipelineProfiler",
     "PoseSmoother",
+    "StageTiming",
     "SubtitleParser",
     "VideoMeta",
     "angle_3pt",
@@ -34,5 +37,6 @@ __all__ = [
     "get_video_meta",
     "normalize_poses",
     "open_video",
+    "profile_stage",
     "smooth_signal",
 ]

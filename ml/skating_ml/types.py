@@ -506,6 +506,7 @@ class AnalysisReport:
         blade_summary_left: Left foot blade edge summary (optional).
         blade_summary_right: Right foot blade edge summary (optional).
         physics: Physics metrics (CoM trajectory, jump height, inertia, etc.).
+        profiling: Pipeline profiler timing data (optional).
     """
 
     element_type: str
@@ -517,6 +518,7 @@ class AnalysisReport:
     blade_summary_left: dict[str, Any] = field(default_factory=dict)
     blade_summary_right: dict[str, Any] = field(default_factory=dict)
     physics: dict[str, Any] = field(default_factory=dict)
+    profiling: dict[str, Any] | None = None
 
     def format(self) -> str:
         """Format report as readable Russian text."""
