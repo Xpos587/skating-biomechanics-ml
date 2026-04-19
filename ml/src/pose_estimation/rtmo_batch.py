@@ -218,8 +218,15 @@ class BatchRTMO:
                 f"Download models with: uv run python ml/scripts/download_ml_models.py"
             )
 
-        # Create ONNX session
+        # Create ONNX session with optimized SessionOptions
         import onnxruntime
+
+        opts = onnxruntime.SessionOptions()
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.enable_mem_pattern = True
+        opts.enable_mem_reuse = True
+        opts.intra_op_num_threads = 2
+        opts.inter_op_num_threads = 1
 
         providers = (
             ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -228,12 +235,17 @@ class BatchRTMO:
         )
         self._session = onnxruntime.InferenceSession(
             str(model_path),
+            sess_options=opts,
             providers=providers,
         )
 
         # Get input/output names
         self._input_name = self._session.get_inputs()[0].name
         self._output_names = [o.name for o in self._session.get_outputs()]
+
+        # Warm-up inference (eliminates first-call CUDA compilation latency)
+        dummy = np.zeros((1, 3, RTMO_INPUT_SIZE, RTMO_INPUT_SIZE), dtype=np.float32)
+        self._session.run(self._output_names, {self._input_name: dummy})
 
         logger.info(f"BatchRTMO initialized: mode={mode}, device={self._device}")
 
