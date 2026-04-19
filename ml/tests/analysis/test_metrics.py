@@ -595,6 +595,63 @@ class TestBiomechanicsAnalyzer:
         assert score >= 0.0
 
 
+class TestVectorizedMetrics:
+    """Tests that vectorized metric functions produce correct results."""
+
+    @pytest.fixture
+    def jump_poses(self):
+        """Synthetic jump poses (100 frames, 17, 2)."""
+        rng = np.random.default_rng(42)
+        poses = rng.uniform(-0.5, 0.5, size=(100, 17, 2)).astype(np.float32)
+        return poses
+
+    @pytest.fixture
+    def jump_phases(self):
+        return ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=30,
+            peak=45,
+            landing=60,
+            end=90,
+        )
+
+    def test_edge_indicator_shape(self, jump_poses):
+        """compute_edge_indicator should return (N,) array."""
+        element_def = get_element_def("three_turn")
+        analyzer = BiomechanicsAnalyzer(element_def)
+        result = analyzer.compute_edge_indicator(jump_poses, side="left")
+        assert result.shape == (100,)
+        assert np.all(result >= -1) and np.all(result <= 1)
+
+    def test_rotation_speed_shape(self, jump_poses, jump_phases):
+        """compute_rotation_speed should return float."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+        result = analyzer.compute_rotation_speed(jump_poses, jump_phases, fps=30.0)
+        assert isinstance(result, float)
+        assert result >= 0
+
+    def test_angle_series_shape(self, jump_poses):
+        """compute_angle_series should return (N,) array."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+        result = analyzer.compute_angle_series(
+            jump_poses,
+            int(H36Key.LHIP),
+            int(H36Key.LKNEE),
+            int(H36Key.LFOOT),
+        )
+        assert result.shape == (100,)
+
+    def test_relative_jump_height_shape(self, jump_poses, jump_phases):
+        """compute_relative_jump_height should return float."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+        result = analyzer.compute_relative_jump_height(jump_poses, jump_phases)
+        assert isinstance(result, float)
+
+
 class TestMetricResult:
     """Test MetricResult dataclass."""
 
