@@ -560,7 +560,12 @@ async def analyze_music_task(
                 # Check for existing analysis with same fingerprint
                 duplicate = await find_music_by_fingerprint(db, fingerprint)
                 if duplicate and duplicate.id != music_id:
-                    logger.info("Found duplicate analysis: %s (music_id=%s)", duplicate.id, duplicate.fingerprint[:16] + "...")
+                    fp_preview = (
+                        duplicate.fingerprint[:16] + "..." if duplicate.fingerprint else "N/A"
+                    )
+                    logger.info(
+                        "Found duplicate analysis: %s (music_id=%s)", duplicate.id, fp_preview
+                    )
                     # Copy analysis results from duplicate
                     await update_music_analysis(
                         db,

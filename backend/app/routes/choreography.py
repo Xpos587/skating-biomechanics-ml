@@ -53,7 +53,6 @@ def _program_to_response(program) -> ChoreographyProgramResponse:
 # ---------------------------------------------------------------------------
 
 
-
 @router.post(
     "/choreography/music/upload",
     response_model=UploadMusicResponse,
@@ -235,6 +234,8 @@ async def render_rink_diagram(body: RenderRinkRequest):
         body.elements,
         width=body.width,
         height=body.height,
+        rink_width=body.rink_width,
+        rink_height=body.rink_height,
     )
     return {"svg": svg}
 
