@@ -421,6 +421,8 @@ class RenderRinkRequest(BaseModel):
     elements: list[dict]
     width: int = Field(default=1200, ge=400, le=4000)
     height: int = Field(default=600, ge=200, le=2000)
+    rink_width: float = Field(default=60.0, ge=20.0, le=80.0)
+    rink_height: float = Field(default=30.0, ge=10.0, le=40.0)
 
 
 class ChoreographyProgramResponse(BaseModel):

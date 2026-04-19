@@ -1,11 +1,18 @@
 "use client"
 
+import { ArrowLeft } from "lucide-react"
+import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useRef, useState } from "react"
+import { useRef } from "react"
+import { startAutoSave } from "@/components/choreography/editor/auto-save"
+import { ElementTrack } from "@/components/choreography/editor/element-track"
+import { useChoreographyEditor } from "@/components/choreography/editor/store"
+import { TransportBar } from "@/components/choreography/editor/transport-bar"
+import { WaveformView } from "@/components/choreography/editor/waveform-view"
 import { RinkDiagram } from "@/components/choreography/rink-diagram"
 import { ScoreBar } from "@/components/choreography/score-bar"
 import { useTranslations } from "@/i18n"
-import { useProgram, useSaveProgram } from "@/lib/api/choreography"
+import { useMusicAnalysis, useProgram, useSaveProgram } from "@/lib/api/choreography"
 
 export default function ProgramEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -13,19 +20,56 @@ export default function ProgramEditorPage() {
   const t = useTranslations("choreography")
   const { data: program, isLoading } = useProgram(id)
   const saveProgram = useSaveProgram()
-  const [title, setTitle] = useState<string | null>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const editor = useChoreographyEditor()
+  const unsubRef = useRef<(() => void) | null>(null)
 
-  const displayTitle = title ?? program?.title ?? ""
+  const musicAnalysisId = program?.music_analysis_id
+  const { data: musicAnalysis } = useMusicAnalysis(musicAnalysisId ?? undefined)
 
-  const elements = program?.layout?.elements ?? []
+  // Initialize editor from program data
+  const initialized = program && editor.programId === program.id
 
-  function handleTitleChange(newTitle: string) {
-    setTitle(newTitle)
-    clearTimeout(saveTimer.current ?? 0)
-    saveTimer.current = setTimeout(() => {
-      saveProgram.mutate({ id, title: newTitle })
-    }, 500)
+  const audioUrl = musicAnalysis?.audio_url ?? null
+  const musicDuration = musicAnalysis?.duration_sec ?? 180
+  const beatMarkers = musicAnalysis?.peaks ?? []
+  const phraseMarkers = (musicAnalysis?.structure ?? []).map(s => s.start)
+
+  // Derive layout for ScoreBar from editor state
+  const layout = initialized
+    ? {
+        elements: editor.elements.map(el => ({
+          code: el.code,
+          goe: el.goe,
+          timestamp: el.timestamp,
+          position: el.position ?? null,
+          is_back_half: false,
+          is_jump_pass: el.trackType === "jumps",
+          jump_pass_index: el.jumpPassIndex ?? null,
+        })),
+        total_tes: editor.getLayoutForSave().total_tes,
+        back_half_indices: editor.getLayoutForSave().back_half_indices,
+      }
+    : null
+
+  function handleSave() {
+    if (!program) return
+    if (unsubRef.current) unsubRef.current()
+    const { layout: saveLayout } = editor.getLayoutForSave()
+    saveProgram.mutate(
+      {
+        id,
+        title: editor.title,
+        layout: { elements: saveLayout },
+      },
+      {
+        onSuccess: () => {
+          unsubRef.current = startAutoSave(
+            data => saveProgram.mutate(data),
+            () => saveProgram.isPending,
+          )
+        },
+      },
+    )
   }
 
   if (isLoading) {
@@ -44,51 +88,71 @@ export default function ProgramEditorPage() {
     )
   }
 
+  if (!initialized) {
+    editor.initFromProgram(program, audioUrl, musicDuration, beatMarkers, phraseMarkers)
+    if (unsubRef.current) unsubRef.current()
+    unsubRef.current = startAutoSave(
+      data => saveProgram.mutate(data),
+      () => saveProgram.isPending,
+    )
+  }
+
   return (
     <div className="flex h-[calc(100dvh-3rem)] flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-3 border-b border-border px-4 py-2">
+        <Link href="/choreography" className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <input
+          type="text"
+          value={editor.title}
+          onChange={e => editor.setTitle(e.target.value)}
+          placeholder={t("untitled")}
+          className="flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
+        />
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saveProgram.isPending}
+          className="rounded-lg bg-primary px-3 py-1 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          {saveProgram.isPending ? "..." : t("save")}
+        </button>
+      </div>
+
+      {/* Main content */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Timeline panel */}
-        <div className="flex flex-1 flex-col border-b border-border p-4 lg:border-b-0 lg:border-r">
-          <input
-            type="text"
-            value={displayTitle}
-            onChange={e => handleTitleChange(e.target.value)}
-            placeholder={t("untitled")}
-            className="mb-3 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
-          />
-          <div className="flex-1 space-y-1.5 overflow-y-auto">
-            {elements.map((el, i) => (
-              <div
-                key={`${el.code}-${el.timestamp}`}
-                className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5"
-              >
-                <span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
-                <span className="flex-1 text-sm font-medium">{el.code}</span>
-                <span className="text-xs text-muted-foreground">{el.timestamp.toFixed(1)}s</span>
-              </div>
-            ))}
-            {elements.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">{t("noElements")}</p>
-            )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Transport bar */}
+          <div className="border-b border-border p-2">
+            <TransportBar />
+          </div>
+
+          {/* Waveform */}
+          <div className="border-b border-border p-2">
+            <WaveformView audioUrl={audioUrl} />
+          </div>
+
+          {/* Tracks */}
+          <div className="flex-1 overflow-y-auto">
+            <ElementTrack type="jumps" />
+            <ElementTrack type="spins" />
+            <ElementTrack type="sequences" />
+          </div>
+
+          {/* Score bar */}
+          <div className="border-t border-border p-2">
+            <ScoreBar layout={layout} discipline={program.discipline} segment={program.segment} />
           </div>
         </div>
 
-        {/* Rink diagram panel */}
-        <div className="flex-1 bg-muted/20 p-2">
-          <RinkDiagram elements={elements} />
+        {/* Rink diagram panel (desktop only) */}
+        <div className="hidden w-80 shrink-0 border-l border-border bg-muted/20 p-2 lg:block">
+          <RinkDiagram elements={layout?.elements ?? []} />
         </div>
       </div>
-
-      {/* Score bar */}
-      <ScoreBar
-        layout={
-          program.layout
-            ? { ...program.layout, total_tes: program.total_tes ?? 0, back_half_indices: [] }
-            : null
-        }
-        discipline={program.discipline}
-        segment={program.segment}
-      />
     </div>
   )
 }
