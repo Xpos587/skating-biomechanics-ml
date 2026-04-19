@@ -263,6 +263,27 @@
     "validate": "Проверить",
     "valid": "Валидно",
     "errors": "Ошибки",
-    "warnings": "Предупреждения"
+    "warnings": "Предупреждения",
+    "timeline": {
+      "jumpsTrack": "Прыжки",
+      "spinsTrack": "Вращения",
+      "sequencesTrack": "Последов.",
+      "addElement": "Добавить элемент",
+      "deleteElement": "Удалить",
+      "duplicateElement": "Дублировать",
+      "snapOff": "Без привязки",
+      "snapBeats": "К битам",
+      "snapPhrases": "К фразам",
+      "autoFit": "Вместить",
+      "rinkPreset": "Размер катка",
+      "rinkCustom": "Другой",
+      "backHalf": "2-я половина",
+      "validationErrors": "Ошибки валидации",
+      "validationWarnings": "Предупреждения",
+      "search": "Поиск элемента...",
+      "notFound": "Не найдено",
+      "duration": "Длительность (с)",
+      "goe": "GOE"
+    }
   }
 }

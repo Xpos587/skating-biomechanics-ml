@@ -260,6 +260,27 @@
     "validate": "Validate",
     "valid": "Valid",
     "errors": "Errors",
-    "warnings": "Warnings"
+    "warnings": "Warnings",
+    "timeline": {
+      "jumpsTrack": "Jumps",
+      "spinsTrack": "Spins",
+      "sequencesTrack": "Seq.",
+      "addElement": "Add element",
+      "deleteElement": "Delete",
+      "duplicateElement": "Duplicate",
+      "snapOff": "Off",
+      "snapBeats": "Beats",
+      "snapPhrases": "Phrases",
+      "autoFit": "Fit",
+      "rinkPreset": "Rink size",
+      "rinkCustom": "Custom",
+      "backHalf": "Back half",
+      "validationErrors": "Validation errors",
+      "validationWarnings": "Warnings",
+      "search": "Search element...",
+      "notFound": "Not found",
+      "duration": "Duration (s)",
+      "goe": "GOE"
+    }
   }
 }
