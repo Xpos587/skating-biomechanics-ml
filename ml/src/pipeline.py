@@ -59,6 +59,7 @@ class AnalysisPipeline:
         person_click: PersonClick | None = None,
         reestimate_camera: bool = False,
         profiler: PipelineProfiler | None = None,
+        compute_3d: bool = False,
     ) -> None:
         """Initialize analysis pipeline.
 
@@ -71,6 +72,9 @@ class AnalysisPipeline:
             person_click: Optional click point to select target person in multi-person videos.
             reestimate_camera: Enable per-frame camera re-estimation for moving cameras.
             profiler: Optional PipelineProfiler for recording stage timings.
+            compute_3d: Whether to run 3D pose lifting (CorrectiveLens + blade detection).
+                Disabled by default since 3D lifting adds significant compute
+                and the model file is often not present.
         """
         self._reference_store = reference_store
         self._device_config = DeviceConfig(device) if isinstance(device, str) else device
@@ -79,6 +83,7 @@ class AnalysisPipeline:
         self._person_click = person_click
         self._reestimate_camera = reestimate_camera
         self._profiler = profiler or PipelineProfiler()
+        self._compute_3d = compute_3d
 
         # Components will be lazy-loaded
         self._detector: PersonDetector | None = None  # type: ignore[valid-type]
@@ -240,35 +245,38 @@ class AnalysisPipeline:
         poses_3d = None
         blade_summary_left = None
         blade_summary_right = None
-        try:
-            # Use MotionAGFormer for 3D lifting (H3.6M format)
-            poses_3d = self._get_pose_3d_extractor().extract_sequence(smoothed)
+        if self._compute_3d:
+            try:
+                # Use MotionAGFormer for 3D lifting (H3.6M format)
+                poses_3d = self._get_pose_3d_extractor().extract_sequence(smoothed)
 
-            from .detection.blade_edge_detector_3d import BladeEdgeDetector3D
+                from .detection.blade_edge_detector_3d import BladeEdgeDetector3D
 
-            # Detect blade edge states using 3D poses
-            blade_detector_3d = BladeEdgeDetector3D(fps=meta.fps)
-            blade_states_left = []
-            blade_states_right = []
-            for i, pose_3d in enumerate(poses_3d):
-                left_state = blade_detector_3d.detect_frame(pose_3d, i, foot="left")
-                right_state = blade_detector_3d.detect_frame(pose_3d, i, foot="right")
-                blade_states_left.append(left_state)
-                blade_states_right.append(right_state)
+                # Detect blade edge states using 3D poses
+                blade_detector_3d = BladeEdgeDetector3D(fps=meta.fps)
+                blade_states_left = []
+                blade_states_right = []
+                for i, pose_3d in enumerate(poses_3d):
+                    left_state = blade_detector_3d.detect_frame(pose_3d, i, foot="left")
+                    right_state = blade_detector_3d.detect_frame(pose_3d, i, foot="right")
+                    blade_states_left.append(left_state)
+                    blade_states_right.append(right_state)
 
-            blade_summary_left = {
-                "inside": sum(1 for s in blade_states_left if s.blade_type.value == "inside"),
-                "outside": sum(1 for s in blade_states_left if s.blade_type.value == "outside"),
-                "flat": sum(1 for s in blade_states_left if s.blade_type.value == "flat"),
-            }
-            blade_summary_right = {
-                "inside": sum(1 for s in blade_states_right if s.blade_type.value == "inside"),
-                "outside": sum(1 for s in blade_states_right if s.blade_type.value == "outside"),
-                "flat": sum(1 for s in blade_states_right if s.blade_type.value == "flat"),
-            }
-        except Exception:
-            # 3D lifting is optional, don't fail if it errors
-            pass
+                blade_summary_left = {
+                    "inside": sum(1 for s in blade_states_left if s.blade_type.value == "inside"),
+                    "outside": sum(1 for s in blade_states_left if s.blade_type.value == "outside"),
+                    "flat": sum(1 for s in blade_states_left if s.blade_type.value == "flat"),
+                }
+                blade_summary_right = {
+                    "inside": sum(1 for s in blade_states_right if s.blade_type.value == "inside"),
+                    "outside": sum(
+                        1 for s in blade_states_right if s.blade_type.value == "outside"
+                    ),
+                    "flat": sum(1 for s in blade_states_right if s.blade_type.value == "flat"),
+                }
+            except Exception:
+                # 3D lifting is optional, don't fail if it errors
+                pass
         self._profiler.record("3d_lift_and_blade", time.perf_counter() - t0)
 
         # Stage 4-7: Element-specific analysis (only when element_type provided)
@@ -659,19 +667,16 @@ class AnalysisPipeline:
             smoothed = normalized
 
         # Parallel stages: 3D lifting AND phase detection
-        poses_3d_future = asyncio.create_task(self._lift_poses_3d_async(smoothed, meta.fps))
+        if self._compute_3d:
+            poses_3d_future = asyncio.create_task(self._lift_poses_3d_async(smoothed, meta.fps))
+            poses_3d, blade_summaries = await poses_3d_future
+        else:
+            poses_3d, blade_summaries = None, None
 
         if element_type is not None:
             phases_future = asyncio.create_task(
                 self._detect_phases_async(smoothed, meta.fps, element_type, manual_phases)
             )
-        else:
-            phases_future = None
-
-        # Wait for parallel stages
-        poses_3d, blade_summaries = await poses_3d_future
-
-        if element_type is not None:
             phases = await phases_future  # type: ignore[assignment]
         else:
             phases = ElementPhase(name="unknown", start=0, takeoff=0, peak=0, landing=0, end=0)
