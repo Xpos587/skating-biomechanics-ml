@@ -25,7 +25,7 @@ dependencies = [
     "librosa>=0.10.0",
     "aiobotocore>=3.4.0",
     "pychromaprint>=0.8",
-    "skating-ml @ file:///home/michael/Github/skating-biomechanics-ml/.claude/worktrees/phase3-music-worker/ml",
+    "skating-ml @ file:///home/michael/Github/skating-biomechanics-ml/ml",
 ]
 
 [tool.uv.extra-build-dependencies]
