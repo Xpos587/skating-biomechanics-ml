@@ -9,9 +9,12 @@ import { BottomDock } from "@/components/layout/bottom-dock"
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const t = await getTranslations("app")
 
-  // Server-side auth gate — redirect to login if no auth cookie
-  const hasAuth = (await cookies()).get("sb_auth")?.value
-  if (!hasAuth) redirect("/login")
+  // Server-side auth gate — skip when NEXT_PUBLIC_SKIP_AUTH=true
+  const skipAuth = process.env.NEXT_PUBLIC_SKIP_AUTH === "true"
+  if (!skipAuth) {
+    const hasAuth = (await cookies()).get("sb_auth")?.value
+    if (!hasAuth) redirect("/login")
+  }
 
   return (
     <div className="flex min-h-screen flex-col">

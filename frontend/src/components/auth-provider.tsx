@@ -4,7 +4,23 @@ import { useRouter } from "next/navigation"
 import { createContext, type ReactNode, useContext, useState } from "react"
 import type { UserResponse } from "@/lib/auth"
 import * as auth from "@/lib/auth"
+import { SKIP_AUTH } from "@/lib/api-client"
 import { useMountEffect } from "@/lib/useMountEffect"
+
+const MOCK_USER: UserResponse = {
+  id: "dev-mock-user",
+  email: "dev@example.com",
+  display_name: "Dev User",
+  avatar_url: null,
+  bio: null,
+  height_cm: null,
+  weight_kg: null,
+  language: "ru",
+  timezone: "Europe/Moscow",
+  theme: "system",
+  is_active: true,
+  created_at: new Date().toISOString(),
+}
 
 interface AuthContextValue {
   user: UserResponse | null
@@ -23,6 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useMountEffect(() => {
+    if (SKIP_AUTH) {
+      setUser(MOCK_USER)
+      setIsLoading(false)
+      return
+    }
+
     const token = auth.getAccessToken()
     if (!token) {
       setIsLoading(false)

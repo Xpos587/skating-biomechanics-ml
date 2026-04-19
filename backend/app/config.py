@@ -14,10 +14,15 @@ Env prefixes:
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings as _BaseSettings
 from pydantic_settings import SettingsConfigDict
+
+# Look for .env in project root (one level up from backend/)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _PROJECT_ROOT / ".env"
 
 # ---------------------------------------------------------------------------
 # Base
@@ -29,7 +34,7 @@ class BaseSettings(_BaseSettings):
 
     model_config = SettingsConfigDict(
         extra="ignore",
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -118,6 +123,7 @@ class AppConfig(BaseSettings):
     worker_retry_delays: list[int] = [30, 120]
     log_level: str = "INFO"
     task_ttl_seconds: int = 86400
+    skip_auth: bool = False
 
     class Config:
         env_prefix = "APP_"
@@ -141,7 +147,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         extra="ignore",
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_nested_delimiter="__",
