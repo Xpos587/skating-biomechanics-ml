@@ -13,7 +13,6 @@ import { useTranslations } from "@/i18n"
 import {
   useGenerateLayouts,
   useMusicAnalysis,
-  useRenderRink,
   useSaveProgram,
   useUploadMusic,
 } from "@/lib/api/choreography"
@@ -37,7 +36,6 @@ export default function NewProgramPage() {
   const { data: analysis } = useMusicAnalysis(musicId ?? undefined)
   const generateLayouts = useGenerateLayouts()
   const saveProgram = useSaveProgram()
-  const renderRink = useRenderRink()
 
   function handleUpload(file: File) {
     uploadMusic.mutate(file, {
@@ -185,25 +183,13 @@ export default function NewProgramPage() {
             }
             onSelect={idx => {
               setSelectedLayout(generateLayouts.data.layouts[idx])
-              renderRink.mutate({
-                layout: {
-                  elements: generateLayouts.data.layouts[idx].elements.map(el => ({
-                    code: el.code,
-                    timestamp: el.timestamp,
-                    position: el.position,
-                  })),
-                },
-              })
             }}
           />
 
           {selectedLayout && (
             <>
               <div className="rounded-2xl bg-muted/20 p-2">
-                <RinkDiagram
-                  svgHtml={renderRink.data?.image_url ?? null}
-                  isLoading={renderRink.isPending}
-                />
+                <RinkDiagram elements={selectedLayout.elements} />
               </div>
 
               <ScoreBar layout={selectedLayout} discipline={discipline} segment={segment} />

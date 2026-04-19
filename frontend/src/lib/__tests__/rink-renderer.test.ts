@@ -39,12 +39,12 @@ describe("renderRink", () => {
       { code: "3Lz", position: { x: 20, y: 15 } },
       { code: "3F", position: { x: 40, y: 15 } },
     ])
-    expect(svg).toContain("x1=\"20\"")
-    expect(svg).toContain("x2=\"40\"")
+    expect(svg).toContain('x1="20"')
+    expect(svg).toContain('x2="40"')
   })
 
   it("skips elements without position", () => {
-    const svg = renderRink([{ code: "3Lz" }])
+    const svg = renderRink([{ code: "3Lz", position: null }])
     expect(svg).not.toContain("3Lz")
   })
 

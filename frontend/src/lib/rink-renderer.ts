@@ -1,11 +1,11 @@
 interface RinkElement {
   code: string
-  position?: { x: number; y: number }
+  position: { x: number; y: number } | null
   timestamp?: number
 }
 
-const RINK_W = 60
-const RINK_H = 30
+const _RINK_W = 60
+const _RINK_H = 30
 
 function elementColor(code: string): string {
   if (code.includes("Sp")) return "#9333ea"
@@ -37,17 +37,30 @@ export function renderRink(
 
   const parts: string[] = []
 
-  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 60 30">`)
+  parts.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 60 30">`,
+  )
   parts.push(`<rect x="0" y="0" width="60" height="30" fill="#e8f0fe" rx="1"/>`)
-  parts.push(`<rect x="1" y="1" width="58" height="28" fill="none" stroke="#2563eb" stroke-width="0.15" rx="0.5"/>`)
-  parts.push(`<line x1="30" y1="1" x2="30" y2="29" stroke="#dc2626" stroke-width="0.1" stroke-dasharray="0.5,0.5"/>`)
+  parts.push(
+    `<rect x="1" y="1" width="58" height="28" fill="none" stroke="#2563eb" stroke-width="0.15" rx="0.5"/>`,
+  )
+  parts.push(
+    `<line x1="30" y1="1" x2="30" y2="29" stroke="#dc2626" stroke-width="0.1" stroke-dasharray="0.5,0.5"/>`,
+  )
   parts.push(`<circle cx="30" cy="15" r="4.5" fill="none" stroke="#dc2626" stroke-width="0.1"/>`)
   parts.push(`<circle cx="30" cy="15" r="0.15" fill="#dc2626"/>`)
   parts.push(`<line x1="5" y1="1" x2="5" y2="29" stroke="#2563eb" stroke-width="0.08"/>`)
   parts.push(`<line x1="55" y1="1" x2="55" y2="29" stroke="#2563eb" stroke-width="0.08"/>`)
 
-  for (const [cx, cy] of [[10, 7.5], [10, 22.5], [50, 7.5], [50, 22.5]]) {
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="none" stroke="#2563eb" stroke-width="0.08"/>`)
+  for (const [cx, cy] of [
+    [10, 7.5],
+    [10, 22.5],
+    [50, 7.5],
+    [50, 22.5],
+  ]) {
+    parts.push(
+      `<circle cx="${cx}" cy="${cy}" r="3" fill="none" stroke="#2563eb" stroke-width="0.08"/>`,
+    )
     parts.push(`<circle cx="${cx}" cy="${cy}" r="0.15" fill="#dc2626"/>`)
   }
 
@@ -61,13 +74,19 @@ export function renderRink(
     const color = elementColor(el.code)
 
     parts.push(elementShape(el, x, y))
-    parts.push(`<text x="${x}" y="${y - 1.2}" text-anchor="middle" font-size="1.2" fill="${color}" font-weight="bold">${el.code}</text>`)
-    parts.push(`<text x="${x}" y="${y + 0.3}" text-anchor="middle" font-size="0.7" fill="#666">${i + 1}</text>`)
+    parts.push(
+      `<text x="${x}" y="${y - 1.2}" text-anchor="middle" font-size="1.2" fill="${color}" font-weight="bold">${el.code}</text>`,
+    )
+    parts.push(
+      `<text x="${x}" y="${y + 0.3}" text-anchor="middle" font-size="0.7" fill="#666">${i + 1}</text>`,
+    )
 
     if (i < elements.length - 1) {
       const nextPos = elements[i + 1].position
       if (nextPos) {
-        parts.push(`<line x1="${x}" y1="${y}" x2="${nextPos.x}" y2="${nextPos.y}" stroke="#94a3b8" stroke-width="0.06" stroke-dasharray="0.3,0.2" opacity="0.6"/>`)
+        parts.push(
+          `<line x1="${x}" y1="${y}" x2="${nextPos.x}" y2="${nextPos.y}" stroke="#94a3b8" stroke-width="0.06" stroke-dasharray="0.3,0.2" opacity="0.6"/>`,
+        )
       }
     }
   }

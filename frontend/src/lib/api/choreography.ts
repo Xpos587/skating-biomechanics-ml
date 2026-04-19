@@ -71,10 +71,6 @@ export const ValidationResultSchema = z.object({
   total_tes: z.number().nullable(),
 })
 
-export const RenderRinkResponseSchema = z.object({
-  image_url: z.string(),
-})
-
 const ProgramLayoutSchema = z.object({
   elements: z.array(LayoutElementSchema),
 })
@@ -167,22 +163,6 @@ export function useValidateLayout() {
       season: string
       layout: { elements: Array<{ code: string; timestamp: number; goe: number }> }
     }) => apiPost("/choreography/validate", ValidationResultSchema, body),
-  })
-}
-
-export function useRenderRink() {
-  return useMutation({
-    mutationFn: (body: {
-      layout: {
-        elements: Array<{
-          code: string
-          timestamp: number
-          position: { x: number; y: number } | null
-        }>
-      }
-      width?: number
-      height?: number
-    }) => apiPost("/choreography/render-rink", RenderRinkResponseSchema, body),
   })
 }
 

@@ -5,7 +5,7 @@ import { useRef, useState } from "react"
 import { RinkDiagram } from "@/components/choreography/rink-diagram"
 import { ScoreBar } from "@/components/choreography/score-bar"
 import { useTranslations } from "@/i18n"
-import { useProgram, useRenderRink, useSaveProgram } from "@/lib/api/choreography"
+import { useProgram, useSaveProgram } from "@/lib/api/choreography"
 
 export default function ProgramEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -19,10 +19,6 @@ export default function ProgramEditorPage() {
   const displayTitle = title ?? program?.title ?? ""
 
   const elements = program?.layout?.elements ?? []
-
-  const renderRink = useRenderRink()
-
-  const svgHtml = renderRink.data?.image_url ?? null
 
   function handleTitleChange(newTitle: string) {
     setTitle(newTitle)
@@ -79,7 +75,7 @@ export default function ProgramEditorPage() {
 
         {/* Rink diagram panel */}
         <div className="flex-1 bg-muted/20 p-2">
-          <RinkDiagram svgHtml={svgHtml} isLoading={renderRink.isPending} />
+          <RinkDiagram elements={elements} />
         </div>
       </div>
 
