@@ -7,7 +7,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
 
 from app.auth.deps import CurrentUser, DbDep  # noqa: TC001 — runtime FastAPI Depends
 from app.crud.choreography import (
@@ -53,18 +53,6 @@ def _program_to_response(program) -> ChoreographyProgramResponse:
 # ---------------------------------------------------------------------------
 
 
-def _get_duration(path: str, suffix: str) -> float:
-    """Get audio duration from file header (no ML deps needed)."""
-    import wave
-
-    try:
-        if suffix == ".wav":
-            with wave.open(path, "rb") as wf:
-                return round(wf.getnframes() / float(wf.getframerate()), 1)
-    except Exception:
-        pass
-    return 180.0
-
 
 @router.post(
     "/choreography/music/upload",
@@ -72,11 +60,12 @@ def _get_duration(path: str, suffix: str) -> float:
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_music(
+    request: Request,
     user: CurrentUser,
     db: DbDep,
     file: UploadFile,
 ):
-    """Upload an audio file, analyze it, and store results."""
+    """Upload an audio file and enqueue analysis job."""
     import asyncio
     import logging
 
@@ -90,68 +79,37 @@ async def upload_music(
         tmp.write(content)
         tmp_path = tmp.name
 
-    # Create record as "analyzing"
+    # Create record as "pending"
     music = await create_music_analysis(
         db,
         user_id=user.id,
         filename=file.filename or "unknown",
         audio_url="",
         duration_sec=0,
-        status="analyzing",
+        status="pending",
     )
 
     try:
-        # Run music analysis in thread pool (blocking librosa/madmom calls)
-        # Graceful fallback: if ML deps aren't installed, use basic duration
-        duration_sec = 0.0
-        bpm = None
-        energy_curve = None
-        peaks = None
-        structure = None
-
+        # Upload to R2 (blocking boto3 — run in thread pool)
         r2_key = f"music/{user.id}/{music.id}{suffix}"
+        logger.info("Uploading to R2: %s", r2_key)
+        await asyncio.to_thread(upload_file, tmp_path, r2_key)
+        logger.info("R2 upload complete")
 
-        async def _analyze():
-            nonlocal duration_sec, bpm, energy_curve, peaks, structure
-            try:
-                from app.services.choreography.music_analyzer import analyze_music_sync
-
-                logger.info("Running music analysis on %s", tmp_path)
-                result = await asyncio.to_thread(analyze_music_sync, tmp_path)
-                duration_sec = result["duration_sec"]
-                bpm = result["bpm"]
-                energy_curve = result["energy_curve"]
-                peaks = result["peaks"]
-                structure = result.get("structure") or []
-                logger.info("Analysis complete: bpm=%.1f, duration=%.1f", bpm, duration_sec)
-            except ImportError:
-                logger.info("librosa not available, using basic duration estimation")
-                duration_sec = await asyncio.to_thread(_get_duration, tmp_path, suffix)
-
-        async def _upload():
-            logger.info("Uploading to R2: %s", r2_key)
-            await asyncio.to_thread(upload_file, tmp_path, r2_key)
-            logger.info("R2 upload complete")
-
-        await asyncio.gather(_analyze(), _upload())
-
-        await update_music_analysis(
-            db,
-            music,
-            audio_url=f"/files/{r2_key}",
-            duration_sec=duration_sec,
-            bpm=bpm,
-            energy_curve=energy_curve,
-            peaks=peaks,
-            structure=structure,
-            status="completed",
+        # Enqueue analysis job
+        await request.app.state.arq_pool.enqueue_job(
+            "analyze_music_task",
+            music_id=music.id,
+            r2_key=r2_key,
+            _queue_name="skating:queue:fast",
         )
+        logger.info("Enqueued analyze_music_task for music_id=%s", music.id)
     except Exception as e:
-        logger.exception("Music analysis failed")
+        logger.exception("Failed to upload or enqueue music analysis")
         await update_music_analysis(db, music, status="failed")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Music analysis failed: {type(e).__name__}: {e}",
+            detail=f"Upload failed: {type(e).__name__}: {e}",
         ) from e
     finally:
         Path(tmp_path).unlink(missing_ok=True)

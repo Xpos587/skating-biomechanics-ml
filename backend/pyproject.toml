@@ -24,7 +24,8 @@ dependencies = [
     "msaf>=0.1.0",
     "librosa>=0.10.0",
     "aiobotocore>=3.4.0",
-    "skating-ml @ file:///home/michael/Github/skating-biomechanics-ml/ml",
+    "pychromaprint>=0.8",
+    "skating-ml @ file:///home/michael/Github/skating-biomechanics-ml/.claude/worktrees/phase3-music-worker/ml",
 ]
 
 [tool.uv.extra-build-dependencies]
@@ -33,6 +34,9 @@ madmom = ["Cython", "numpy"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

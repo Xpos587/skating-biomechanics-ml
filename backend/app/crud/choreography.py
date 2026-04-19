@@ -44,6 +44,17 @@ async def get_music_analysis_by_id(db: AsyncSession, music_id: str) -> MusicAnal
     return result.scalar_one_or_none()
 
 
+async def find_music_by_fingerprint(db: AsyncSession, fingerprint: str) -> MusicAnalysis | None:
+    result = await db.execute(
+        select(MusicAnalysis)
+        .where(MusicAnalysis.fingerprint == fingerprint)
+        .where(MusicAnalysis.status == "completed")
+        .order_by(MusicAnalysis.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def update_music_analysis(
     db: AsyncSession,
     music: MusicAnalysis,

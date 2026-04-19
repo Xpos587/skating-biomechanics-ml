@@ -3,11 +3,13 @@
 from app.crud.choreography import (
     create_music_analysis,
     create_program,
+    find_music_by_fingerprint,
     get_music_analysis_by_id,
     get_program_by_id,
     list_programs_by_user,
     update_program,
 )
+from app.models.choreography import MusicAnalysis
 
 
 async def test_create_and_get_music(db_session):
@@ -79,3 +81,25 @@ async def test_update_program(db_session):
     )
     assert updated.title == "My Program"
     assert updated.total_tes == 45.5
+
+
+async def test_find_music_by_fingerprint(db_session):
+    music = MusicAnalysis(
+        user_id="user-1",
+        filename="song.mp3",
+        audio_url="music/user-1/song.mp3",
+        duration_sec=180.0,
+        bpm=120.0,
+        status="completed",
+        fingerprint="abcdef1234567890abcdef1234567890",
+    )
+    db_session.add(music)
+    await db_session.flush()
+    await db_session.refresh(music)
+
+    found = await find_music_by_fingerprint(db_session, "abcdef1234567890abcdef1234567890")
+    assert found is not None
+    assert found.id == music.id
+
+    not_found = await find_music_by_fingerprint(db_session, "00000000000000000000000000000000")
+    assert not_found is None
