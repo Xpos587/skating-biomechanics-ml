@@ -251,7 +251,75 @@ class BatchRTMO:
         dummy = np.zeros((1, 3, RTMO_INPUT_SIZE, RTMO_INPUT_SIZE), dtype=np.float32)
         self._session.run(self._output_names, {self._input_name: dummy})
 
+        self._cuda_graph_enabled = False
+        self._cuda_graph_batch_size = 0
         logger.info(f"BatchRTMO initialized: mode={mode}, device={self._device}")
+
+    def _enable_cuda_graph(self, batch_size: int) -> None:
+        """Capture CUDA graph for fixed batch size inference.
+
+        Re-creates the ONNX session with ``enable_cuda_graph: True`` passed
+        to CUDAExecutionProvider.  The warm-up run triggers CUDA graph capture
+        in ORT internals, so subsequent inferences replay with minimal CPU
+        overhead.  Only works with a fixed input shape.
+
+        Args:
+            batch_size: Fixed batch size for all subsequent ``infer_batch``
+                calls.  Changing the batch size after enabling CUDA graph
+                will cause errors.
+
+        Note:
+            No-op on CPU.  CUDA Graph is enabled via provider options (not
+            SessionOptions or InferenceSession methods).
+        """
+        if self._device != "cuda":
+            logger.info("CUDA Graph skipped: not running on CUDA")
+            return
+
+        import onnxruntime
+
+        # Re-create session with enable_cuda_graph provider option
+        opts = onnxruntime.SessionOptions()
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.enable_mem_pattern = True
+        opts.enable_mem_reuse = True
+        opts.intra_op_num_threads = 2
+        opts.inter_op_num_threads = 1
+
+        providers: list = [
+            (
+                "CUDAExecutionProvider",
+                {
+                    "device_id": 0,
+                    "arena_extend_strategy": "kNextPowerOfTwo",
+                    "enable_cuda_graph": True,
+                },
+            ),
+            "CPUExecutionProvider",
+        ]
+
+        model_path = Path(RTMO_MODELS[self._mode])
+        fp16_model_path = Path(str(model_path).replace(".onnx", "-fp16.onnx"))
+        if fp16_model_path.exists():
+            model_path = fp16_model_path
+
+        old_session = self._session
+        self._session = onnxruntime.InferenceSession(
+            str(model_path),
+            sess_options=opts,
+            providers=providers,
+        )
+        self._input_name = self._session.get_inputs()[0].name
+        self._output_names = [o.name for o in self._session.get_outputs()]
+
+        # Warm-up: first run triggers CUDA graph capture in ORT internals
+        dummy = np.zeros((batch_size, 3, RTMO_INPUT_SIZE, RTMO_INPUT_SIZE), dtype=np.float32)
+        self._session.run(self._output_names, {self._input_name: dummy})
+
+        del old_session
+        self._cuda_graph_enabled = True
+        self._cuda_graph_batch_size = batch_size
+        logger.info(f"CUDA Graph enabled for batch_size={batch_size}")
 
     def infer_batch(
         self,
