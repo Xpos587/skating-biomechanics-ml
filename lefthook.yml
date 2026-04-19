@@ -37,7 +37,7 @@ pre-commit:
 
     biome-check:
       glob: "frontend/**/*.{ts,tsx,js,jsx,json,css}"
-      run: cd frontend && bunx biome check --write --staged
+      run: bunx biome check --write {staged_files}
       stage_fixed: true
 
     ast-grep-scan:
