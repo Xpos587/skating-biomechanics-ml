@@ -136,8 +136,7 @@ def normalize_poses(
 ) -> NormalizedPose:
     """Normalize poses via root-centering and scale normalization.
 
-    1. Center pose at mid-hip (root) -> origin (0, 0)
-    2. Scale so spine length equals target_spine_length
+    Vectorized — processes all frames at once using NumPy broadcasting.
 
     Args:
         raw: Raw keypoints (num_frames, 17, 3) with x, y, confidence.
@@ -150,29 +149,22 @@ def normalize_poses(
     if raw.shape[1] != 17:
         raise ValueError(f"Expected 17 keypoints (H3.6M format), got {raw.shape[1]}")
 
-    num_frames = raw.shape[0]
-    normalized = np.zeros((num_frames, 17, 2), dtype=np.float32)
-
-    # Mid-hip point (between left and right hip)
+    # Mid-hip point (N, 2)
     mid_hip_raw = (raw[:, H36Key.LHIP, :2] + raw[:, H36Key.RHIP, :2]) / 2
 
-    for frame_idx in range(num_frames):
-        frame_raw = raw[frame_idx]
+    # 1. Root-centering: shift mid-hip to origin (N, 17, 2)
+    centered = raw[:, :, :2] - mid_hip_raw[:, np.newaxis, :]
 
-        # 1. Root-centering: shift mid-hip to origin
-        mid_hip = mid_hip_raw[frame_idx]
-        centered = frame_raw[:, :2] - mid_hip
+    # 2. Scale normalization
+    shoulder_idx, hip_idx = spine_indices
+    spine_vector = centered[:, shoulder_idx] - centered[:, hip_idx]  # (N, 2)
+    spine_length = np.linalg.norm(spine_vector, axis=1)  # (N,)
 
-        # 2. Scale normalization
-        shoulder_idx, hip_idx = spine_indices
-        spine_vector = centered[shoulder_idx] - centered[hip_idx]
-        spine_length = np.linalg.norm(spine_vector)
+    scale = np.where(spine_length < 1e-6, 1.0, target_spine_length / spine_length)  # (N,)
 
-        scale = 1.0 if spine_length < 1e-6 else target_spine_length / spine_length
+    normalized = centered * scale[:, np.newaxis, np.newaxis]  # (N, 17, 2)
 
-        normalized[frame_idx] = centered * scale
-
-    return normalized
+    return normalized.astype(np.float32)
 
 
 def smooth_signal(signal: TimeSeries, window: int = 5) -> TimeSeries:
@@ -295,16 +287,49 @@ def calculate_center_of_mass(poses: NormalizedPose, frame_idx: int) -> float:
 def calculate_com_trajectory(poses: NormalizedPose) -> NDArray[np.float32]:
     """Calculate Center of Mass trajectory for entire pose sequence.
 
+    Vectorized implementation — computes all frames at once using NumPy
+    broadcasting instead of per-frame Python loop.
+
     Args:
         poses: NormalizedPose (num_frames, 17, 2).
 
     Returns:
         CoM Y-coordinates (num_frames,) in normalized units.
     """
-    num_frames = len(poses)
-    com_trajectory = np.zeros(num_frames, dtype=np.float32)
+    # Segment mass ratios (Dempster 1955)
+    head_mass = 0.081
+    torso_mass = 0.497
+    arm_mass = 0.050  # per arm (upper arm + forearm + hand)
+    thigh_mass = 0.100  # per thigh
+    leg_mass = 0.161  # per leg (shin + foot)
 
-    for i in range(num_frames):
-        com_trajectory[i] = calculate_center_of_mass(poses, i)
+    # Vectorized segment positions: (N, 2)
+    head = poses[:, H36Key.HEAD]
 
-    return com_trajectory
+    torso = (
+        poses[:, H36Key.LSHOULDER]
+        + poses[:, H36Key.RSHOULDER]
+        + poses[:, H36Key.LHIP]
+        + poses[:, H36Key.RHIP]
+    ) / 4
+
+    l_upper_arm = (poses[:, H36Key.LSHOULDER] + poses[:, H36Key.LELBOW]) / 2
+    r_upper_arm = (poses[:, H36Key.RSHOULDER] + poses[:, H36Key.RELBOW]) / 2
+    l_forearm = (poses[:, H36Key.LELBOW] + poses[:, H36Key.LWRIST]) / 2
+    r_forearm = (poses[:, H36Key.RELBOW] + poses[:, H36Key.RWRIST]) / 2
+
+    l_thigh = (poses[:, H36Key.LHIP] + poses[:, H36Key.LKNEE]) / 2
+    r_thigh = (poses[:, H36Key.RHIP] + poses[:, H36Key.RKNEE]) / 2
+    l_leg = (poses[:, H36Key.LKNEE] + poses[:, H36Key.LFOOT]) / 2
+    r_leg = (poses[:, H36Key.RKNEE] + poses[:, H36Key.RFOOT]) / 2
+
+    # Weighted sum of Y-coordinates: (N,)
+    com_y = (
+        head_mass * head[:, 1]
+        + torso_mass * torso[:, 1]
+        + arm_mass * (l_upper_arm[:, 1] + r_upper_arm[:, 1] + l_forearm[:, 1] + r_forearm[:, 1])
+        + thigh_mass * (l_thigh[:, 1] + r_thigh[:, 1])
+        + leg_mass * (l_leg[:, 1] + r_leg[:, 1])
+    )
+
+    return com_y.astype(np.float32)

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from numba import njit  # type: ignore
+from numpy.typing import NDArray
 
 from ..types import (
     ElementPhase,
@@ -21,6 +22,7 @@ from ..types import (
 from ..utils.geometry import (
     _angle_3pt_rad,
     angle_3pt,
+    angle_3pt_batch,
     calculate_com_trajectory,
 )
 
@@ -115,6 +117,7 @@ class BiomechanicsAnalyzer:
         poses: NormalizedPose,
         phases: ElementPhase,
         fps: float,
+        com_trajectory: NDArray[np.float32] | None = None,
     ) -> list[MetricResult]:
         """Compute all relevant metrics for the element.
 
@@ -122,6 +125,7 @@ class BiomechanicsAnalyzer:
             poses: Normalized pose sequence (num_frames, 17, 2).
             phases: Element phase boundaries.
             fps: Video frame rate.
+            com_trajectory: Pre-computed CoM trajectory (optional, for caching).
 
         Returns:
             List of MetricResult with computed values and goodness assessment.
@@ -131,7 +135,7 @@ class BiomechanicsAnalyzer:
         # Compute metrics based on element type
         if self._element_def.rotations > 0:
             # Jump metrics
-            results.extend(self._analyze_jump(poses, phases, fps))
+            results.extend(self._analyze_jump(poses, phases, fps, com_trajectory=com_trajectory))
         else:
             # Step/edge metrics
             results.extend(self._analyze_step(poses, phases, fps))
@@ -154,6 +158,7 @@ class BiomechanicsAnalyzer:
         poses: NormalizedPose,
         phases: ElementPhase,
         fps: float,
+        com_trajectory: NDArray[np.float32] | None = None,
     ) -> list[MetricResult]:
         """Analyze jump-specific metrics."""
         results: list[MetricResult] = []
@@ -171,7 +176,7 @@ class BiomechanicsAnalyzer:
         )
 
         # Jump height (CoM-based for physics accuracy)
-        height = self.compute_jump_height_com(poses, phases)
+        height = self.compute_jump_height_com(poses, phases, com_trajectory=com_trajectory)
         results.append(
             MetricResult(
                 name="max_height",
@@ -241,7 +246,7 @@ class BiomechanicsAnalyzer:
             )
         )
 
-        rel_height = self.compute_relative_jump_height(poses, phases)
+        rel_height = self.compute_relative_jump_height(poses, phases, com_trajectory=com_trajectory)
         results.append(
             MetricResult(
                 name="relative_jump_height",
@@ -348,7 +353,7 @@ class BiomechanicsAnalyzer:
         joint_b: int,
         joint_c: int,
     ) -> TimeSeries:
-        """Compute angle ABC for each frame.
+        """Compute angle ABC for each frame (vectorized).
 
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
@@ -359,15 +364,13 @@ class BiomechanicsAnalyzer:
         Returns:
             TimeSeries of angles in degrees.
         """
-        angles = np.zeros(len(poses), dtype=np.float32)
+        a = poses[:, joint_a]  # (N, 2)
+        b = poses[:, joint_b]  # (N, 2)
+        c = poses[:, joint_c]  # (N, 2)
 
-        for i, pose in enumerate(poses):
-            a = pose[joint_a]
-            b = pose[joint_b]
-            c = pose[joint_c]
-            angles[i] = angle_3pt(a, b, c)
-
-        return angles
+        # Build triplet array for batch processing: (N, 3, 2)
+        abc_triplets = np.stack([a, b, c], axis=1)
+        return angle_3pt_batch(abc_triplets).astype(np.float32)
 
     def compute_angular_velocity(self, angle_series: TimeSeries, fps: float) -> TimeSeries:
         """Compute angular velocity from angle series.
@@ -431,7 +434,12 @@ class BiomechanicsAnalyzer:
 
         return float(landing_y - peak_y)
 
-    def compute_jump_height_com(self, poses: NormalizedPose, phases: ElementPhase) -> float:
+    def compute_jump_height_com(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        com_trajectory: NDArray[np.float32] | None = None,
+    ) -> float:
         """Compute jump height using Center of Mass trajectory.
 
         This method provides physics-accurate jump height independent of
@@ -445,6 +453,7 @@ class BiomechanicsAnalyzer:
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
             phases: Element phase boundaries.
+            com_trajectory: Pre-computed CoM trajectory (optional, for caching).
 
         Returns:
             Maximum jump height in normalized units (peak - takeoff CoM).
@@ -454,8 +463,8 @@ class BiomechanicsAnalyzer:
             - Zatsiorsky (2002) - Kinetics of human motion
             - Gemini Research (2026) - 60% error in hip-only method
         """
-        # Calculate CoM trajectory for the entire sequence
-        com_trajectory = calculate_com_trajectory(poses)
+        if com_trajectory is None:
+            com_trajectory = calculate_com_trajectory(poses)
 
         # Get CoM at takeoff (baseline)
         takeoff_com = com_trajectory[phases.takeoff]
@@ -619,6 +628,8 @@ class BiomechanicsAnalyzer:
     ) -> TimeSeries:
         """Compute edge indicator using H3.6M 17-keypoint format.
 
+        Vectorized implementation — processes all frames at once.
+
         Uses body lean angle and foot velocity to infer blade edge.
         - Inside edge: body leaning into turn (positive)
         - Outside edge: body leaning away from turn (negative)
@@ -634,30 +645,21 @@ class BiomechanicsAnalyzer:
         Returns:
             Edge indicator: +1 = inside edge, -1 = outside edge, 0 = flat.
         """
-        edge_indicator = np.zeros(len(poses), dtype=np.float32)
+        if side == "left":
+            hip = poses[:, H36Key.LHIP]
+            shoulder = poses[:, H36Key.LSHOULDER]
+        else:
+            hip = poses[:, H36Key.RHIP]
+            shoulder = poses[:, H36Key.RSHOULDER]
 
-        for i, pose in enumerate(poses):
-            # Use trunk lean as proxy for edge (simplified approach)
-            if side == "left":
-                # For left foot, use left hip-shoulder line
-                hip = pose[H36Key.LHIP]
-                shoulder = pose[H36Key.LSHOULDER]
-            else:
-                # For right foot, use right hip-shoulder line
-                hip = pose[H36Key.RHIP]
-                shoulder = pose[H36Key.RSHOULDER]
+        # Vector from hip to shoulder: (N, 2)
+        spine_vector = shoulder - hip
 
-            # Vector from hip to shoulder
-            spine_vector = shoulder - hip
+        # Angle from vertical: atan2(x, -y)
+        angle = np.arctan2(spine_vector[:, 0], -spine_vector[:, 1])
 
-            # Angle from vertical indicates lean direction
-            # In normalized coords: atan2(x, -y) gives angle from vertical
-            angle = np.arctan2(spine_vector[0], -spine_vector[1])
-
-            # Normalize to [-1, 1] range
-            # Positive = leaning left (inside edge for left foot)
-            # Negative = leaning right (outside edge for left foot)
-            edge_indicator[i] = float(np.clip(angle / (np.pi / 6), -1, 1))
+        # Normalize to [-1, 1]
+        edge_indicator = np.clip(angle / (np.pi / 6), -1, 1).astype(np.float32)
 
         return edge_indicator
 
@@ -669,6 +671,8 @@ class BiomechanicsAnalyzer:
     ) -> float:
         """Compute peak rotation speed during jump.
 
+        Vectorized implementation — processes all frames at once.
+
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
             phases: Element phase boundaries.
@@ -677,26 +681,18 @@ class BiomechanicsAnalyzer:
         Returns:
             Peak rotation speed in deg/s.
         """
-        # Calculate shoulder axis angle over time
-        angles = np.zeros(len(poses), dtype=np.float32)
+        # Vectorized shoulder axis angle: (N,)
+        left_shoulder = poses[:, H36Key.LSHOULDER]
+        right_shoulder = poses[:, H36Key.RSHOULDER]
 
-        for i, pose in enumerate(poses):
-            left_shoulder = pose[H36Key.LSHOULDER]
-            right_shoulder = pose[H36Key.RSHOULDER]
-
-            # Vector from left to right shoulder
-            shoulder_vector = right_shoulder - left_shoulder
-
-            # Angle in radians
-            angles[i] = np.arctan2(shoulder_vector[1], shoulder_vector[0])
-
-        # Convert to degrees
+        shoulder_vector = right_shoulder - left_shoulder
+        angles = np.arctan2(shoulder_vector[:, 1], shoulder_vector[:, 0])
         angles_deg = np.degrees(angles)
 
-        # Compute angular velocity
+        # Angular velocity
         velocity = self.compute_angular_velocity(angles_deg, fps)
 
-        # Find peak in flight phase
+        # Peak in flight phase
         if phases.takeoff < phases.landing and phases.landing < len(velocity):
             flight_velocity = velocity[phases.takeoff : phases.landing]
             return float(np.max(np.abs(flight_velocity)))
@@ -745,7 +741,12 @@ class BiomechanicsAnalyzer:
         avg_asymmetry = float(np.mean(asymmetries))
         return float(max(0, 1 - avg_asymmetry))
 
-    def compute_relative_jump_height(self, poses: NormalizedPose, phases: ElementPhase) -> float:
+    def compute_relative_jump_height(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        com_trajectory: NDArray[np.float32] | None = None,
+    ) -> float:
         """Compute jump height normalized by spine length (camera-independent).
 
         This metric provides a camera-independent measure of jump height by
@@ -760,6 +761,7 @@ class BiomechanicsAnalyzer:
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
             phases: Element phase boundaries.
+            com_trajectory: Pre-computed CoM trajectory (optional, for caching).
 
         Returns:
             Relative jump height as ratio (CoM displacement / spine length).
@@ -769,36 +771,26 @@ class BiomechanicsAnalyzer:
         if phases.takeoff >= phases.landing:
             return 0.0
 
-        # Calculate average spine length around takeoff
+        # Calculate average spine length around takeoff (vectorized)
         # Spine = distance from mid-hip to mid-shoulder
-        spine_lengths: list[float] = []
-
-        # Sample frames around takeoff (±2 frames if available)
         start_frame = max(0, phases.takeoff - 2)
         end_frame = min(len(poses), phases.takeoff + 3)
 
-        for i in range(start_frame, end_frame):
-            pose = poses[i]
+        takeoff_window = poses[start_frame:end_frame]
+        mid_hip = (takeoff_window[:, H36Key.LHIP] + takeoff_window[:, H36Key.RHIP]) / 2
+        mid_shoulder = (
+            takeoff_window[:, H36Key.LSHOULDER] + takeoff_window[:, H36Key.RSHOULDER]
+        ) / 2
+        spine_lengths = np.linalg.norm(mid_shoulder - mid_hip, axis=1)
+        valid_spines = spine_lengths[spine_lengths >= 0.01]
 
-            # Compute mid-hip and mid-shoulder
-            mid_hip = (pose[H36Key.LHIP] + pose[H36Key.RHIP]) / 2
-            mid_shoulder = (pose[H36Key.LSHOULDER] + pose[H36Key.RSHOULDER]) / 2
-
-            # Calculate spine length
-            spine_len = float(np.linalg.norm(mid_shoulder - mid_hip))
-
-            # Skip invalid spine lengths
-            if spine_len >= 0.01:
-                spine_lengths.append(spine_len)
-
-        # If no valid spine lengths found, return 0.0
-        if not spine_lengths:
+        if len(valid_spines) == 0:
             return 0.0
 
-        avg_spine = float(np.mean(spine_lengths))
+        avg_spine = float(np.mean(valid_spines))
 
-        # Calculate CoM trajectory
-        com_trajectory = calculate_com_trajectory(poses)
+        if com_trajectory is None:
+            com_trajectory = calculate_com_trajectory(poses)
 
         # Get CoM at takeoff
         takeoff_com = com_trajectory[phases.takeoff]

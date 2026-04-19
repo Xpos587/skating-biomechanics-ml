@@ -1,6 +1,7 @@
 """Tests for geometry utility functions."""
 
 import numpy as np
+import pytest
 
 from src.types import H36Key
 from src.utils.geometry import (
@@ -146,3 +147,110 @@ class TestGetMidShoulder:
         assert np.allclose(mid_shoulder[:, 0], 0, atol=0.01)
         # Mid-shoulder Y should be negative (above hips)
         assert np.all(mid_shoulder[:, 1] < 0)
+
+
+class TestCalculateComTrajectoryVectorized:
+    """Tests for vectorized CoM trajectory calculation."""
+
+    def test_com_trajectory_matches_scalar(self, sample_normalized_poses):
+        """Vectorized trajectory should match per-frame scalar computation."""
+        from src.utils.geometry import calculate_center_of_mass
+
+        expected = np.array(
+            [
+                calculate_center_of_mass(sample_normalized_poses, i)
+                for i in range(len(sample_normalized_poses))
+            ],
+            dtype=np.float32,
+        )
+        actual = calculate_com_trajectory(sample_normalized_poses)
+
+        np.testing.assert_allclose(actual, expected, atol=1e-5)
+
+    def test_com_trajectory_single_frame(self):
+        """Should work for single-frame input."""
+        poses = np.zeros((1, 17, 2), dtype=np.float32)
+        com = calculate_com_trajectory(poses)
+        assert com.shape == (1,)
+
+    def test_com_trajectory_100_frames(self):
+        """Should handle 100 frames efficiently (no Python loop)."""
+        rng = np.random.default_rng(42)
+        poses = rng.uniform(-0.5, 0.5, size=(100, 17, 2)).astype(np.float32)
+        com = calculate_com_trajectory(poses)
+        assert com.shape == (100,)
+
+
+class TestNormalizePosesVectorized:
+    """Tests for vectorized normalize_poses."""
+
+    def test_matches_original(self):
+        """Vectorized output should match original loop-based output."""
+        from src.utils.geometry import normalize_poses
+
+        rng = np.random.default_rng(42)
+        raw = rng.uniform(-1, 1, size=(50, 17, 3)).astype(np.float32)
+        result = normalize_poses(raw)
+
+        assert result.shape == (50, 17, 2)
+        # Root-centered: mid-hip should be near origin
+        mid_hip = (result[:, H36Key.LHIP] + result[:, H36Key.RHIP]) / 2
+        np.testing.assert_allclose(mid_hip, 0, atol=1e-5)
+
+    def test_17_keypoints_only(self):
+        """Should raise ValueError for non-17 keypoint input."""
+        with pytest.raises(ValueError, match="17 keypoints"):
+            from src.utils.geometry import normalize_poses
+
+            normalize_poses(np.zeros((10, 15, 3), dtype=np.float32))
+
+    def test_scale_normalization(self):
+        """Should normalize spine length to target_spine_length."""
+        from src.utils.geometry import normalize_poses
+
+        # Create test data with known spine length
+        raw = np.zeros((10, 17, 3), dtype=np.float32)
+        spine_length = 0.5  # 50cm in normalized units
+
+        # Set hips at origin
+        raw[:, H36Key.LHIP] = [0, 0, 1]
+        raw[:, H36Key.RHIP] = [0, 0, 1]
+
+        # Set shoulders at spine_length distance
+        raw[:, H36Key.LSHOULDER] = [0, -spine_length, 1]
+        raw[:, H36Key.RSHOULDER] = [0, -spine_length, 1]
+
+        result = normalize_poses(raw, target_spine_length=0.4)
+
+        # Check that spine is now 0.4
+        spine_vector = result[:, H36Key.LSHOULDER] - result[:, H36Key.LHIP]
+        actual_spine_length = np.linalg.norm(spine_vector, axis=1)
+
+        np.testing.assert_allclose(actual_spine_length, 0.4, atol=1e-5)
+
+    def test_per_frame_scaling(self):
+        """Each frame should be scaled independently based on its own spine length."""
+        from src.utils.geometry import normalize_poses
+
+        raw = np.zeros((2, 17, 3), dtype=np.float32)
+
+        # Frame 0: spine length = 0.5
+        raw[0, H36Key.LHIP] = [0, 0, 1]
+        raw[0, H36Key.RHIP] = [0, 0, 1]
+        raw[0, H36Key.LSHOULDER] = [0, -0.5, 1]
+        raw[0, H36Key.RSHOULDER] = [0, -0.5, 1]
+
+        # Frame 1: spine length = 1.0
+        raw[1, H36Key.LHIP] = [0, 0, 1]
+        raw[1, H36Key.RHIP] = [0, 0, 1]
+        raw[1, H36Key.LSHOULDER] = [0, -1.0, 1]
+        raw[1, H36Key.RSHOULDER] = [0, -1.0, 1]
+
+        result = normalize_poses(raw, target_spine_length=0.4)
+
+        # Both frames should have spine length 0.4 after normalization
+        spine_0 = np.linalg.norm(result[0, H36Key.LSHOULDER] - result[0, H36Key.LHIP])
+        spine_1 = np.linalg.norm(result[1, H36Key.LSHOULDER] - result[1, H36Key.LHIP])
+
+        np.testing.assert_allclose(spine_0, 0.4, atol=1e-5)
+        np.testing.assert_allclose(spine_1, 0.4, atol=1e-5)

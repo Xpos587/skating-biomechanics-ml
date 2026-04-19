@@ -126,3 +126,21 @@ async def test_publish_task_event(valkey):
 
     await pubsub.unsubscribe(channel)
     await pubsub.aclose()
+
+
+def test_worker_queue_names():
+    """Each WorkerSettings class should use its own queue name."""
+    from backend.app.worker import FastWorkerSettings, HeavyWorkerSettings
+
+    assert FastWorkerSettings.queue_name == "skating:queue:fast"
+    assert HeavyWorkerSettings.queue_name == "skating:queue:heavy"
+
+
+def test_worker_graceful_shutdown():
+    """Each WorkerSettings class should have job_completion_wait set."""
+    from backend.app.worker import FastWorkerSettings, HeavyWorkerSettings
+
+    # Fast worker (detect) jobs are quick, 120s is generous
+    assert FastWorkerSettings.job_completion_wait == 120
+    # Heavy worker (process) jobs can run 5-10 min, wait up to 10 min
+    assert HeavyWorkerSettings.job_completion_wait == 600

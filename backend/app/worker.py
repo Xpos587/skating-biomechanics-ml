@@ -504,11 +504,10 @@ async def detect_video_task(
 _settings = get_settings()
 
 
-class WorkerSettings:
-    """arq worker configuration."""
+class FastWorkerSettings:
+    """arq worker for lightweight detection tasks."""
 
-    queue_name: str = "skating:queue"
-    # Use higher max_jobs for remote GPU (5x concurrent), 1 for local GPU
+    queue_name: str = "skating:queue:fast"
     max_jobs: int = (
         _settings.app.worker_max_jobs_remote
         if _settings.vastai.api_key.get_secret_value()
@@ -516,11 +515,33 @@ class WorkerSettings:
     )
     retry_jobs: bool = True
     retry_delays: ClassVar[list[int]] = _settings.app.worker_retry_delays
+    job_completion_wait: int = 120
 
     on_startup = startup
     on_shutdown = shutdown
+    functions: ClassVar[list] = [detect_video_task]
+    cron_jobs: ClassVar[list] = []
 
-    functions: ClassVar[list] = [process_video_task, detect_video_task]
+    redis_settings = RedisSettings(
+        host=_settings.valkey.host,
+        port=_settings.valkey.port,
+        database=_settings.valkey.db,
+        password=_settings.valkey.password.get_secret_value(),
+    )
+
+
+class HeavyWorkerSettings:
+    """arq worker for full ML pipeline processing."""
+
+    queue_name: str = "skating:queue:heavy"
+    max_jobs: int = 1  # GPU-bound, can't parallelize
+    retry_jobs: bool = True
+    retry_delays: ClassVar[list[int]] = _settings.app.worker_retry_delays
+    job_completion_wait: int = 600
+
+    on_startup = startup
+    on_shutdown = shutdown
+    functions: ClassVar[list] = [process_video_task]
     cron_jobs: ClassVar[list] = []
 
     redis_settings = RedisSettings(

@@ -165,6 +165,26 @@ class TestAnalysisPipeline:
 
 
 @pytest.mark.integration
+class TestConditional3D:
+    """Tests for compute_3d gate."""
+
+    def test_compute_3d_defaults_false(self):
+        """compute_3d should default to False."""
+        pipeline = AnalysisPipeline()
+        assert pipeline._compute_3d is False
+
+    def test_compute_3d_explicit_true(self):
+        """compute_3d=True should be stored."""
+        pipeline = AnalysisPipeline(compute_3d=True)
+        assert pipeline._compute_3d is True
+
+    def test_compute_3d_explicit_false(self):
+        """compute_3d=False should be stored."""
+        pipeline = AnalysisPipeline(compute_3d=False)
+        assert pipeline._compute_3d is False
+
+
+@pytest.mark.integration
 class TestPipelineLazyLoading:
     """Test lazy loading of pipeline components.
 
