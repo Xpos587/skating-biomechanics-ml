@@ -228,7 +228,9 @@
       "title": "Music",
       "dropzone": "Drop audio file or click to browse",
       "dropzoneHint": "MP3, WAV, OGG up to 50 MB",
-      "analyzing": "Analyzing music..."
+      "analyzing": "Analyzing music...",
+      "uploading": "Uploading file...",
+      "processing": "Processing on server..."
     },
     "inventory": {
       "title": "Element inventory",

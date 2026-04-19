@@ -11,11 +11,12 @@ import { RinkDiagram } from "@/components/choreography/rink-diagram"
 import { ScoreBar } from "@/components/choreography/score-bar"
 import { useTranslations } from "@/i18n"
 import {
+  uploadMusicFile,
   useGenerateLayouts,
   useMusicAnalysis,
   useSaveProgram,
-  useUploadMusic,
 } from "@/lib/api/choreography"
+import { getAccessToken } from "@/lib/api-client"
 import type { Inventory, Layout } from "@/types/choreography"
 
 const DEFAULT_INVENTORY: Inventory = { jumps: [], spins: [], combinations: [] }
@@ -32,17 +33,21 @@ export default function NewProgramPage() {
   const [inventory, setInventory] = useState<Inventory>(DEFAULT_INVENTORY)
   const [selectedLayout, setSelectedLayout] = useState<Layout | null>(null)
 
-  const uploadMusic = useUploadMusic()
+  const [uploading, setUploading] = useState(false)
   const { data: analysis } = useMusicAnalysis(musicId ?? undefined)
   const generateLayouts = useGenerateLayouts()
   const saveProgram = useSaveProgram()
 
-  function handleUpload(file: File) {
-    uploadMusic.mutate(file, {
-      onSuccess: res => {
-        setMusicId(res.music_id)
-      },
-    })
+  async function handleUpload(file: File, onProgress?: (loaded: number, total: number) => void) {
+    const token = getAccessToken()
+    if (!token) return
+    setUploading(true)
+    try {
+      const res = await uploadMusicFile(file, token, onProgress)
+      setMusicId(res.music_id)
+    } finally {
+      setUploading(false)
+    }
   }
 
   function handleGenerate() {
@@ -109,7 +114,7 @@ export default function NewProgramPage() {
         <MusicUploader
           analysis={analysis ?? null}
           onUpload={handleUpload}
-          isUploading={uploadMusic.isPending}
+          isUploading={uploading}
         />
         {musicReady && (
           <div className="mt-4 flex flex-wrap gap-2">

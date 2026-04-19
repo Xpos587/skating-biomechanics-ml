@@ -7,7 +7,7 @@ import type { MusicAnalysis } from "@/types/choreography"
 
 interface MusicUploaderProps {
   analysis: MusicAnalysis | null
-  onUpload: (file: File) => void
+  onUpload: (file: File, onProgress?: (loaded: number, total: number) => void) => void
   isUploading: boolean
 }
 
@@ -15,6 +15,7 @@ export function MusicUploader({ analysis, onUpload, isUploading }: MusicUploader
   const t = useTranslations("choreography")
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [progress, setProgress] = useState(0)
 
   const isPending = analysis?.status === "pending" || analysis?.status === "analyzing"
 
@@ -22,12 +23,12 @@ export function MusicUploader({ analysis, onUpload, isUploading }: MusicUploader
     e.preventDefault()
     setDragOver(false)
     const file = e.dataTransfer.files[0]
-    if (file) onUpload(file)
+    if (file) onUpload(file, (loaded, total) => setProgress(Math.round((loaded / total) * 100)))
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) onUpload(file)
+    if (file) onUpload(file, (loaded, total) => setProgress(Math.round((loaded / total) * 100)))
   }
 
   if (isPending) {
@@ -60,34 +61,53 @@ export function MusicUploader({ analysis, onUpload, isUploading }: MusicUploader
     <button
       type="button"
       onClick={() => inputRef.current?.click()}
-      onKeyDown={e => e.key === "Enter" && inputRef.current?.click()}
       onDragOver={e => {
-        e.preventDefault()
-        setDragOver(true)
+        if (!isUploading) {
+          e.preventDefault()
+          setDragOver(true)
+        }
       }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={handleDrop}
-      className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
+      onDrop={e => {
+        if (!isUploading) handleDrop(e)
+      }}
+      disabled={isUploading}
+      className={`flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${
         dragOver
           ? "border-primary bg-primary/5"
           : "border-border hover:border-primary/50 hover:bg-accent/30"
-      }`}
+      } ${isUploading ? "pointer-events-none cursor-default" : ""}`}
     >
       {isUploading ? (
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <>
+          <div className="w-full max-w-xs space-y-2">
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${progress >= 100 ? "animate-pulse" : "bg-primary"}`}
+                style={{ width: `${progress}%`, backgroundColor: progress >= 100 ? "oklch(var(--muted-foreground))" : undefined }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {progress >= 100 ? t("music.processing") : `${progress}%`}
+            </p>
+          </div>
+        </>
       ) : (
-        <Upload className="h-8 w-8 text-muted-foreground" />
+        <>
+          <Upload className="h-8 w-8 text-muted-foreground" />
+          <div>
+            <p className="text-sm font-medium">{t("music.dropzone")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("music.dropzoneHint")}</p>
+          </div>
+        </>
       )}
-      <div>
-        <p className="text-sm font-medium">{t("music.dropzone")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("music.dropzoneHint")}</p>
-      </div>
       <input
         ref={inputRef}
         type="file"
         accept="audio/*"
         className="hidden"
         onChange={handleFileChange}
+        disabled={isUploading}
       />
     </button>
   )
