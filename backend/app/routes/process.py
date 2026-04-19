@@ -60,7 +60,6 @@ async def enqueue_process(request: Request, req: ProcessRequest):
         export=req.export,
         ml_flags=ml_flags,
         session_id=req.session_id,
-        _priority=10,  # Low priority for full analysis
     )
 
     return QueueProcessResponse(task_id=task_id)
