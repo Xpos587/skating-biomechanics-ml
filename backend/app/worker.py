@@ -26,8 +26,10 @@ from app.task_manager import (
     get_valkey_client,
     is_cancelled,
     mark_cancelled,
+    publish_task_event,
     store_error,
     store_result,
+    update_progress,
 )
 from src.types import H36Key
 
@@ -204,6 +206,10 @@ async def process_video_task(
             f"task:{task_id}",
             mapping={"status": TaskStatus.RUNNING, "started_at": now},
         )
+        await update_progress(task_id, 0.0, "Starting...", valkey=valkey)
+        await publish_task_event(
+            task_id, {"status": "running", "progress": 0.0, "message": "Starting..."}, valkey=valkey
+        )
 
         from app.crud.session import get_by_id
         from app.database import async_session  # type: ignore[import-untyped]
@@ -218,6 +224,12 @@ async def process_video_task(
                     element_type = session.element_type
 
         logger.info("Dispatching task %s to Vast.ai (video_key=%s)", task_id, video_key)
+        await update_progress(task_id, 0.1, "Dispatching to GPU...", valkey=valkey)
+        await publish_task_event(
+            task_id,
+            {"status": "running", "progress": 0.1, "message": "Dispatching to GPU..."},
+            valkey=valkey,
+        )
 
         # Cancellation check before expensive GPU dispatch
         if await is_cancelled(task_id, valkey=valkey):
@@ -235,6 +247,12 @@ async def process_video_task(
             element_type=element_type,
         )
         logger.info("Vast.ai processing complete for task %s", task_id)
+        await update_progress(task_id, 0.7, "GPU processing complete", valkey=valkey)
+        await publish_task_event(
+            task_id,
+            {"status": "running", "progress": 0.7, "message": "GPU processing complete"},
+            valkey=valkey,
+        )
 
         # Cancellation check after GPU returns (skip post-processing)
         if await is_cancelled(task_id, valkey=valkey):
@@ -270,6 +288,12 @@ async def process_video_task(
                         len(sampled["frames"]),
                         len(poses),
                     )
+                    await update_progress(task_id, 0.85, "Preparing results...", valkey=valkey)
+                    await publish_task_event(
+                        task_id,
+                        {"status": "running", "progress": 0.85, "message": "Preparing results..."},
+                        valkey=valkey,
+                    )
             except Exception as pose_err:  # noqa: BLE001
                 logger.warning("Failed to prepare pose data: %s", pose_err)
 
@@ -279,8 +303,10 @@ async def process_video_task(
             "status": "Analysis complete!",
         }
         await store_result(task_id, response_data, valkey=valkey)
-
-        # Save analysis results to Postgres if session_id was provided
+        await update_progress(task_id, 1.0, "Done", valkey=valkey)
+        await publish_task_event(
+            task_id, {"status": "completed", "progress": 1.0, "message": "Done"}, valkey=valkey
+        )
         if session_id and vast_result.metrics:
             try:
                 from app.crud.session import update_session_analysis
@@ -315,6 +341,12 @@ async def process_video_task(
     except Exception as e:
         logger.exception("Pipeline task %s failed", task_id)
         await store_error(task_id, str(e), valkey=valkey)
+        try:
+            await publish_task_event(
+                task_id, {"status": "failed", "progress": 0.0, "message": str(e)}, valkey=valkey
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to publish error event for task %s", task_id)
         error_msg = str(e).lower()
         if any(term in error_msg for term in ["timeout", "connection", "network"]):
             raise Retry(defer=ctx.get("job_try", 1) * 10) from e
@@ -341,6 +373,12 @@ async def detect_video_task(
             f"task:{task_id}",
             mapping={"status": TaskStatus.RUNNING, "started_at": now},
         )
+        await update_progress(task_id, 0.0, "Starting detection...", valkey=valkey)
+        await publish_task_event(
+            task_id,
+            {"status": "running", "progress": 0.0, "message": "Starting detection..."},
+            valkey=valkey,
+        )
 
         import tempfile
         from pathlib import Path
@@ -352,6 +390,13 @@ async def detect_video_task(
         from src.pose_estimation.pose_extractor import PoseExtractor
         from src.utils.video import get_video_meta
         from src.web_helpers import render_person_preview
+
+        await update_progress(task_id, 0.1, "Downloading video...", valkey=valkey)
+        await publish_task_event(
+            task_id,
+            {"status": "running", "progress": 0.1, "message": "Downloading video..."},
+            valkey=valkey,
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             video_path = Path(tmpdir) / "input.mp4"
@@ -368,6 +413,12 @@ async def detect_video_task(
             )
             persons, _ = await asyncio.to_thread(
                 extractor.preview_persons, video_path, num_frames=30
+            )
+            await update_progress(task_id, 0.8, "Extracting poses...", valkey=valkey)
+            await publish_task_event(
+                task_id,
+                {"status": "running", "progress": 0.8, "message": "Extracting poses..."},
+                valkey=valkey,
             )
 
             if not persons:
@@ -430,11 +481,21 @@ async def detect_video_task(
                 "status": status_msg,
             }
             await store_result(task_id, result_data, valkey=valkey)
+            await update_progress(task_id, 1.0, "Done", valkey=valkey)
+            await publish_task_event(
+                task_id, {"status": "completed", "progress": 1.0, "message": "Done"}, valkey=valkey
+            )
             return result_data
 
     except Exception as e:
         logger.exception("Detection task %s failed", task_id)
         await store_error(task_id, str(e), valkey=valkey)
+        try:
+            await publish_task_event(
+                task_id, {"status": "failed", "progress": 0.0, "message": str(e)}, valkey=valkey
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to publish error event for task %s", task_id)
         raise
     finally:
         await valkey.close()

@@ -8,6 +8,7 @@ from backend.app.task_manager import (
     get_task_state,
     is_cancelled,
     mark_cancelled,
+    publish_task_event,
     set_cancel_signal,
     store_error,
     store_result,
@@ -95,3 +96,33 @@ async def test_cancel_flow(valkey):
 async def test_get_nonexistent_returns_none(valkey):
     state = await get_task_state("nonexistent", valkey=valkey)
     assert state is None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_publish_task_event(valkey):
+    """publish_task_event should publish to pub/sub channel."""
+    import asyncio
+    import json
+
+    pubsub = valkey.pubsub()
+    channel = "task_events:test_pub_1"
+    await pubsub.subscribe(channel)
+
+    await asyncio.sleep(0.05)
+
+    await publish_task_event("test_pub_1", {"status": "running", "progress": 0.5}, valkey=valkey)
+
+    msg = await asyncio.wait_for(pubsub.get_message(timeout=1.0), timeout=1.0)
+    while msg and msg["type"] != "message":
+        msg = await asyncio.wait_for(pubsub.get_message(timeout=1.0), timeout=1.0)
+
+    if msg:
+        data = json.loads(msg["data"])
+        assert data["status"] == "running"
+        assert data["progress"] == 0.5
+    else:
+        pytest.fail("No message received from pub/sub")
+
+    await pubsub.unsubscribe(channel)
+    await pubsub.aclose()
