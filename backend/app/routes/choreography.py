@@ -53,7 +53,6 @@ def _program_to_response(program) -> ChoreographyProgramResponse:
 # ---------------------------------------------------------------------------
 
 
-
 @router.post(
     "/choreography/music/upload",
     response_model=UploadMusicResponse,

@@ -40,7 +40,9 @@ def render_rink(
     parts.append(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {_f(rink_w)} {_f(rink_h)}">'
     )
-    parts.append(f'<rect x="0" y="0" width="{_f(rink_w)}" height="{_f(rink_h)}" fill="#e8f0fe" rx="{_f(1 * sx)}"/>')
+    parts.append(
+        f'<rect x="0" y="0" width="{_f(rink_w)}" height="{_f(rink_h)}" fill="#e8f0fe" rx="{_f(1 * sx)}"/>'
+    )
     parts.append(
         f'<rect x="{_f(1 * sx)}" y="{_f(1 * sy)}" width="{_f(58 * sx)}" height="{_f(28 * sy)}" fill="none" stroke="#2563eb" stroke-width="0.15" rx="{_f(0.5 * sx)}"/>'
     )
@@ -50,15 +52,23 @@ def render_rink(
     parts.append(
         f'<circle cx="{_f(30 * sx)}" cy="{_f(15 * sy)}" r="{_f(4.5 * sx)}" fill="none" stroke="#dc2626" stroke-width="0.1"/>'
     )
-    parts.append(f'<circle cx="{_f(30 * sx)}" cy="{_f(15 * sy)}" r="{_f(0.15 * sx)}" fill="#dc2626"/>')
-    parts.append(f'<line x1="{_f(5 * sx)}" y1="{_f(1 * sy)}" x2="{_f(5 * sx)}" y2="{_f(29 * sy)}" stroke="#2563eb" stroke-width="0.08"/>')
-    parts.append(f'<line x1="{_f(55 * sx)}" y1="{_f(1 * sy)}" x2="{_f(55 * sx)}" y2="{_f(29 * sy)}" stroke="#2563eb" stroke-width="0.08"/>')
+    parts.append(
+        f'<circle cx="{_f(30 * sx)}" cy="{_f(15 * sy)}" r="{_f(0.15 * sx)}" fill="#dc2626"/>'
+    )
+    parts.append(
+        f'<line x1="{_f(5 * sx)}" y1="{_f(1 * sy)}" x2="{_f(5 * sx)}" y2="{_f(29 * sy)}" stroke="#2563eb" stroke-width="0.08"/>'
+    )
+    parts.append(
+        f'<line x1="{_f(55 * sx)}" y1="{_f(1 * sy)}" x2="{_f(55 * sx)}" y2="{_f(29 * sy)}" stroke="#2563eb" stroke-width="0.08"/>'
+    )
 
     for cx, cy in [(10, 7.5), (10, 22.5), (50, 7.5), (50, 22.5)]:
         parts.append(
             f'<circle cx="{_f(cx * sx)}" cy="{_f(cy * sy)}" r="{_f(3 * sx)}" fill="none" stroke="#2563eb" stroke-width="0.08"/>'
         )
-        parts.append(f'<circle cx="{_f(cx * sx)}" cy="{_f(cy * sy)}" r="{_f(0.15 * sx)}" fill="#dc2626"/>')
+        parts.append(
+            f'<circle cx="{_f(cx * sx)}" cy="{_f(cy * sy)}" r="{_f(0.15 * sx)}" fill="#dc2626"/>'
+        )
 
     for i, el in enumerate(elements):
         pos = el.get("position")
@@ -87,7 +97,9 @@ def render_rink(
             )
             color = "#2563eb"
         else:
-            parts.append(f'<circle cx="{_f(x)}" cy="{_f(y)}" r="{_f(0.6 * sx)}" fill="#ea580c" opacity="0.8"/>')
+            parts.append(
+                f'<circle cx="{_f(x)}" cy="{_f(y)}" r="{_f(0.6 * sx)}" fill="#ea580c" opacity="0.8"/>'
+            )
             color = "#ea580c"
 
         parts.append(
