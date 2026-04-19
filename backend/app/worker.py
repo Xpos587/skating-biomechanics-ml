@@ -501,6 +501,140 @@ async def detect_video_task(
         await valkey.close()
 
 
+async def analyze_music_task(
+    ctx: dict[str, Any],
+    *,
+    music_id: str,
+    r2_key: str,
+) -> dict[str, Any]:
+    """arq task: analyze music file for BPM, structure, and energy peaks.
+
+    Args:
+        music_id: Database ID of the music record
+        r2_key: R2 storage key for the audio file
+
+    Returns:
+        dict with status and analysis results
+    """
+    valkey = await get_valkey_client()
+
+    try:
+        from app.crud.choreography import (
+            find_music_by_fingerprint,
+            get_music_analysis_by_id,
+            update_music_analysis,
+        )
+        from app.database import async_session_factory
+        from app.services.choreography.fingerprint import compute_fingerprint
+        from app.services.choreography.music_analyzer import analyze_music_sync
+
+        logger.info("Starting music analysis for music_id=%s, r2_key=%s", music_id, r2_key)
+
+        # Download from R2 to temp file
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_path = Path(tmpdir) / f"music_{music_id}.mp3"
+            logger.info("Downloading music from R2: %s -> %s", r2_key, audio_path)
+            await asyncio.to_thread(download_file, r2_key, str(audio_path))
+
+            # Compute fingerprint
+            logger.info("Computing fingerprint for %s", audio_path)
+            fingerprint = await asyncio.to_thread(compute_fingerprint, str(audio_path))
+            if not fingerprint:
+                raise RuntimeError("Failed to compute fingerprint")
+
+            logger.info("Fingerprint computed: %s", fingerprint[:16] + "...")
+
+            # Check for duplicate
+            async with async_session_factory() as db:
+                music = await get_music_analysis_by_id(db, music_id)
+                if not music:
+                    raise RuntimeError(f"Music record {music_id} not found")
+
+                # Store fingerprint
+                await update_music_analysis(db, music, fingerprint=fingerprint)
+                await db.commit()
+
+                # Check for existing analysis with same fingerprint
+                duplicate = await find_music_by_fingerprint(db, fingerprint)
+                if duplicate and duplicate.id != music_id:
+                    logger.info("Found duplicate analysis: %s (music_id=%s)", duplicate.id, duplicate.fingerprint[:16] + "...")
+                    # Copy analysis results from duplicate
+                    await update_music_analysis(
+                        db,
+                        music,
+                        audio_url=music.audio_url,  # Keep our own URL
+                        duration_sec=duplicate.duration_sec,
+                        bpm=duplicate.bpm,
+                        peaks=duplicate.peaks,
+                        structure=duplicate.structure,
+                        energy_curve=duplicate.energy_curve,
+                        status="completed",
+                    )
+                    await db.commit()
+                    return {
+                        "status": "completed",
+                        "music_id": music_id,
+                        "duplicate_of": duplicate.id,
+                        "bpm": duplicate.bpm,
+                        "duration_sec": duplicate.duration_sec,
+                    }
+
+                # No duplicate - run full analysis
+                logger.info("No duplicate found, running full music analysis")
+                result = await asyncio.to_thread(analyze_music_sync, str(audio_path))
+
+                await update_music_analysis(
+                    db,
+                    music,
+                    audio_url=f"/files/{r2_key}",
+                    duration_sec=result["duration_sec"],
+                    bpm=result["bpm"],
+                    peaks=result["peaks"],
+                    structure=result.get("structure") or [],
+                    energy_curve=result["energy_curve"],
+                    status="completed",
+                )
+                await db.commit()
+
+                logger.info(
+                    "Music analysis complete: music_id=%s, bpm=%.1f, duration=%.1f",
+                    music_id,
+                    result["bpm"],
+                    result["duration_sec"],
+                )
+
+                return {
+                    "status": "completed",
+                    "music_id": music_id,
+                    "bpm": result["bpm"],
+                    "duration_sec": result["duration_sec"],
+                }
+
+    except Exception as e:
+        logger.exception("Music analysis task failed for music_id=%s", music_id)
+
+        # Update DB status to failed
+        try:
+            from app.crud.choreography import get_music_analysis_by_id, update_music_analysis
+            from app.database import async_session_factory
+
+            async with async_session_factory() as db:
+                music = await get_music_analysis_by_id(db, music_id)
+                if music:
+                    await update_music_analysis(db, music, status="failed")
+                    await db.commit()
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to update music status to failed")
+
+        raise
+
+    finally:
+        await valkey.close()
+
+
 _settings = get_settings()
 
 
@@ -519,7 +653,7 @@ class FastWorkerSettings:
 
     on_startup = startup
     on_shutdown = shutdown
-    functions: ClassVar[list] = [detect_video_task]
+    functions: ClassVar[list] = [detect_video_task, analyze_music_task]
     cron_jobs: ClassVar[list] = []
 
     redis_settings = RedisSettings(
