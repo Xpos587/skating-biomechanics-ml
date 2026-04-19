@@ -57,7 +57,6 @@ export default function NewProgramPage() {
         music_analysis_id: musicId,
         discipline,
         segment,
-        season: "2025_26",
         inventory,
         count: 3,
       },
