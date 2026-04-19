@@ -35,6 +35,7 @@ class MusicAnalysis(TimestampMixin, Base):
     downbeats: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
     peaks: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")
+    fingerprint: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
 
     __table_args__ = (Index("ix_music_analyses_user_created", "user_id", "created_at"),)
 

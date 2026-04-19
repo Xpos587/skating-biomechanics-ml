@@ -83,3 +83,55 @@ def test_process_video_remote_passes_r2_key(mock_post):
     assert result.poses_key == "output/test_poses.npy"
     assert result.csv_key is None
     assert mock_post.call_count == 2
+
+
+def test_worker_url_cache_is_thread_safe():
+    """Verify cache access is protected by a lock."""
+    import threading
+
+    import app.vastai.client as _vc
+
+    # Reset cache
+    _vc._worker_url_cache = None
+    _vc._worker_url_cache_time = 0.0
+
+    # Access the lock — it should exist
+    assert hasattr(_vc, "_worker_url_lock")
+    assert isinstance(_vc._worker_url_lock, type(threading.Lock()))
+
+
+def test_get_worker_url_uses_cache():
+    """Second call within TTL should not make HTTP request."""
+    import app.vastai.client as _vc
+
+    _vc._worker_url_cache = None
+    _vc._worker_url_cache_time = 0.0
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"url": "https://cached.vast.ai:8000"}
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("app.vastai.client.httpx.post", return_value=mock_resp) as mock_post:
+        url1 = _vc._get_worker_url("ep", "key")
+        url2 = _vc._get_worker_url("ep", "key")
+
+    assert url1 == "https://cached.vast.ai:8000"
+    assert url2 == "https://cached.vast.ai:8000"
+    mock_post.assert_called_once()  # Only one HTTP call, second uses cache
+
+
+async def test_async_client_is_reused_across_calls():
+    """Verify _get_async_client returns the same client instance."""
+    import app.vastai.client as _vc
+
+    # Reset module-level client
+    _vc._async_client = None
+
+    c1 = _vc._get_async_client()
+    c2 = _vc._get_async_client()
+    assert c1 is c2
+
+    # Cleanup
+    await c1.aclose()
+    _vc._async_client = None

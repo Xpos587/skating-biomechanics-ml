@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.crud.session import get_by_id, update
-from app.crud.session_metric import bulk_create, get_current_best
+from app.crud.session_metric import bulk_create, get_current_best_batch
 from app.metrics_registry import METRIC_REGISTRY
 from app.services.pr_tracker import check_pr
 
@@ -38,6 +38,16 @@ async def save_analysis_results(
 
     # Build metric rows with PR tracking
     metric_rows = []
+
+    # Batch-fetch all current bests in one query (N+1 fix)
+    metric_names = [mr.name for mr in metrics]
+    bests = await get_current_best_batch(
+        db,
+        user_id=session.user_id,
+        element_type=session.element_type,
+        metric_names=metric_names,
+    )
+
     for mr in metrics:
         mdef = METRIC_REGISTRY.get(mr.name)
         ref_value = mdef.ideal_range[0] if mdef else None
@@ -47,13 +57,8 @@ async def save_analysis_results(
         if mdef and ref_value is not None and ref_max is not None:
             is_in_range = ref_value <= mr.value <= ref_max
 
-        # Check PR
-        current_best = await get_current_best(
-            db,
-            user_id=session.user_id,
-            element_type=session.element_type,
-            metric_name=mr.name,
-        )
+        # Check PR using batch-fetched best
+        current_best = bests.get(mr.name)
         direction = mdef.direction if mdef else "higher"
         is_pr, prev_best = check_pr(direction, current_best, mr.value)
 

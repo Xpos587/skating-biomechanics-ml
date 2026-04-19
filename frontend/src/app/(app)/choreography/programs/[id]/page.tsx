@@ -154,7 +154,7 @@ export default function ProgramEditorPage() {
 
         {/* Rink diagram panel (desktop only) */}
         <div className="hidden w-80 shrink-0 border-l border-border bg-muted/20 p-2 lg:block">
-          <RinkDiagram svgHtml={null} isLoading={false} />
+          <RinkDiagram elements={layout?.elements ?? []} />
         </div>
       </div>
     </div>

@@ -41,6 +41,41 @@ async def get_current_best(
     return row
 
 
+async def get_current_best_batch(
+    db: AsyncSession,
+    user_id: str,
+    element_type: str,
+    metric_names: list[str],
+) -> dict[str, float]:
+    """Get current best values for multiple metrics in a single query.
+
+    Returns dict mapping metric_name -> best_value (max for all metrics).
+    Missing metrics (no data) are omitted from the dict.
+    """
+    if not metric_names:
+        return {}
+
+    from sqlalchemy import func
+
+    subq = (
+        select(
+            SessionMetric.metric_name,
+            func.max(SessionMetric.metric_value).label("best_value"),
+        )
+        .join(Session)
+        .where(
+            Session.user_id == user_id,
+            Session.element_type == element_type,
+            SessionMetric.metric_name.in_(metric_names),
+            Session.status == "done",
+        )
+        .group_by(SessionMetric.metric_name)
+    )
+    result = await db.execute(subq)
+    rows = result.all()
+    return {row.metric_name: row.best_value for row in rows}
+
+
 async def bulk_create(db: AsyncSession, metrics: list[dict]) -> None:
     """Insert multiple session metrics in one flush."""
     for m in metrics:

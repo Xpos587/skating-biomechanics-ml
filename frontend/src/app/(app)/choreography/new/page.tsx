@@ -13,7 +13,6 @@ import { useTranslations } from "@/i18n"
 import {
   useGenerateLayouts,
   useMusicAnalysis,
-  useRenderRink,
   useSaveProgram,
   useUploadMusic,
 } from "@/lib/api/choreography"
@@ -37,7 +36,6 @@ export default function NewProgramPage() {
   const { data: analysis } = useMusicAnalysis(musicId ?? undefined)
   const generateLayouts = useGenerateLayouts()
   const saveProgram = useSaveProgram()
-  const renderRink = useRenderRink()
 
   function handleUpload(file: File) {
     uploadMusic.mutate(file, {
@@ -152,27 +150,23 @@ export default function NewProgramPage() {
       </section>
 
       {/* Step 2: Element inventory */}
-      {musicReady && (
-        <section>
-          <h2 className="mb-3 nike-h3">{t("inventory.title")}</h2>
-          <InventoryEditor value={inventory} onChange={setInventory} />
-        </section>
-      )}
+      <section>
+        <h2 className="mb-3 nike-h3">{t("inventory.title")}</h2>
+        <InventoryEditor value={inventory} onChange={setInventory} />
+      </section>
 
       {/* Step 3: Generate */}
-      {musicReady && (
-        <section>
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={!canGenerate || generateLayouts.isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            <Sparkles className="h-5 w-5" />
-            {generateLayouts.isPending ? t("generating") : t("generate")}
-          </button>
-        </section>
-      )}
+      <section>
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={!canGenerate || generateLayouts.isPending}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Sparkles className="h-5 w-5" />
+          {generateLayouts.isPending ? t("generating") : t("generate")}
+        </button>
+      </section>
 
       {/* Step 4: Pick layout + save */}
       {generateLayouts.data && step === "result" && (
@@ -185,25 +179,13 @@ export default function NewProgramPage() {
             }
             onSelect={idx => {
               setSelectedLayout(generateLayouts.data.layouts[idx])
-              renderRink.mutate({
-                layout: {
-                  elements: generateLayouts.data.layouts[idx].elements.map(el => ({
-                    code: el.code,
-                    timestamp: el.timestamp,
-                    position: el.position,
-                  })),
-                },
-              })
             }}
           />
 
           {selectedLayout && (
             <>
               <div className="rounded-2xl bg-muted/20 p-2">
-                <RinkDiagram
-                  svgHtml={renderRink.data?.image_url ?? null}
-                  isLoading={renderRink.isPending}
-                />
+                <RinkDiagram elements={selectedLayout.elements} />
               </div>
 
               <ScoreBar layout={selectedLayout} discipline={discipline} segment={segment} />
