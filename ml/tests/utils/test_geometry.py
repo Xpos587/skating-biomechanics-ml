@@ -146,3 +146,35 @@ class TestGetMidShoulder:
         assert np.allclose(mid_shoulder[:, 0], 0, atol=0.01)
         # Mid-shoulder Y should be negative (above hips)
         assert np.all(mid_shoulder[:, 1] < 0)
+
+
+class TestCalculateComTrajectoryVectorized:
+    """Tests for vectorized CoM trajectory calculation."""
+
+    def test_com_trajectory_matches_scalar(self, sample_normalized_poses):
+        """Vectorized trajectory should match per-frame scalar computation."""
+        from src.utils.geometry import calculate_center_of_mass
+
+        expected = np.array(
+            [
+                calculate_center_of_mass(sample_normalized_poses, i)
+                for i in range(len(sample_normalized_poses))
+            ],
+            dtype=np.float32,
+        )
+        actual = calculate_com_trajectory(sample_normalized_poses)
+
+        np.testing.assert_allclose(actual, expected, atol=1e-5)
+
+    def test_com_trajectory_single_frame(self):
+        """Should work for single-frame input."""
+        poses = np.zeros((1, 17, 2), dtype=np.float32)
+        com = calculate_com_trajectory(poses)
+        assert com.shape == (1,)
+
+    def test_com_trajectory_100_frames(self):
+        """Should handle 100 frames efficiently (no Python loop)."""
+        rng = np.random.default_rng(42)
+        poses = rng.uniform(-0.5, 0.5, size=(100, 17, 2)).astype(np.float32)
+        com = calculate_com_trajectory(poses)
+        assert com.shape == (100,)

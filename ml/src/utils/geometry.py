@@ -295,16 +295,49 @@ def calculate_center_of_mass(poses: NormalizedPose, frame_idx: int) -> float:
 def calculate_com_trajectory(poses: NormalizedPose) -> NDArray[np.float32]:
     """Calculate Center of Mass trajectory for entire pose sequence.
 
+    Vectorized implementation — computes all frames at once using NumPy
+    broadcasting instead of per-frame Python loop.
+
     Args:
         poses: NormalizedPose (num_frames, 17, 2).
 
     Returns:
         CoM Y-coordinates (num_frames,) in normalized units.
     """
-    num_frames = len(poses)
-    com_trajectory = np.zeros(num_frames, dtype=np.float32)
+    # Segment mass ratios (Dempster 1955)
+    head_mass = 0.081
+    torso_mass = 0.497
+    arm_mass = 0.050  # per arm (upper arm + forearm + hand)
+    thigh_mass = 0.100  # per thigh
+    leg_mass = 0.161  # per leg (shin + foot)
 
-    for i in range(num_frames):
-        com_trajectory[i] = calculate_center_of_mass(poses, i)
+    # Vectorized segment positions: (N, 2)
+    head = poses[:, H36Key.HEAD]
 
-    return com_trajectory
+    torso = (
+        poses[:, H36Key.LSHOULDER]
+        + poses[:, H36Key.RSHOULDER]
+        + poses[:, H36Key.LHIP]
+        + poses[:, H36Key.RHIP]
+    ) / 4
+
+    l_upper_arm = (poses[:, H36Key.LSHOULDER] + poses[:, H36Key.LELBOW]) / 2
+    r_upper_arm = (poses[:, H36Key.RSHOULDER] + poses[:, H36Key.RELBOW]) / 2
+    l_forearm = (poses[:, H36Key.LELBOW] + poses[:, H36Key.LWRIST]) / 2
+    r_forearm = (poses[:, H36Key.RELBOW] + poses[:, H36Key.RWRIST]) / 2
+
+    l_thigh = (poses[:, H36Key.LHIP] + poses[:, H36Key.LKNEE]) / 2
+    r_thigh = (poses[:, H36Key.RHIP] + poses[:, H36Key.RKNEE]) / 2
+    l_leg = (poses[:, H36Key.LKNEE] + poses[:, H36Key.LFOOT]) / 2
+    r_leg = (poses[:, H36Key.RKNEE] + poses[:, H36Key.RFOOT]) / 2
+
+    # Weighted sum of Y-coordinates: (N,)
+    com_y = (
+        head_mass * head[:, 1]
+        + torso_mass * torso[:, 1]
+        + arm_mass * (l_upper_arm[:, 1] + r_upper_arm[:, 1] + l_forearm[:, 1] + r_forearm[:, 1])
+        + thigh_mass * (l_thigh[:, 1] + r_thigh[:, 1])
+        + leg_mass * (l_leg[:, 1] + r_leg[:, 1])
+    )
+
+    return com_y.astype(np.float32)
