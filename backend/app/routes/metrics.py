@@ -4,18 +4,15 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
+from app.auth.deps import CurrentUser, DbDep
 from app.crud.connection import is_connected_as
 from app.metrics_registry import METRIC_REGISTRY
 from app.models.connection import ConnectionType
 from app.models.session import Session, SessionMetric
-
-if TYPE_CHECKING:
-    from app.auth.deps import CurrentUser, DbDep
 from app.schemas import (
     DiagnosticsFinding,
     DiagnosticsResponse,
