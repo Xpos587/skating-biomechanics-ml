@@ -40,7 +40,7 @@ backend/
 
 ## Architectural Constraint
 
-**ZERO ML imports.** All ML runs in `ml/src/worker.py` (arq worker). Routes like `/detect` and `/process` enqueue jobs to Valkey; results are polled via status/result endpoints.
+**No ML pipeline imports.** Backend routes and API code do not import ML pipeline internals (pose estimation, analysis, visualization). The arq worker (which may live in backend/) may import ML types (`H36Key`, `VastResult`) and dispatch to ML, but never calls pipeline internals directly.
 
 ## API Routes
 

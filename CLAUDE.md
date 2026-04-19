@@ -82,7 +82,7 @@ ML Pipeline:
     → Rule-based Recommender → Russian Text Report
 ```
 
-**Key architectural constraint:** Backend (`backend/`) has **ZERO ML imports**. All ML runs in the arq worker (`ml/src/worker.py`). The worker depends on `backend` for DB/storage access, but never the reverse.
+**Key architectural constraint:** Backend (`backend/`) does not import ML pipeline internals (pose estimation, analysis, visualization). The arq worker may import ML types (`H36Key`, `VastResult`) and dispatch to ML, but never calls pipeline internals directly. All heavy ML computation runs on GPU (local or Vast.ai Serverless).
 
 **Key decisions:**
 - **rtmlib**: sole pose estimation backend — RTMO (COCO 17kp), ONNX (CPU+GPU)

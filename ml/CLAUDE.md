@@ -2,7 +2,7 @@
 
 ## Architectural Constraint
 
-**ml depends on backend, never the reverse.** The worker (`src/worker.py`) imports from `backend.app` for DB/storage/task management. The backend has **ZERO** imports from `src`.
+**ml depends on backend for infrastructure, never for ML.** `ml/` is a pure ML library — no knowledge of DB, task queues, or web frameworks. The arq worker (which orchestrates ML dispatch) lives in `backend/app/` and imports from `ml/` for types (`H36Key`, `VastResult`) and GPU dispatch.
 
 ## Project Structure
 
