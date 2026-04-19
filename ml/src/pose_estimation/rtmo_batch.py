@@ -210,8 +210,12 @@ class BatchRTMO:
         else:
             self._device = device
 
-        # Load model
+        # Load model (prefer FP16 variant when available)
         model_path = Path(RTMO_MODELS[mode])
+        fp16_model_path = Path(str(model_path).replace(".onnx", "-fp16.onnx"))
+        if fp16_model_path.exists():
+            model_path = fp16_model_path
+            logger.info(f"Using FP16 model: {model_path}")
         if not model_path.exists():
             raise FileNotFoundError(
                 f"RTMO model not found: {model_path}\n"
