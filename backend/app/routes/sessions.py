@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from fastapi import APIRouter, HTTPException, Query, status
 
+from app.auth.deps import CurrentUser, DbDep
 from app.crud.connection import is_connected_as
-from app.crud.session import create, get_by_id, list_by_user, soft_delete, update
+from app.crud.session import count_by_user, create, get_by_id, list_by_user, soft_delete, update
 from app.models.connection import ConnectionType
 from app.schemas import (
     CreateSessionRequest,
@@ -17,9 +16,6 @@ from app.schemas import (
     SessionResponse,
 )
 from app.storage import get_object_url_async
-
-if TYPE_CHECKING:
-    from app.auth.deps import CurrentUser, DbDep
 
 router = APIRouter(tags=["sessions"])
 
@@ -102,8 +98,9 @@ async def list_sessions(
         offset=offset,
         sort=sort,
     )
+    total = await count_by_user(db, user_id=target_user_id, element_type=element_type)
     return SessionListResponse(
-        sessions=[await _session_to_response(s) for s in sessions], total=len(sessions)
+        sessions=[await _session_to_response(s) for s in sessions], total=total
     )
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 
 from app.models.choreography import ChoreographyProgram, MusicAnalysis
 
@@ -115,6 +115,15 @@ async def list_programs_by_user(
     )
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def count_programs_by_user(db: AsyncSession, user_id: str) -> int:
+    result = await db.execute(
+        select(func.count())
+        .select_from(ChoreographyProgram)
+        .where(ChoreographyProgram.user_id == user_id)
+    )
+    return result.scalar_one()
 
 
 async def update_program(

@@ -14,10 +14,16 @@ const InitResponseSchema = z.object({
 export class ChunkedUploader {
   private file: File
   private onProgress: (loaded: number, total: number) => void
+  private abortController: AbortController
 
   constructor(file: File, onProgress: (loaded: number, total: number) => void) {
     this.file = file
     this.onProgress = onProgress
+    this.abortController = new AbortController()
+  }
+
+  abort() {
+    this.abortController.abort()
   }
 
   async upload(): Promise<string> {
@@ -41,7 +47,11 @@ export class ChunkedUploader {
       const end = Math.min(start + CHUNK_SIZE, this.file.size)
       const chunk = this.file.slice(start, end)
 
-      const res = await fetch(part.url, { method: "PUT", body: chunk })
+      const res = await fetch(part.url, {
+        method: "PUT",
+        body: chunk,
+        signal: this.abortController.signal,
+      })
       if (!res.ok) throw new Error(`Part ${part.part_number} upload failed`)
 
       uploaded += end - start
@@ -63,8 +73,13 @@ export class ChunkedUploader {
     }
 
     // Complete upload
-    await apiFetch(`/uploads/${init.upload_id}/complete`, z.object({ status: z.string() }), {
+    await apiFetch("/uploads/complete", z.object({ status: z.string(), key: z.string() }), {
       method: "POST",
+      body: JSON.stringify({
+        upload_id: init.upload_id,
+        key: init.key,
+        parts: init.parts.map((p) => ({ part_number: p.part_number, etag: "" })),
+      }),
     })
 
     return init.key

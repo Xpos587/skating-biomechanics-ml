@@ -2,6 +2,7 @@
 
 import { Image as LucideImage, RotateCcw, VideoOff } from "lucide-react"
 import NextImage from "next/image"
+import { usePathname } from "next/navigation"
 import { useCallback, useRef, useState } from "react"
 import { useTranslations } from "@/i18n"
 import { useMountEffect } from "@/lib/useMountEffect"
@@ -15,6 +16,14 @@ function getSupportedMimeType(): string {
   return "video/webm"
 }
 
+/** Stop all tracks on a MediaStream */
+function stopStream(stream: MediaStream | null) {
+  if (!stream) return
+  for (const track of stream.getTracks()) {
+    track.stop()
+  }
+}
+
 export function CameraRecorder({
   onRecorded,
   onFileUpload,
@@ -25,6 +34,7 @@ export function CameraRecorder({
   previewUrl?: string | null
 }) {
   const t = useTranslations("upload")
+  const pathname = usePathname()
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const [recording, setRecording] = useState(false)
@@ -32,6 +42,22 @@ export function CameraRecorder({
   const [cameraReady, setCameraReady] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval>>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const mountedRef = useRef(true)
+
+  function stopCamera() {
+    mediaRecorderRef.current?.stop()
+    mediaRecorderRef.current = null
+    stopStream(streamRef.current)
+    streamRef.current = null
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    if (mountedRef.current) {
+      setRecording(false)
+      setCameraReady(false)
+    }
+  }
 
   async function initCamera() {
     try {
@@ -39,11 +65,15 @@ export function CameraRecorder({
         video: { facingMode: "environment", width: { ideal: 1920 }, frameRate: { ideal: 60 } },
         audio: false,
       })
+      if (!mountedRef.current) {
+        stopStream(stream)
+        return
+      }
       streamRef.current = stream
       if (videoRef.current) videoRef.current.srcObject = stream
       setCameraReady(true)
     } catch {
-      setCameraReady(false)
+      if (mountedRef.current) setCameraReady(false)
     }
   }
 
@@ -73,22 +103,24 @@ export function CameraRecorder({
     if (timerRef.current) clearInterval(timerRef.current)
   }, [])
 
-  const fmt = (s: number) =>
-    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+  // Cleanup when navigating away (Next.js may not unmount on soft navigation)
+  const prevPathRef = useRef(pathname)
+  if (pathname !== prevPathRef.current) {
+    prevPathRef.current = pathname
+    stopCamera()
+  }
 
   useMountEffect(() => {
+    mountedRef.current = true
     initCamera()
     return () => {
-      if (streamRef.current) {
-        for (const track of streamRef.current.getTracks()) {
-          track.stop()
-        }
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
+      mountedRef.current = false
+      stopCamera()
     }
   })
+
+  const fmt = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-black">

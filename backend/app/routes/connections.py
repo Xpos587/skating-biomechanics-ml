@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.auth.deps import CurrentUser, DbDep
 from app.crud.connection import (
     create as create_conn,
 )
@@ -25,7 +26,6 @@ from app.models.connection import ConnectionStatus, ConnectionType
 from app.schemas import ConnectionListResponse, ConnectionResponse, InviteRequest
 
 if TYPE_CHECKING:
-    from app.auth.deps import CurrentUser, DbDep
     from app.models.connection import Connection
 
 
@@ -33,7 +33,10 @@ router = APIRouter(tags=["connections"])
 
 
 def _conn_to_response(conn: Connection) -> ConnectionResponse:
-    return ConnectionResponse.model_validate(conn)
+    data = ConnectionResponse.model_validate(conn)
+    data.from_user_name = conn.from_user.display_name if conn.from_user else None
+    data.to_user_name = conn.to_user.display_name if conn.to_user else None
+    return data
 
 
 @router.post(

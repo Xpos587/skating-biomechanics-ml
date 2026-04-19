@@ -8,9 +8,10 @@ from enum import StrEnum
 
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+from app.models.user import User
 
 
 class ConnectionType(StrEnum):
@@ -59,3 +60,10 @@ class Connection(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"),
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    from_user: Mapped[User] = relationship(  # type: ignore[valid-type]
+        "User", foreign_keys=[from_user_id], lazy="selectin"
+    )
+    to_user: Mapped[User] = relationship(  # type: ignore[valid-type]
+        "User", foreign_keys=[to_user_id], lazy="selectin"
+    )

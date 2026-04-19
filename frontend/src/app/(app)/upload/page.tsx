@@ -10,6 +10,7 @@ import { useTranslations } from "@/i18n"
 import { enqueueProcess } from "@/lib/api/process"
 import { useCreateSession } from "@/lib/api/sessions"
 import { ChunkedUploader } from "@/lib/api/uploads"
+import { useMountEffect } from "@/lib/useMountEffect"
 
 type Step = "ready" | "picked" | "uploading" | "done"
 
@@ -24,6 +25,13 @@ export default function UploadPage() {
   const [step, setStep] = useState<Step>("ready")
   const [elementType, setElementType] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
+  const uploaderRef = useRef<ChunkedUploader | null>(null)
+
+  useMountEffect(() => {
+    return () => {
+      uploaderRef.current?.abort()
+    }
+  })
 
   function handleFile(f: File) {
     setFile(f)
@@ -46,6 +54,7 @@ export default function UploadPage() {
       const uploader = new ChunkedUploader(file, (loaded, total) => {
         setProgress(Math.round((loaded / total) * 100))
       })
+      uploaderRef.current = uploader
       const videoKey = await uploader.upload()
       const session = await createSession.mutateAsync({
         element_type: elementType ?? "auto",

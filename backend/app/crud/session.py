@@ -50,6 +50,19 @@ async def list_by_user(
     return list(result.scalars().all())
 
 
+async def count_by_user(
+    db: AsyncSession,
+    user_id: str,
+    *,
+    element_type: str | None = None,
+) -> int:
+    query = select(func.count()).select_from(Session).where(Session.user_id == user_id)
+    if element_type:
+        query = query.where(Session.element_type == element_type)
+    result = await db.execute(query)
+    return result.scalar_one()
+
+
 async def update(db: AsyncSession, session: Session, **kwargs) -> Session:
     for key, value in kwargs.items():
         if value is not None:
@@ -69,9 +82,9 @@ async def soft_delete(db: AsyncSession, session: Session) -> None:
 async def update_session_analysis(
     db: AsyncSession,
     session_id: str,
-    pose_data: dict | None,
-    frame_metrics: dict | None,
-    phases: dict | None,
+    pose_data: dict[str, object] | None,
+    frame_metrics: dict[str, object] | None,
+    phases: dict[str, object] | None,
 ) -> Session:
     """Update session with JSON pose data and metrics.
 
@@ -98,5 +111,4 @@ async def update_session_analysis(
         .returning(Session)
     )
     result = await db.execute(stmt)
-    await db.commit()
     return result.scalar_one()

@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
 
 from app.auth.deps import CurrentUser, DbDep  # noqa: TC001 — runtime FastAPI Depends
 from app.crud.choreography import (
+    count_programs_by_user,
     create_music_analysis,
     create_program,
     delete_program,
@@ -254,9 +255,10 @@ async def list_programs(
 ):
     """List user's choreography programs."""
     programs = await list_programs_by_user(db, user.id, limit=limit, offset=offset)
+    total = await count_programs_by_user(db, user.id)
     return ProgramListResponse(
         programs=[_program_to_response(p) for p in programs],
-        total=len(programs),
+        total=total,
     )
 
 
