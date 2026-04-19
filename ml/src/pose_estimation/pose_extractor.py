@@ -144,6 +144,8 @@ class PoseExtractor:
         video_path: Path | str,
         person_click: PersonClick | None = None,
         progress_cb=None,
+        use_batch: bool = False,
+        batch_size: int = 8,
     ) -> TrackedExtraction:
         """Extract H3.6M poses from video with tracking.
 
@@ -156,6 +158,8 @@ class PoseExtractor:
                 proximity to the click point in the first few frames.
             progress_cb: Optional callback ``(fraction, message)`` for
                 progress reporting (e.g. Gradio progress bar).
+            use_batch: If True, use BatchRTMO for batched inference.
+            batch_size: Batch size for batched inference (default 8).
 
         Returns:
             TrackedExtraction with poses (N, 17, 3), frame_indices,
@@ -164,6 +168,13 @@ class PoseExtractor:
         Raises:
             ValueError: If no pose is detected in any frame.
         """
+        if use_batch:
+            return self._extract_batch(
+                video_path,
+                person_click=person_click,
+                progress_cb=progress_cb,
+                batch_size=batch_size,
+            )
         video_path = Path(video_path)
         video_meta = get_video_meta(video_path)
         num_frames = video_meta.num_frames
@@ -449,6 +460,382 @@ class PoseExtractor:
         finally:
             reader.join()
             pbar.close()
+
+        # Phase 2 (deferred): Auto-select by most hits
+        if target_track_id is None and track_hit_counts:
+            target_track_id = max(
+                track_hit_counts,
+                key=lambda k: track_hit_counts[k],  # type: ignore[arg-type]
+            )
+            for fidx, tmap in frame_track_data.items():
+                if target_track_id in tmap and np.isnan(all_poses[fidx, 0, 0]):
+                    all_poses[fidx] = tmap[target_track_id]
+
+        # --- Post-hoc tracklet merging for occlusion recovery ---
+        valid_mask_pre = ~np.isnan(all_poses[:, 0, 0])
+        if not valid_mask_pre.all() and frame_track_data:
+            model_3d = Path("data/models/motionagformer-s-ap3d.onnx")
+            identity_ext = None
+            if model_3d.exists():
+                from ..tracking.skeletal_identity import (
+                    SkeletalIdentityExtractor,
+                )
+
+                identity_ext = SkeletalIdentityExtractor(
+                    model_path=model_3d,
+                    device="auto",
+                )
+
+            merger = TrackletMerger(
+                identity_extractor=identity_ext,
+                similarity_threshold=0.80,
+            )
+            tracklets = build_tracklets(frame_track_data)
+
+            target_tracklet = None
+            for t in tracklets:
+                if t.track_id == target_track_id:
+                    target_tracklet = t
+                    break
+
+            if target_tracklet is not None:
+                valid_frames = np.where(valid_mask_pre)[0]
+                if len(valid_frames) > 0:
+                    last_valid = int(valid_frames[-1])
+                    if last_valid < num_frames - 1:
+                        candidates = [t for t in tracklets if t.track_id != target_track_id]
+                        match = merger.find_best_match(
+                            target_tracklet,
+                            candidates,
+                        )
+                        if match is not None:
+                            for f in match.frames:
+                                if f < num_frames and np.isnan(all_poses[f, 0, 0]):
+                                    all_poses[f] = match.poses.get(
+                                        f,
+                                        all_poses[f],
+                                    )
+                            logger.info(
+                                "Post-hoc merge: filled %d frames from track %d",
+                                sum(
+                                    1
+                                    for f in match.frames
+                                    if f < num_frames and np.isnan(all_poses[f, 0, 0])
+                                ),
+                                match.track_id,
+                            )
+
+        # Determine first_detection_frame
+        valid_mask = ~np.isnan(all_poses[:, 0, 0])
+        if not np.any(valid_mask):
+            raise ValueError(f"No valid pose detected in video: {video_path}")
+        first_detection_frame = int(np.argmax(valid_mask))
+
+        return TrackedExtraction(
+            poses=all_poses,
+            frame_indices=np.arange(num_frames),
+            first_detection_frame=first_detection_frame,
+            target_track_id=target_track_id,
+            fps=video_meta.fps,
+            video_meta=video_meta,
+            first_frame=first_frame,
+        )
+
+    def _extract_batch(
+        self,
+        video_path: Path | str,
+        person_click: PersonClick | None = None,
+        progress_cb=None,
+        batch_size: int = 8,
+    ) -> TrackedExtraction:
+        """Extract poses using BatchRTMO for batched inference.
+
+        This method processes multiple frames in a single ONNX inference call,
+        then applies the same tracking and post-processing logic as the per-frame
+        path to produce identical TrackedExtraction results.
+
+        Args:
+            video_path: Path to video file.
+            person_click: Optional click to select target person.
+            progress_cb: Optional progress callback.
+            batch_size: Number of frames to process per batch.
+
+        Returns:
+            TrackedExtraction with poses (N, 17, 3), frame_indices,
+            tracking metadata.  Missing frames are filled with NaN.
+        """
+        from .rtmo_batch import BatchRTMO
+
+        video_path = Path(video_path)
+        video_meta = get_video_meta(video_path)
+        num_frames = video_meta.num_frames
+
+        # Pre-allocate with NaN
+        all_poses = np.full((num_frames, 17, 3), np.nan, dtype=np.float32)
+
+        # Initialize BatchRTMO
+        rtmo = BatchRTMO(
+            mode=self._mode,
+            device=self._device,
+            score_thr=self._conf_threshold,
+            nms_thr=0.45,
+        )
+
+        # Tracking state (reuse existing tracking logic)
+        resolved_mode = self._resolve_tracking_mode()
+        sports2d_tracker = None
+        deepsort_tracker = None
+        if resolved_mode == "sports2d":
+            from ..tracking.sports2d import Sports2DTracker
+
+            sports2d_tracker = Sports2DTracker(max_disappeared=30, fps=video_meta.fps)
+        elif resolved_mode == "deepsort":
+            from ..tracking.deepsort_tracker import DeepSORTTracker
+
+            deepsort_tracker = DeepSORTTracker(max_age=30, embedder_gpu=True)
+
+        target_track_id: int | None = None
+        click_lock_window = 6  # ~0.2-0.24s at 25-30fps
+        click_norm: tuple[float, float] | None = None
+        if person_click is not None:
+            click_norm = person_click.to_normalized(video_meta.width, video_meta.height)
+
+        # Track hit counts for auto-select
+        track_hit_counts: dict[int, int] = {}
+
+        # Per-frame track_id→h36m_pose for retroactive fill
+        frame_track_data: dict[int, dict[int, np.ndarray]] = {}
+
+        # Last known target pose for biometric track migration
+        last_target_pose: np.ndarray | None = None
+        last_target_ratios: np.ndarray | None = None
+        target_lost_frame: int | None = None
+
+        # Track ID assignment
+        next_internal_id = 0
+
+        # Read first frame for spatial reference
+        cap_first = cv2.VideoCapture(str(video_path))
+        if not cap_first.isOpened():
+            raise RuntimeError(f"Failed to open video: {video_path}")
+        ret, first_frame = cap_first.read()
+        cap_first.release()
+        if not ret:
+            raise RuntimeError(f"Failed to read first frame from video: {video_path}")
+
+        # Read all frames (respecting frame_skip)
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            raise RuntimeError(f"Failed to open video: {video_path}")
+
+        frames_to_process = []
+        frame_indices = []
+
+        try:
+            for idx in tqdm(range(num_frames), desc="Reading frames", unit="frame", ncols=100):
+                if idx % self._frame_skip != 0:
+                    continue
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frames_to_process.append(frame)
+                frame_indices.append(idx)
+        finally:
+            cap.release()
+
+        if not frames_to_process:
+            raise ValueError(f"No frames read from video: {video_path}")
+
+        # Process in batches
+        pbar = tqdm(
+            total=len(frames_to_process),
+            desc="Batch extracting poses",
+            unit="batch",
+            ncols=100,
+            disable=progress_cb is not None,
+        )
+
+        for batch_start in range(0, len(frames_to_process), batch_size):
+            batch_end = min(batch_start + batch_size, len(frames_to_process))
+            batch_frames = frames_to_process[batch_start:batch_end]
+            batch_indices = frame_indices[batch_start:batch_end]
+
+            # Run batch inference
+            batch_results = rtmo.infer_batch(batch_frames)
+
+            # Process each frame in the batch
+            for frame_idx, frame, (keypoints, scores) in zip(
+                batch_indices, batch_frames, batch_results, strict=True
+            ):
+                h, w = frame.shape[:2]
+
+                if keypoints.shape[0] == 0:
+                    pbar.update(1)
+                    continue
+
+                n_persons = len(keypoints)
+                h36m_poses = np.zeros((n_persons, 17, 3), dtype=np.float32)
+
+                for p in range(n_persons):
+                    kp = keypoints[p].astype(np.float32)  # (17, 2) pixels
+                    conf = scores[p].astype(np.float32)  # (17,)
+
+                    # Build COCO (17, 3) with confidence
+                    coco = np.zeros((17, 3), dtype=np.float32)
+                    coco[:, :2] = kp
+                    coco[:, 2] = conf
+
+                    # Normalize to [0, 1]
+                    coco[:, 0] /= w
+                    coco[:, 1] /= h
+
+                    # Convert to H3.6M 17kp
+                    h36m = coco_to_h36m(coco)
+
+                    # Convert to pixels if requested
+                    if self._output_format == "pixels":
+                        h36m[:, 0] *= w
+                        h36m[:, 1] *= h
+
+                    h36m_poses[p] = h36m
+
+                # --- Track association ---
+                if sports2d_tracker is not None:
+                    track_ids = sports2d_tracker.update(h36m_poses[:, :, :2], h36m_poses[:, :, 2])
+                elif deepsort_tracker is not None:
+                    track_ids = deepsort_tracker.update(
+                        h36m_poses[:, :, :2],
+                        h36m_poses[:, :, 2],
+                        frame=frame,
+                        frame_width=w,
+                        frame_height=h,
+                    )
+                else:
+                    # Simple sequential ID assignment for batch path
+                    track_ids = list(range(next_internal_id, next_internal_id + n_persons))
+                    next_internal_id += n_persons
+
+                # Store per-track data for retroactive fill
+                frame_track_data[frame_idx] = {
+                    tid: h36m_poses[p].copy() for p, tid in enumerate(track_ids)
+                }
+
+                # Update hit counts
+                for tid in track_ids:
+                    track_hit_counts[tid] = track_hit_counts.get(tid, 0) + 1
+
+                # --- Target selection ---
+                # Phase 1: Click-based selection
+                if (
+                    target_track_id is None
+                    and click_norm is not None
+                    and frame_idx < click_lock_window
+                ):
+                    best_dist = float("inf")
+                    best_tid: int | None = None
+                    for p, tid in enumerate(track_ids):
+                        mid_hip_x = (h36m_poses[p, 4, 0] + h36m_poses[p, 1, 0]) / 2  # LHIP + RHIP
+                        mid_hip_y = (h36m_poses[p, 4, 1] + h36m_poses[p, 1, 1]) / 2
+                        dist = (mid_hip_x - click_norm[0]) ** 2 + (mid_hip_y - click_norm[1]) ** 2
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_tid = tid
+                    if best_tid is not None:
+                        target_track_id = best_tid
+
+                # Fill target data for current frame
+                if target_track_id is not None:
+                    found = False
+                    stolen = False
+                    for p, tid in enumerate(track_ids):
+                        if tid == target_track_id:
+                            # Validate: centroid must not jump too far
+                            if last_target_pose is not None:
+                                cur_cx = np.nanmean(h36m_poses[p, :, 0])
+                                cur_cy = np.nanmean(h36m_poses[p, :, 1])
+                                prev_cx = np.nanmean(last_target_pose[:, 0])
+                                prev_cy = np.nanmean(last_target_pose[:, 1])
+                                jump = np.sqrt((cur_cx - prev_cx) ** 2 + (cur_cy - prev_cy) ** 2)
+
+                                # Skeletal anomaly: sudden change in body proportions
+                                skeletal_anomaly = False
+                                if last_target_ratios is not None:
+                                    curr_ratios = compute_2d_skeletal_ratios(h36m_poses[p])
+                                    ratio_change = float(
+                                        np.linalg.norm(curr_ratios - last_target_ratios)
+                                    )
+                                    skeletal_anomaly = ratio_change > 0.25
+
+                                # Require BOTH signals: position jump AND body change.
+                                if jump > 0.15 and skeletal_anomaly:
+                                    stolen = True
+                                    break
+                            all_poses[frame_idx] = h36m_poses[p]
+                            last_target_pose = h36m_poses[p].copy()
+                            last_target_ratios = compute_2d_skeletal_ratios(h36m_poses[p])
+                            target_lost_frame = None
+                            found = True
+                            break
+
+                    # Track migration: biometric matching when target lost or stolen
+                    if stolen:
+                        all_poses[frame_idx] = np.full((17, 3), np.nan, dtype=np.float32)
+                        found = False
+
+                    if (not found or stolen) and last_target_pose is not None:
+                        if target_lost_frame is None:
+                            target_lost_frame = frame_idx
+
+                        if frame_idx - target_lost_frame <= 60:
+                            best_dist = float("inf")
+                            best_new_tid: int | None = None
+                            best_new_pose: np.ndarray | None = None
+                            prev_cx = np.nanmean(last_target_pose[:, 0])
+                            prev_cy = np.nanmean(last_target_pose[:, 1])
+                            for p, tid in enumerate(track_ids):
+                                # Skip the thief track
+                                if stolen and tid == target_track_id:
+                                    continue
+                                cur_cx = np.nanmean(h36m_poses[p, :, 0])
+                                cur_cy = np.nanmean(h36m_poses[p, :, 1])
+                                pos_dist = np.sqrt(
+                                    (cur_cx - prev_cx) ** 2 + (cur_cy - prev_cy) ** 2
+                                )
+                                bio_dist = _biometric_distance(h36m_poses[p], last_target_pose)
+                                # Weight position heavily when recently lost,
+                                # biometry when lost for longer
+                                elapsed = frame_idx - (target_lost_frame or frame_idx)
+                                w_pos = max(0.2, 1.0 - elapsed * 0.02)
+                                w_bio = 1.0 - w_pos
+                                combined = w_pos * pos_dist / 0.15 + w_bio * bio_dist / 0.08
+                                if combined < best_dist:
+                                    best_dist = combined
+                                    best_new_tid = tid
+                                    best_new_pose = h36m_poses[p]
+
+                            if (
+                                best_new_tid is not None
+                                and best_dist < 1.5
+                                and best_new_pose is not None
+                            ):
+                                target_track_id = best_new_tid
+                                all_poses[frame_idx] = best_new_pose
+                                last_target_pose = best_new_pose.copy()
+                                last_target_ratios = compute_2d_skeletal_ratios(best_new_pose)
+                                target_lost_frame = None
+                                # Retroactively fill from stored frames
+                                for fidx, tmap in frame_track_data.items():
+                                    if target_track_id in tmap and np.isnan(all_poses[fidx, 0, 0]):
+                                        all_poses[fidx] = tmap[target_track_id]
+
+                pbar.update(1)
+                if progress_cb:
+                    progress_cb(
+                        frame_idx / num_frames * 0.3,
+                        f"Batch extracting poses... {frame_idx}/{num_frames}",
+                    )
+
+        pbar.close()
 
         # Phase 2 (deferred): Auto-select by most hits
         if target_track_id is None and track_hit_counts:
