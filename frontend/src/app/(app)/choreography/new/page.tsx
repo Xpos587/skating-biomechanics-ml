@@ -150,27 +150,23 @@ export default function NewProgramPage() {
       </section>
 
       {/* Step 2: Element inventory */}
-      {musicReady && (
-        <section>
-          <h2 className="mb-3 nike-h3">{t("inventory.title")}</h2>
-          <InventoryEditor value={inventory} onChange={setInventory} />
-        </section>
-      )}
+      <section>
+        <h2 className="mb-3 nike-h3">{t("inventory.title")}</h2>
+        <InventoryEditor value={inventory} onChange={setInventory} />
+      </section>
 
       {/* Step 3: Generate */}
-      {musicReady && (
-        <section>
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={!canGenerate || generateLayouts.isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            <Sparkles className="h-5 w-5" />
-            {generateLayouts.isPending ? t("generating") : t("generate")}
-          </button>
-        </section>
-      )}
+      <section>
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={!canGenerate || generateLayouts.isPending}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Sparkles className="h-5 w-5" />
+          {generateLayouts.isPending ? t("generating") : t("generate")}
+        </button>
+      </section>
 
       {/* Step 4: Pick layout + save */}
       {generateLayouts.data && step === "result" && (
