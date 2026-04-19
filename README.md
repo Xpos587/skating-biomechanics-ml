@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Xpos587/skating-biomechanics-ml/ci.yml?branch=master&label=CI)](https://github.com/Xpos587/skating-biomechanics-ml/actions)
 [![Tests](https://img.shields.io/github/actions/workflow/status/Xpos587/skating-biomechanics-ml/ci.yml?branch=master&label=tests)](https://github.com/Xpos587/skating-biomechanics-ml/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/Xpos587/skating-biomechanics-ml?branch=master)](https://codecov.io/gh/Xpos587/skating-biomechanics-ml)
+[![codecov](https://codecov.io/github/Xpos587/skating-biomechanics-ml/graph/badge.svg?token=0QK5TTR8QZ)](https://codecov.io/github/Xpos587/skating-biomechanics-ml)
 [![License: MIT](https://img.shields.io/github/license/Xpos587/skating-biomechanics-ml)](https://github.com/Xpos587/skating-biomechanics-ml/blob/master/LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Xpos587/skating-biomechanics-ml)](https://github.com/Xpos587/skating-biomechanics-ml/commits/master)
 [![Issues](https://img.shields.io/github/issues/Xpos587/skating-biomechanics-ml)](https://github.com/Xpos587/skating-biomechanics-ml/issues)
