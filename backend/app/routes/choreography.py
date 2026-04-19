@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
 from pathlib import Path
 
@@ -108,27 +109,31 @@ async def upload_music(
         peaks = None
         structure = None
 
-        try:
-            from app.services.choreography.music_analyzer import analyze_music_sync
-
-            logger.info("Running music analysis on %s", tmp_path)
-            result = await asyncio.to_thread(analyze_music_sync, tmp_path)
-            duration_sec = result["duration_sec"]
-            bpm = result["bpm"]
-            energy_curve = result["energy_curve"]
-            peaks = result["peaks"]
-            structure = result.get("structure") or []
-            logger.info("Analysis complete: bpm=%.1f, duration=%.1f", bpm, duration_sec)
-        except ImportError:
-            # librosa/madmom not available — estimate duration from file header
-            logger.info("librosa not available, using basic duration estimation")
-            duration_sec = await asyncio.to_thread(_get_duration, tmp_path, suffix)
-
-        # Upload to R2 (blocking boto3 — run in thread pool)
         r2_key = f"music/{user.id}/{music.id}{suffix}"
-        logger.info("Uploading to R2: %s", r2_key)
-        await asyncio.to_thread(upload_file, tmp_path, r2_key)
-        logger.info("R2 upload complete")
+
+        async def _analyze():
+            nonlocal duration_sec, bpm, energy_curve, peaks, structure
+            try:
+                from app.services.choreography.music_analyzer import analyze_music_sync
+
+                logger.info("Running music analysis on %s", tmp_path)
+                result = await asyncio.to_thread(analyze_music_sync, tmp_path)
+                duration_sec = result["duration_sec"]
+                bpm = result["bpm"]
+                energy_curve = result["energy_curve"]
+                peaks = result["peaks"]
+                structure = result.get("structure") or []
+                logger.info("Analysis complete: bpm=%.1f, duration=%.1f", bpm, duration_sec)
+            except ImportError:
+                logger.info("librosa not available, using basic duration estimation")
+                duration_sec = await asyncio.to_thread(_get_duration, tmp_path, suffix)
+
+        async def _upload():
+            logger.info("Uploading to R2: %s", r2_key)
+            await asyncio.to_thread(upload_file, tmp_path, r2_key)
+            logger.info("R2 upload complete")
+
+        await asyncio.gather(_analyze(), _upload())
 
         await update_music_analysis(
             db,
@@ -209,7 +214,8 @@ async def generate_layout(body: GenerateRequest, user: CurrentUser, db: DbDep):
         "structure": music.structure or [],
     }
     music_features = extract_features_for_csp(analysis)
-    layouts = solve_layout(
+    layouts = await asyncio.to_thread(
+        solve_layout,
         inventory=body.inventory,
         music_features=music_features,
         discipline=body.discipline,

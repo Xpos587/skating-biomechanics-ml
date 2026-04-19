@@ -1,38 +1,41 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
-import { useTranslations } from "@/i18n"
+import { useMemo } from "react"
+import { renderRink } from "@/lib/rink-renderer"
+import type { LayoutElement } from "@/types/choreography"
 
 interface RinkDiagramProps {
-  svgHtml: string | null
-  isLoading: boolean
+  elements: LayoutElement[]
+  className?: string
 }
 
-export function RinkDiagram({ svgHtml, isLoading }: RinkDiagramProps) {
-  const t = useTranslations("choreography")
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center rounded-2xl border border-border p-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">{t("rink.loading")}</span>
-      </div>
-    )
-  }
+export function RinkDiagram({ elements, className }: RinkDiagramProps) {
+  const svgHtml = useMemo(() => {
+    const rinkElements = elements
+      .filter(el => el.position)
+      .map(el => ({
+        code: el.code,
+        position: el.position,
+      }))
+    if (rinkElements.length === 0) return null
+    return renderRink(rinkElements)
+  }, [elements])
 
   if (!svgHtml) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-dashed border-border p-8 text-sm text-muted-foreground">
-        {t("rink.empty")}
+      <div
+        className={`flex items-center justify-center rounded-2xl border border-dashed border-border p-8 text-sm text-muted-foreground ${className ?? ""}`}
+      >
+        No elements with positions
       </div>
     )
   }
 
   return (
     <div
-      className="rounded-2xl border border-border p-2"
+      className={`rounded-2xl border border-border p-2 ${className ?? ""}`}
       style={{ backgroundColor: "oklch(var(--background))" }}
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from trusted server-side renderer
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from local renderer
       dangerouslySetInnerHTML={{ __html: svgHtml }}
     />
   )

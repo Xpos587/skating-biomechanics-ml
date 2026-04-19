@@ -71,10 +71,6 @@ export const ValidationResultSchema = z.object({
   total_tes: z.number().nullable(),
 })
 
-export const RenderRinkResponseSchema = z.object({
-  image_url: z.string(),
-})
-
 const ProgramLayoutSchema = z.object({
   elements: z.array(LayoutElementSchema),
 })
@@ -170,22 +166,6 @@ export function useValidateLayout() {
   })
 }
 
-export function useRenderRink() {
-  return useMutation({
-    mutationFn: (body: {
-      layout: {
-        elements: Array<{
-          code: string
-          timestamp: number
-          position: { x: number; y: number } | null
-        }>
-      }
-      width?: number
-      height?: number
-    }) => apiPost("/choreography/render-rink", RenderRinkResponseSchema, body),
-  })
-}
-
 // ---------------------------------------------------------------------------
 // Hooks — Programs
 // ---------------------------------------------------------------------------
@@ -236,6 +216,29 @@ export function useDeleteProgram() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiDelete(`/choreography/programs/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["programs"] }),
+    onMutate: async id => {
+      await qc.cancelQueries({ queryKey: ["programs"] })
+      const previous = qc.getQueryData(["programs"])
+      qc.setQueryData(
+        ["programs"],
+        (old: z.infer<typeof ProgramListResponseSchema> | undefined) => {
+          if (!old) return old
+          return {
+            ...old,
+            programs: old.programs.filter(p => p.id !== id),
+            total: old.total - 1,
+          }
+        },
+      )
+      return { previous }
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["programs"], context.previous)
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["programs"] })
+    },
   })
 }
