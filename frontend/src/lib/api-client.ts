@@ -7,6 +7,8 @@ import type { z } from "zod"
 
 export const API_BASE = "/api/v1"
 
+export const SKIP_AUTH = process.env.NEXT_PUBLIC_SKIP_AUTH === "true"
+
 // ---------------------------------------------------------------------------
 // Token storage
 // ---------------------------------------------------------------------------
@@ -73,7 +75,7 @@ export async function apiFetch<T>(
   })
 
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && !SKIP_AUTH) {
       clearTokens()
       redirect("/login")
       throw new ApiError("Unauthorized", res.status)

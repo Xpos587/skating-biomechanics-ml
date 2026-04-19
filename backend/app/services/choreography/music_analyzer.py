@@ -46,7 +46,8 @@ def _run_analysis(audio_path: str) -> dict:
             logger.warning("madmom beat tracking failed, using librosa fallback")
 
         if bpm is None:
-            bpm = float(librosa.beat.beat_track(y=y, sr=sr)[0])
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            bpm = float(np.squeeze(tempo))
         return round(bpm, 1)
 
     def _compute_energy_peaks(y, sr):

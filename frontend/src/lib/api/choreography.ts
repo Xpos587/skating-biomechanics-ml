@@ -117,23 +117,48 @@ export function useMusicAnalysis(musicId: string | undefined) {
   })
 }
 
+export function uploadMusicFile(
+  file: File,
+  token: string | null,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<z.infer<typeof UploadMusicResponseSchema>> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData()
+    form.append("file", file)
+    const xhr = new XMLHttpRequest()
+    // Upload directly to backend to avoid Next.js 10MB body limit on proxy
+    xhr.open("POST", "http://localhost:8000/api/v1/choreography/music/upload")
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded, e.total)
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(UploadMusicResponseSchema.parse(JSON.parse(xhr.responseText)))
+        } catch {
+          reject(new Error("Invalid response"))
+        }
+      } else {
+        let detail = `HTTP ${xhr.status}`
+        try {
+          const body = JSON.parse(xhr.responseText)
+          if (body.detail) detail = body.detail
+        } catch {
+          // non-JSON error response
+        }
+        reject(new Error(detail))
+      }
+    }
+    xhr.onerror = () => reject(new Error("Network error"))
+    xhr.send(form)
+  })
+}
+
 export function useUploadMusic() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File): Promise<z.infer<typeof UploadMusicResponseSchema>> => {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch(`${API_BASE}/choreography/music/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${getAccessToken()}` },
-        body: form,
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
-        throw new Error(body.detail)
-      }
-      return UploadMusicResponseSchema.parse(await res.json())
-    },
+    mutationFn: (file: File) => uploadMusicFile(file, getAccessToken()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["music-analysis"] }),
   })
 }
@@ -148,10 +173,14 @@ export function useGenerateLayouts() {
       music_analysis_id: string
       discipline: "mens_singles" | "womens_singles"
       segment: "short_program" | "free_skate"
-      season: string
-      inventory?: { jumps: string[]; spins: string[]; combinations: string[] }
+      inventory: { jumps: string[]; spins: string[]; combinations: string[] }
       count?: number
-    }) => apiPost("/choreography/generate", GenerateResponseSchema, body),
+    }) => apiPost("/choreography/generate", GenerateResponseSchema, {
+      music_id: body.music_analysis_id,
+      discipline: body.discipline,
+      segment: body.segment,
+      inventory: body.inventory,
+    }),
   })
 }
 
@@ -160,9 +189,12 @@ export function useValidateLayout() {
     mutationFn: (body: {
       discipline: "mens_singles" | "womens_singles"
       segment: "short_program" | "free_skate"
-      season: string
       layout: { elements: Array<{ code: string; timestamp: number; goe: number }> }
-    }) => apiPost("/choreography/validate", ValidationResultSchema, body),
+    }) => apiPost("/choreography/validate", ValidationResultSchema, {
+      discipline: body.discipline,
+      segment: body.segment,
+      elements: body.layout.elements,
+    }),
   })
 }
 
