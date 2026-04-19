@@ -1,15 +1,15 @@
 "use client"
 
-import { useState } from "react"
 import { Plus } from "lucide-react"
-import { useChoreographyEditor } from "./store"
-import { TimelineElement } from "./timeline-element"
-import { ElementPicker } from "./element-picker"
-import { ElementEditor } from "./element-editor"
-import type { TrackType } from "@/types/choreography"
-import { TRACK_CONFIG } from "@/types/choreography"
+import { useState } from "react"
 import { useTranslations } from "@/i18n"
 import { cn } from "@/lib/utils"
+import type { TrackType } from "@/types/choreography"
+import { TRACK_CONFIG } from "@/types/choreography"
+import { ElementEditor } from "./element-editor"
+import { ElementPicker } from "./element-picker"
+import { useChoreographyEditor } from "./store"
+import { TimelineElement } from "./timeline-element"
 
 interface ElementTrackProps {
   type: TrackType
@@ -30,10 +30,18 @@ export function ElementTrack({ type }: ElementTrackProps) {
     setSelectedElement,
   } = useChoreographyEditor()
 
-  const [pickerState, setPickerState] = useState<{ x: number; y: number; timestamp: number } | null>(null)
-  const [editorState, setEditorState] = useState<{ x: number; y: number; elementId: string } | null>(null)
+  const [pickerState, setPickerState] = useState<{
+    x: number
+    y: number
+    timestamp: number
+  } | null>(null)
+  const [editorState, setEditorState] = useState<{
+    x: number
+    y: number
+    elementId: string
+  } | null>(null)
 
-  const trackElements = elements.filter((e) => e.trackType === type)
+  const trackElements = elements.filter(e => e.trackType === type)
   const config = TRACK_CONFIG[type]
   const trackLabel = t(`${type}Track` as Parameters<typeof t>[0])
 
@@ -53,35 +61,40 @@ export function ElementTrack({ type }: ElementTrackProps) {
   }
 
   return (
-    <div
+    <section
       className="flex border-b border-border last:border-b-0"
       onKeyDown={handleKeyDown}
+      aria-label={trackLabel}
     >
       {/* Track label */}
       <div className="flex w-28 shrink-0 items-center justify-between border-r border-border px-2 py-1.5">
-        <span className={cn("text-xs font-medium", config.color)}>
-          {trackLabel}
-        </span>
-        <span className={cn(
-          "text-[10px]",
-          trackElements.length > config.maxElements ? "text-red-500" : "text-muted-foreground",
-        )}>
+        <span className={cn("text-xs font-medium", config.color)}>{trackLabel}</span>
+        <span
+          className={cn(
+            "text-[10px]",
+            trackElements.length > config.maxElements
+              ? "text-destructive"
+              : "text-muted-foreground",
+          )}
+        >
           {trackElements.length}/{config.maxElements}
         </span>
       </div>
 
       {/* Track content */}
       <div
+        role="application"
+        aria-label={`${trackLabel} elements`}
         className="relative flex-1 overflow-hidden bg-muted/20 py-0.5"
         onDoubleClick={handleDoubleClick}
       >
         {/* Beat markers */}
-        {beatMarkers.map((time, i) => {
+        {beatMarkers.map(time => {
           const x = time * pixelsPerSecond
           if (x > timelineWidthPx) return null
           return (
             <div
-              key={`beat-${i}`}
+              key={`beat-${time}`}
               className="pointer-events-none absolute top-0 bottom-0 w-px bg-primary/10"
               style={{ left: `${x}px` }}
             />
@@ -89,12 +102,12 @@ export function ElementTrack({ type }: ElementTrackProps) {
         })}
 
         {/* Phrase markers */}
-        {phraseMarkers.map((time, i) => {
+        {phraseMarkers.map(time => {
           const x = time * pixelsPerSecond
           if (x > timelineWidthPx) return null
           return (
             <div
-              key={`phrase-${i}`}
+              key={`phrase-${time}`}
               className="pointer-events-none absolute top-0 bottom-0 w-px bg-muted-foreground/20"
               style={{ left: `${x}px` }}
             />
@@ -103,12 +116,15 @@ export function ElementTrack({ type }: ElementTrackProps) {
 
         {/* Playhead on this track */}
         <div
-          className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-          style={{ left: `${currentTime * pixelsPerSecond}px` }}
+          className="pointer-events-none absolute top-0 bottom-0 w-0.5 z-10"
+          style={{
+            left: `${currentTime * pixelsPerSecond}px`,
+            backgroundColor: "oklch(var(--destructive))",
+          }}
         />
 
         {/* Elements */}
-        {trackElements.map((el) => (
+        {trackElements.map(el => (
           <TimelineElement
             key={el.id}
             element={el}
@@ -120,7 +136,7 @@ export function ElementTrack({ type }: ElementTrackProps) {
             isSelected={el.id === selectedElementId}
             isActive={currentTime >= el.timestamp && currentTime < el.timestamp + el.duration}
             onSelect={setSelectedElement}
-            onEdit={(id) => {
+            onEdit={id => {
               const domEl = document.querySelector(`[data-element-id="${id}"]`)
               const rect = domEl?.getBoundingClientRect()
               if (rect) {
@@ -142,16 +158,18 @@ export function ElementTrack({ type }: ElementTrackProps) {
       {/* Element Picker popover */}
       {pickerState && (
         <div
+          role="dialog"
+          aria-label="Element picker"
           className="fixed inset-0 z-50"
           onClick={() => setPickerState(null)}
+          onKeyDown={e => {
+            if (e.key === "Escape") setPickerState(null)
+          }}
         >
-          <div
-            className="absolute"
-            style={{ left: pickerState.x, top: pickerState.y }}
-          >
+          <div className="absolute" style={{ left: pickerState.x, top: pickerState.y }}>
             <ElementPicker
               trackType={type}
-              onSelect={(code) => addElement(type, pickerState.timestamp, code)}
+              onSelect={code => addElement(type, pickerState.timestamp, code)}
               onClose={() => setPickerState(null)}
             />
           </div>
@@ -161,20 +179,19 @@ export function ElementTrack({ type }: ElementTrackProps) {
       {/* Element Editor popover */}
       {editorState && (
         <div
+          role="dialog"
+          aria-label="Element editor"
           className="fixed inset-0 z-50"
           onClick={() => setEditorState(null)}
+          onKeyDown={e => {
+            if (e.key === "Escape") setEditorState(null)
+          }}
         >
-          <div
-            className="absolute"
-            style={{ left: editorState.x, top: editorState.y }}
-          >
-            <ElementEditor
-              elementId={editorState.elementId}
-              onClose={() => setEditorState(null)}
-            />
+          <div className="absolute" style={{ left: editorState.x, top: editorState.y }}>
+            <ElementEditor elementId={editorState.elementId} onClose={() => setEditorState(null)} />
           </div>
         </div>
       )}
-    </div>
+    </section>
   )
 }

@@ -14,7 +14,8 @@ export function ScoreBar({ layout, discipline, segment }: ScoreBarProps) {
 
   const tes = layout?.total_tes ?? 0
   const jumpCount = layout?.elements.filter(e => e.is_jump_pass).length ?? 0
-  const spinCount = layout?.elements.filter(e => !e.is_jump_pass && e.code.includes("Sp")).length ?? 0
+  const spinCount =
+    layout?.elements.filter(e => !e.is_jump_pass && e.code.includes("Sp")).length ?? 0
 
   const maxJumps = segment === "short_program" ? (discipline === "mens_singles" ? 3 : 3) : 7
   const maxSpins = segment === "short_program" ? 3 : 3

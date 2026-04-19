@@ -8,8 +8,7 @@ interface WaveformViewProps {
 }
 
 export function WaveformView({ audioUrl }: WaveformViewProps) {
-  const { pixelsPerSecond, setCurrentTime, setIsPlaying } =
-    useChoreographyEditor()
+  const { pixelsPerSecond, setCurrentTime, setIsPlaying } = useChoreographyEditor()
 
   function handleContainerRef(el: HTMLDivElement | null) {
     if (!el || WaveformViewRef.current) return
@@ -31,7 +30,7 @@ export function WaveformView({ audioUrl }: WaveformViewProps) {
     })
 
     const unsubscribers = [
-      ws.on("timeupdate", (time) => {
+      ws.on("timeupdate", time => {
         if (el.isConnected) setCurrentTime(time)
       }),
       ws.on("play", () => {
@@ -46,7 +45,7 @@ export function WaveformView({ audioUrl }: WaveformViewProps) {
 
     WaveformViewRef.current = ws
     WaveformViewRef._cleanup = () => {
-      unsubscribers.forEach((u) => u?.())
+      for (const u of unsubscribers) u?.()
       ws.destroy()
       WaveformViewRef.current = null
     }

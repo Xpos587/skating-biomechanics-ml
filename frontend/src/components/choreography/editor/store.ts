@@ -4,10 +4,10 @@ import { create } from "zustand"
 import type {
   ChoreographyProgram,
   LayoutElement,
+  RinkPreset,
+  SnapMode,
   TimelineElement,
   TrackType,
-  SnapMode,
-  RinkPreset,
 } from "@/types/choreography"
 import { DEFAULT_DURATIONS, layoutElementToTimeline } from "@/types/choreography"
 
@@ -44,7 +44,13 @@ interface ChoreographyEditorState {
   isLoading: boolean
 
   // Actions — initialization
-  initFromProgram: (program: ChoreographyProgram, audioUrl: string | null, musicDuration: number, beatMarkers: number[], phraseMarkers: number[]) => void
+  initFromProgram: (
+    program: ChoreographyProgram,
+    audioUrl: string | null,
+    musicDuration: number,
+    beatMarkers: number[],
+    phraseMarkers: number[],
+  ) => void
 
   // Actions — elements
   addElement: (trackType: TrackType, timestamp: number, code: string) => void
@@ -70,7 +76,11 @@ interface ChoreographyEditorState {
 
   // Computed
   getElementsByTrack: (trackType: TrackType) => TimelineElement[]
-  getLayoutForSave: () => { layout: LayoutElement[]; total_tes: number; back_half_indices: number[] }
+  getLayoutForSave: () => {
+    layout: LayoutElement[]
+    total_tes: number
+    back_half_indices: number[]
+  }
 }
 
 let idCounter = 0
@@ -132,66 +142,76 @@ export const useChoreographyEditor = create<ChoreographyEditorState>((set, get) 
       duration,
       goe: 0,
     }
-    set((s) => ({ elements: [...s.elements, el] }))
+    set(s => ({ elements: [...s.elements, el] }))
     get().setSelectedElement(el.id)
   },
 
-  removeElement: (id) => {
-    set((s) => ({
-      elements: s.elements.filter((e) => e.id !== id),
+  removeElement: id => {
+    set(s => ({
+      elements: s.elements.filter(e => e.id !== id),
       selectedElementId: s.selectedElementId === id ? null : s.selectedElementId,
     }))
   },
 
   moveElement: (id, newTimestamp) => {
-    set((s) => ({
-      elements: s.elements.map((e) => (e.id === id ? { ...e, timestamp: Math.max(0, newTimestamp) } : e)),
+    set(s => ({
+      elements: s.elements.map(e =>
+        e.id === id ? { ...e, timestamp: Math.max(0, newTimestamp) } : e,
+      ),
     }))
   },
 
   resizeElement: (id, newDuration) => {
-    set((s) => ({
-      elements: s.elements.map((e) => (e.id === id ? { ...e, duration: Math.max(1, newDuration) } : e)),
+    set(s => ({
+      elements: s.elements.map(e =>
+        e.id === id ? { ...e, duration: Math.max(1, newDuration) } : e,
+      ),
     }))
   },
 
   updateElement: (id, updates) => {
-    set((s) => ({
-      elements: s.elements.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+    set(s => ({
+      elements: s.elements.map(e => (e.id === id ? { ...e, ...updates } : e)),
     }))
   },
 
-  duplicateElement: (id) => {
-    const el = get().elements.find((e) => e.id === id)
+  duplicateElement: id => {
+    const el = get().elements.find(e => e.id === id)
     if (!el) return
     const newEl: TimelineElement = { ...el, id: nextId(), timestamp: el.timestamp + 2 }
-    set((s) => ({ elements: [...s.elements, newEl] }))
+    set(s => ({ elements: [...s.elements, newEl] }))
     get().setSelectedElement(newEl.id)
   },
 
-  setSelectedElement: (id) => set({ selectedElementId: id }),
+  setSelectedElement: id => set({ selectedElementId: id }),
 
-  setCurrentTime: (time) => set({ currentTime: time }),
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
-  setPixelsPerSecond: (pps) => set({ pixelsPerSecond: Math.max(2, Math.min(60, pps)) }),
-  setSnapMode: (mode) => set({ snapMode: mode }),
+  setCurrentTime: time => set({ currentTime: time }),
+  setIsPlaying: playing => set({ isPlaying: playing }),
+  setPixelsPerSecond: pps => set({ pixelsPerSecond: Math.max(2, Math.min(60, pps)) }),
+  setSnapMode: mode => set({ snapMode: mode }),
 
   setRinkPreset: (preset, width, height) => {
-    const presets: Record<string, [number, number]> = { olympic: [60, 30], nhl: [61, 26], training: [56, 26] }
+    const presets: Record<string, [number, number]> = {
+      olympic: [60, 30],
+      nhl: [61, 26],
+      training: [56, 26],
+    }
     const found = presets[preset]
-    const [w, h] = width !== undefined && height !== undefined ? [width, height] : found ?? [60, 30]
+    const [w, h] =
+      width !== undefined && height !== undefined ? [width, height] : (found ?? [60, 30])
     set({ rinkPreset: preset, rinkWidth: w, rinkHeight: h })
   },
 
-  setRinkDimensions: (width, height) => set({ rinkWidth: width, rinkHeight: height, rinkPreset: "custom" }),
+  setRinkDimensions: (width, height) =>
+    set({ rinkWidth: width, rinkHeight: height, rinkPreset: "custom" }),
 
-  setTitle: (title) => set({ title }),
+  setTitle: title => set({ title }),
 
-  getElementsByTrack: (trackType) => get().elements.filter((e) => e.trackType === trackType),
+  getElementsByTrack: trackType => get().elements.filter(e => e.trackType === trackType),
 
   getLayoutForSave: () => {
     const { elements, musicDuration } = get()
-    const layoutElements: LayoutElement[] = elements.map((el) => ({
+    const layoutElements: LayoutElement[] = elements.map(el => ({
       code: el.code,
       goe: el.goe,
       timestamp: el.timestamp,
@@ -213,7 +233,7 @@ function calculateBackHalfIndices(elements: TimelineElement[], duration: number)
     if (el.trackType !== "jumps") continue
     const idx = el.jumpPassIndex ?? 0
     if (!jumpPasses.has(idx)) jumpPasses.set(idx, [])
-    jumpPasses.get(idx)!.push(el.timestamp)
+    jumpPasses.get(idx)?.push(el.timestamp)
   }
   const indices: number[] = []
   const sorted = [...jumpPasses.entries()].sort((a, b) => a[0] - b[0])
@@ -221,7 +241,8 @@ function calculateBackHalfIndices(elements: TimelineElement[], duration: number)
   if (totalPasses >= 3) {
     const backHalfPasses = sorted.slice(-3)
     for (const [passIdx] of backHalfPasses) {
-      const passes = jumpPasses.get(passIdx)!
+      const passes = jumpPasses.get(passIdx)
+      if (!passes) continue
       if (passes[0] > halfTime) indices.push(passIdx)
     }
   }
@@ -230,17 +251,55 @@ function calculateBackHalfIndices(elements: TimelineElement[], duration: number)
 
 function calculateClientSideTes(elements: LayoutElement[], backHalfIndices: number[]): number {
   const ELEMENTS_BV: Record<string, number> = {
-    "1T": 0.4, "1S": 0.4, "1Lo": 0.5, "1F": 0.5, "1Lz": 0.6, "1A": 1.1,
-    "2T": 1.3, "2S": 1.3, "2Lo": 1.7, "2F": 1.8, "2Lz": 2.1, "2A": 3.3,
-    "3T": 4.2, "3S": 4.3, "3Lo": 4.9, "3F": 5.3, "3Lz": 5.9, "3A": 8.0,
-    "4T": 9.5, "4S": 9.7, "4Lo": 10.5, "4F": 11.0, "4Lz": 11.5, "4A": 12.5,
+    "1T": 0.4,
+    "1S": 0.4,
+    "1Lo": 0.5,
+    "1F": 0.5,
+    "1Lz": 0.6,
+    "1A": 1.1,
+    "2T": 1.3,
+    "2S": 1.3,
+    "2Lo": 1.7,
+    "2F": 1.8,
+    "2Lz": 2.1,
+    "2A": 3.3,
+    "3T": 4.2,
+    "3S": 4.3,
+    "3Lo": 4.9,
+    "3F": 5.3,
+    "3Lz": 5.9,
+    "3A": 8.0,
+    "4T": 9.5,
+    "4S": 9.7,
+    "4Lo": 10.5,
+    "4F": 11.0,
+    "4Lz": 11.5,
+    "4A": 12.5,
     "1Eu": 0.5,
-    CSp1: 1.5, CSp2: 2.0, CSp3: 2.5, CSp4: 3.2,
-    FSp1: 1.7, FSp2: 2.3, FSp3: 2.8, FSp4: 3.0,
-    LSp1: 1.5, LSp2: 2.0, LSp3: 2.5, LSp4: 3.0,
-    USp1: 1.5, USp2: 2.0, USp3: 2.5, USp4: 3.0,
-    CSpB1: 1.7, CSpB2: 2.3, CSpB3: 2.8, CSpB4: 3.0,
-    StSq1: 1.5, StSq2: 2.6, StSq3: 3.3, StSq4: 3.9,
+    CSp1: 1.5,
+    CSp2: 2.0,
+    CSp3: 2.5,
+    CSp4: 3.2,
+    FSp1: 1.7,
+    FSp2: 2.3,
+    FSp3: 2.8,
+    FSp4: 3.0,
+    LSp1: 1.5,
+    LSp2: 2.0,
+    LSp3: 2.5,
+    LSp4: 3.0,
+    USp1: 1.5,
+    USp2: 2.0,
+    USp3: 2.5,
+    USp4: 3.0,
+    CSpB1: 1.7,
+    CSpB2: 2.3,
+    CSpB3: 2.8,
+    CSpB4: 3.0,
+    StSq1: 1.5,
+    StSq2: 2.6,
+    StSq3: 3.3,
+    StSq4: 3.9,
     ChSq1: 3.0,
   }
   function goeFactor(bv: number): number {

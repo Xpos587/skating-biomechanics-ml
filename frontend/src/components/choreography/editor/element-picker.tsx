@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { Plus } from "lucide-react"
+import { useMemo, useState } from "react"
 import type { TrackType } from "@/types/choreography"
 
 interface ElementPickerProps {
@@ -73,21 +74,34 @@ export function ElementPicker({ trackType, onSelect, onClose }: ElementPickerPro
   const filtered = useMemo(() => {
     if (!search) return items
     const q = search.toLowerCase()
-    return items.filter((el) => el.code.toLowerCase().includes(q) || el.name.toLowerCase().includes(q))
+    return items.filter(
+      el => el.code.toLowerCase().includes(q) || el.name.toLowerCase().includes(q),
+    )
   }, [search, items])
 
   return (
-    <div className="w-64 rounded-lg border border-border bg-background p-2 shadow-lg" onClick={(e) => e.stopPropagation()}>
+    <div
+      role="dialog"
+      aria-label="Pick element"
+      className="w-64 rounded-lg border border-border bg-background p-2 shadow-lg"
+      onClick={e => e.stopPropagation()}
+      onKeyDown={e => {
+        if (e.key === "Escape") onClose()
+      }}
+    >
+      <label htmlFor="element-search" className="sr-only">
+        Search element
+      </label>
       <input
+        id="element-search"
         type="text"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={e => setSearch(e.target.value)}
         placeholder="Поиск элемента..."
-        autoFocus
         className="mb-2 w-full rounded-md border border-border bg-muted/30 px-2 py-1 text-sm outline-none focus:border-primary"
       />
       <div className="max-h-60 overflow-y-auto">
-        {filtered.map((el) => (
+        {filtered.map(el => (
           <button
             key={el.code}
             type="button"

@@ -1,10 +1,10 @@
 "use client"
 
-import { SkipBack, Play, Pause, SkipForward, ZoomIn, Magnet } from "lucide-react"
+import { Magnet, Pause, Play, SkipBack, SkipForward, ZoomIn } from "lucide-react"
+import { useTranslations } from "@/i18n"
+import type { SnapMode } from "@/types/choreography"
 import { useChoreographyEditor } from "./store"
 import { WaveformViewRef } from "./waveform-view"
-import type { SnapMode } from "@/types/choreography"
-import { useTranslations } from "@/i18n"
 
 const SNAP_OPTIONS: { value: SnapMode; labelKey: string }[] = [
   { value: "off", labelKey: "snapOff" },
@@ -20,7 +20,6 @@ export function TransportBar() {
     musicDuration,
     pixelsPerSecond,
     snapMode,
-    setIsPlaying,
     setCurrentTime,
     setPixelsPerSecond,
     setSnapMode,
@@ -113,7 +112,7 @@ export function TransportBar() {
           max={60}
           step={1}
           value={pixelsPerSecond}
-          onChange={(e) => setPixelsPerSecond(Number(e.target.value))}
+          onChange={e => setPixelsPerSecond(Number(e.target.value))}
           className="h-1 w-20 cursor-pointer accent-primary"
           aria-label="Zoom"
         />
@@ -124,11 +123,11 @@ export function TransportBar() {
         <Magnet className="h-3.5 w-3.5 text-muted-foreground" />
         <select
           value={snapMode}
-          onChange={(e) => setSnapMode(e.target.value as SnapMode)}
+          onChange={e => setSnapMode(e.target.value as SnapMode)}
           className="h-7 rounded border border-border bg-background px-1.5 text-xs"
           aria-label="Snap mode"
         >
-          {SNAP_OPTIONS.map((opt) => (
+          {SNAP_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>
               {t(opt.labelKey)}
             </option>

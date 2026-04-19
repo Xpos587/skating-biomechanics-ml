@@ -1,10 +1,10 @@
 "use client"
 
-import { useRef, useCallback } from "react"
-import { useChoreographyEditor } from "./store"
+import { useCallback, useRef } from "react"
+import { cn } from "@/lib/utils"
 import type { TimelineElement as TimelineElementType } from "@/types/choreography"
 import { TRACK_CONFIG } from "@/types/choreography"
-import { cn } from "@/lib/utils"
+import { useChoreographyEditor } from "./store"
 
 interface TimelineElementProps {
   element: TimelineElementType
@@ -19,6 +19,8 @@ interface TimelineElementProps {
   onEdit: (id: string) => void
 }
 
+const SNAP_THRESHOLD = 0.5
+
 export function TimelineElement({
   element,
   pixelsPerSecond,
@@ -29,30 +31,30 @@ export function TimelineElement({
   onSelect,
   onEdit,
 }: TimelineElementProps) {
-  const moveElement = useChoreographyEditor((s) => s.moveElement)
+  const moveElement = useChoreographyEditor(s => s.moveElement)
   const dragRef = useRef({ startX: 0, startTimestamp: 0 })
   const config = TRACK_CONFIG[element.trackType]
 
   const leftPx = element.timestamp * pixelsPerSecond
   const widthPx = element.duration * pixelsPerSecond
 
-  const SNAP_THRESHOLD = 0.5
-
-  function snapToMarker(timestamp: number): number {
-    if (snapMode === "off") return timestamp
-    const markers = beatMarkers
-    if (markers.length === 0) return timestamp
-    let closest = markers[0]
-    let minDist = Math.abs(timestamp - closest)
-    for (const m of markers) {
-      const dist = Math.abs(timestamp - m)
-      if (dist < minDist) {
-        minDist = dist
-        closest = m
+  const snapToMarker = useCallback(
+    (timestamp: number): number => {
+      if (snapMode === "off") return timestamp
+      if (beatMarkers.length === 0) return timestamp
+      let closest = beatMarkers[0]
+      let minDist = Math.abs(timestamp - closest)
+      for (const m of beatMarkers) {
+        const dist = Math.abs(timestamp - m)
+        if (dist < minDist) {
+          minDist = dist
+          closest = m
+        }
       }
-    }
-    return minDist < SNAP_THRESHOLD ? closest : timestamp
-  }
+      return minDist < SNAP_THRESHOLD ? closest : timestamp
+    },
+    [snapMode, beatMarkers],
+  )
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -79,7 +81,7 @@ export function TimelineElement({
       window.addEventListener("pointermove", handlePointerMove, { signal: ac.signal })
       window.addEventListener("pointerup", handlePointerUp, { signal: ac.signal })
     },
-    [element.id, element.timestamp, pixelsPerSecond, snapMode, beatMarkers, onSelect, moveElement],
+    [element.id, element.timestamp, pixelsPerSecond, onSelect, moveElement, snapToMarker],
   )
 
   const handleDoubleClick = useCallback(
@@ -90,16 +92,16 @@ export function TimelineElement({
     [element.id, onEdit],
   )
 
-  const backHalfThreshold = useChoreographyEditor((s) => s.musicDuration / 2)
+  const backHalfThreshold = useChoreographyEditor(s => s.musicDuration / 2)
   const isBackHalf = element.timestamp > backHalfThreshold
 
   return (
-    <div
+    <button
+      type="button"
       data-element-id={element.id}
-      role="button"
       tabIndex={0}
       className={cn(
-        "absolute top-1 bottom-1 cursor-grab rounded-md border px-1.5 py-0.5 text-xs select-none transition-colors",
+        "absolute top-1 bottom-1 cursor-grab rounded-md border px-1.5 py-0.5 text-xs select-none transition-colors text-left",
         "hover:brightness-110 active:cursor-grabbing",
         isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         isActive && "brightness-125",
@@ -113,7 +115,7 @@ export function TimelineElement({
       }}
       onPointerDown={handlePointerDown}
       onDoubleClick={handleDoubleClick}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         if (e.key === "Delete" || e.key === "Backspace") {
           e.stopPropagation()
           useChoreographyEditor.getState().removeElement(element.id)
@@ -122,9 +124,7 @@ export function TimelineElement({
       title={`${element.code} (${element.timestamp.toFixed(1)}s)`}
     >
       <div className={cn("truncate font-semibold", config.color)}>{element.code}</div>
-      <div className="text-muted-foreground text-[10px]">
-        {element.timestamp.toFixed(1)}s
-      </div>
-    </div>
+      <div className="text-muted-foreground text-[10px]">{element.timestamp.toFixed(1)}s</div>
+    </button>
   )
 }

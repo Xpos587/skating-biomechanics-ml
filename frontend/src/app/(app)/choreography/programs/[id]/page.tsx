@@ -1,18 +1,18 @@
 "use client"
 
-import { useRef } from "react"
-import { useParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { useTranslations } from "@/i18n"
-import { useProgram, useMusicAnalysis, useSaveProgram } from "@/lib/api/choreography"
-import { useChoreographyEditor } from "@/components/choreography/editor/store"
+import { useParams } from "next/navigation"
+import { useRef } from "react"
 import { startAutoSave } from "@/components/choreography/editor/auto-save"
-import { WaveformView } from "@/components/choreography/editor/waveform-view"
-import { TransportBar } from "@/components/choreography/editor/transport-bar"
 import { ElementTrack } from "@/components/choreography/editor/element-track"
+import { useChoreographyEditor } from "@/components/choreography/editor/store"
+import { TransportBar } from "@/components/choreography/editor/transport-bar"
+import { WaveformView } from "@/components/choreography/editor/waveform-view"
 import { RinkDiagram } from "@/components/choreography/rink-diagram"
 import { ScoreBar } from "@/components/choreography/score-bar"
+import { useTranslations } from "@/i18n"
+import { useMusicAnalysis, useProgram, useSaveProgram } from "@/lib/api/choreography"
 
 export default function ProgramEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -32,12 +32,12 @@ export default function ProgramEditorPage() {
   const audioUrl = musicAnalysis?.audio_url ?? null
   const musicDuration = musicAnalysis?.duration_sec ?? 180
   const beatMarkers = musicAnalysis?.peaks ?? []
-  const phraseMarkers = (musicAnalysis?.structure ?? []).map((s) => s.start)
+  const phraseMarkers = (musicAnalysis?.structure ?? []).map(s => s.start)
 
   // Derive layout for ScoreBar from editor state
   const layout = initialized
     ? {
-        elements: editor.elements.map((el) => ({
+        elements: editor.elements.map(el => ({
           code: el.code,
           goe: el.goe,
           timestamp: el.timestamp,
@@ -64,7 +64,7 @@ export default function ProgramEditorPage() {
       {
         onSuccess: () => {
           unsubRef.current = startAutoSave(
-            (data) => saveProgram.mutate(data),
+            data => saveProgram.mutate(data),
             () => saveProgram.isPending,
           )
         },
@@ -92,7 +92,7 @@ export default function ProgramEditorPage() {
     editor.initFromProgram(program, audioUrl, musicDuration, beatMarkers, phraseMarkers)
     if (unsubRef.current) unsubRef.current()
     unsubRef.current = startAutoSave(
-      (data) => saveProgram.mutate(data),
+      data => saveProgram.mutate(data),
       () => saveProgram.isPending,
     )
   }
@@ -107,7 +107,7 @@ export default function ProgramEditorPage() {
         <input
           type="text"
           value={editor.title}
-          onChange={(e) => editor.setTitle(e.target.value)}
+          onChange={e => editor.setTitle(e.target.value)}
           placeholder={t("untitled")}
           className="flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
         />
@@ -144,11 +144,7 @@ export default function ProgramEditorPage() {
 
           {/* Score bar */}
           <div className="border-t border-border p-2">
-            <ScoreBar
-              layout={layout}
-              discipline={program.discipline}
-              segment={program.segment}
-            />
+            <ScoreBar layout={layout} discipline={program.discipline} segment={program.segment} />
           </div>
         </div>
 

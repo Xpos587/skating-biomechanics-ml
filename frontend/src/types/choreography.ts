@@ -117,7 +117,10 @@ export type TrackType = "jumps" | "spins" | "sequences"
 export type SnapMode = "beats" | "phrases" | "off"
 export type RinkPreset = "olympic" | "nhl" | "training" | "custom"
 
-export const TRACK_CONFIG: Record<TrackType, { maxElements: number; color: string; colorVar: string }> = {
+export const TRACK_CONFIG: Record<
+  TrackType,
+  { maxElements: number; color: string; colorVar: string }
+> = {
   jumps: { maxElements: 7, color: "text-orange-500", colorVar: "bg-orange-500/20" },
   spins: { maxElements: 3, color: "text-purple-500", colorVar: "bg-purple-500/20" },
   sequences: { maxElements: 10, color: "text-emerald-500", colorVar: "bg-emerald-500/20" },
