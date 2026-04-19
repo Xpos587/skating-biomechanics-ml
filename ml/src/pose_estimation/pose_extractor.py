@@ -39,6 +39,7 @@ from ..detection.pose_tracker import PoseTracker as CustomPoseTracker
 from ..tracking.skeletal_identity import compute_2d_skeletal_ratios
 from ..tracking.tracklet_merger import TrackletMerger, build_tracklets
 from ..types import PersonClick, TrackedExtraction
+from ..utils.frame_buffer import AsyncFrameReader
 from ..utils.video import get_video_meta
 from .h36m import _biometric_distance, coco_to_h36m
 
@@ -215,16 +216,14 @@ class PoseExtractor:
         rtmlib_id_map: dict[int, int] = {}
         next_internal_id = 0
 
-        # Open video
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            raise RuntimeError(f"Failed to open video: {video_path}")
-
         # Cache first frame for spatial reference
-        ret, first_frame = cap.read()
+        cap_first = cv2.VideoCapture(str(video_path))
+        if not cap_first.isOpened():
+            raise RuntimeError(f"Failed to open video: {video_path}")
+        ret, first_frame = cap_first.read()
+        cap_first.release()
         if not ret:
             raise RuntimeError(f"Failed to read first frame from video: {video_path}")
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Reset to beginning
 
         # Initialize pbar before try block to avoid "possibly unbound" error
         pbar = tqdm(
@@ -235,26 +234,22 @@ class PoseExtractor:
             disable=progress_cb is not None,
         )
 
-        try:
-            frame_idx = 0
-            while cap.isOpened() and frame_idx < num_frames:
-                if self._frame_skip > 1 and frame_idx % self._frame_skip != 0:
-                    # Skip this frame — just advance the video
-                    ret = cap.grab()
-                    if not ret:
-                        break
-                    frame_idx += 1
-                    pbar.update(1)
-                    if progress_cb:
-                        progress_cb(
-                            frame_idx / num_frames * 0.3,
-                            f"Extracting poses... {frame_idx}/{num_frames}",
-                        )
-                    continue
+        # Double-buffered frame reader: background thread decodes frames
+        # while GPU processes the current one.
+        reader = AsyncFrameReader(
+            video_path,
+            buffer_size=16,
+            frame_skip=self._frame_skip,
+        )
+        reader.start()
 
-                ret, frame = cap.read()
-                if not ret:
+        try:
+            while True:
+                result = reader.get_frame()
+                if result is None:
                     break
+                original_frame_idx, frame = result
+                frame_idx = original_frame_idx
 
                 h, w = frame.shape[:2]
 
@@ -268,17 +263,11 @@ class PoseExtractor:
                 # Run rtmlib
                 tracker = self.tracker
                 if tracker is None:
-                    # Update progress bar
-                    if frame_idx % self._frame_skip == 0:
-                        pbar.update(1)
-                    frame_idx += 1
+                    pbar.update(self._frame_skip)
                     continue
                 tracker_result = tracker(frame_ds)
                 if not isinstance(tracker_result, tuple) or len(tracker_result) != 2:
-                    # Update progress bar
-                    if frame_idx % self._frame_skip == 0:
-                        pbar.update(1)
-                    frame_idx += 1
+                    pbar.update(self._frame_skip)
                     continue
                 keypoints, scores = tracker_result
                 # keypoints: (P, 17, 2) pixel coords, scores: (P, 17)
@@ -290,9 +279,7 @@ class PoseExtractor:
                 if keypoints is None or len(keypoints) == 0:
                     if custom_tracker is not None:
                         custom_tracker.update(np.empty((0, 17, 2), dtype=np.float32))
-                    frame_idx += 1
-                    if frame_idx % self._frame_skip == 0:
-                        pbar.update(1)
+                    pbar.update(self._frame_skip)
                     continue
 
                 n_persons = len(keypoints)
@@ -453,15 +440,14 @@ class PoseExtractor:
                                     if target_track_id in tmap and np.isnan(all_poses[fidx, 0, 0]):
                                         all_poses[fidx] = tmap[target_track_id]
 
-                frame_idx += 1
-                pbar.update(1)
+                pbar.update(self._frame_skip)
                 if progress_cb:
                     progress_cb(
                         frame_idx / num_frames * 0.3,
                         f"Extracting poses... {frame_idx}/{num_frames}",
                     )
         finally:
-            cap.release()
+            reader.join()
             pbar.close()
 
         # Phase 2 (deferred): Auto-select by most hits

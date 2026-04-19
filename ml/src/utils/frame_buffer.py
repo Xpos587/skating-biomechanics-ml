@@ -50,7 +50,6 @@ class AsyncFrameReader:
         self._frame_skip = max(1, frame_skip)
         self._queue: Queue[tuple[int, np.ndarray] | object] = Queue(maxsize=buffer_size)
         self._thread: threading.Thread | None = None
-        self._frame_idx = 0
 
     def start(self) -> None:
         """Start the background decode thread."""
@@ -63,23 +62,25 @@ class AsyncFrameReader:
             self._queue.put(self._SENTINEL)
             return
 
+        original_idx = 0
         skip_counter = 0
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            skip_counter += 1
-            if skip_counter < self._frame_skip:
+            if skip_counter < self._frame_skip - 1:
+                skip_counter += 1
+                original_idx += 1
                 continue
             skip_counter = 0
-            self._queue.put((self._frame_idx, frame))
-            self._frame_idx += 1
+            self._queue.put((original_idx, frame))
+            original_idx += 1
 
         cap.release()
         self._queue.put(self._SENTINEL)
 
     def get_frame(self) -> tuple[int, np.ndarray] | None:
-        """Get next frame. Returns None when video is exhausted."""
+        """Get next frame. Returns (original_frame_idx, frame) or None when exhausted."""
         item = self._queue.get()
         if item is self._SENTINEL:
             return None
