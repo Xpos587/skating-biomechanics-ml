@@ -12,7 +12,7 @@ from app.schemas import (
     DetectResultResponse,
     TaskStatusResponse,
 )
-from app.storage import upload_bytes
+from app.storage import upload_bytes_async
 from app.task_manager import (
     TaskStatus,
     create_task_state,
@@ -34,7 +34,7 @@ async def enqueue_detect(
     video_key = f"input/{uuid.uuid4().hex}{suffix}"
 
     content = await video.read()
-    upload_bytes(content, video_key)
+    await upload_bytes_async(content, video_key)
 
     task_id = f"det_{uuid.uuid4().hex[:12]}"
 

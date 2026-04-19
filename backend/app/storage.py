@@ -142,3 +142,54 @@ async def upload_bytes_async(data: bytes, key: str) -> str:
     async with await _async_client() as s3:
         await s3.put_object(Bucket=bucket, Key=key, Body=data)
     return key
+
+
+async def object_exists_async(key: str) -> bool:
+    """Check if object exists in R2 asynchronously."""
+    from botocore.exceptions import ClientError
+
+    async with await _async_client() as s3:
+        try:
+            await s3.head_object(Bucket=get_settings().r2.bucket, Key=key)
+            return True
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                return False
+            raise
+
+
+async def stream_object_async(key: str) -> tuple:
+    """Stream object from R2 asynchronously. Returns (body, content_length, content_type)."""
+    bucket = get_settings().r2.bucket
+    logger.info("Streaming s3://%s/%s (async)", bucket, key)
+    async with await _async_client() as s3:
+        resp = await s3.get_object(Bucket=bucket, Key=key)
+        body = resp["Body"]
+        length = resp.get("ContentLength", 0)
+        ctype = resp.get("ContentType", "application/octet-stream")
+        return body, length, ctype
+
+
+async def get_object_url_async(key: str, expires: int = 3600) -> str:
+    """Generate a presigned URL for an object asynchronously."""
+    bucket = get_settings().r2.bucket
+    async with await _async_client() as s3:
+        return await s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+
+
+async def delete_object_async(key: str) -> None:
+    """Delete object from R2 asynchronously."""
+    async with await _async_client() as s3:
+        await s3.delete_object(Bucket=get_settings().r2.bucket, Key=key)
+
+
+async def list_objects_async(prefix: str) -> list[str]:
+    """List object keys with given prefix asynchronously."""
+    async with await _async_client() as s3:
+        bucket = get_settings().r2.bucket
+        resp = await s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        return [obj["Key"] for obj in resp.get("Contents", [])]

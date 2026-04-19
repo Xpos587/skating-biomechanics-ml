@@ -16,7 +16,7 @@ from app.schemas import (
     SessionListResponse,
     SessionResponse,
 )
-from app.storage import get_object_url
+from app.storage import get_object_url_async
 
 if TYPE_CHECKING:
     from app.auth.deps import CurrentUser, DbDep
@@ -24,23 +24,25 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["sessions"])
 
 
-def _session_to_response(session) -> SessionResponse:
+async def _session_to_response(session) -> SessionResponse:
     """Convert ORM Session to response schema with presigned URLs."""
+    video_url = (
+        await get_object_url_async(session.video_key) if session.video_key else session.video_url
+    )
+    processed_video_url = (
+        await get_object_url_async(session.processed_video_key)
+        if session.processed_video_key
+        else session.processed_video_url
+    )
     return SessionResponse.model_validate(
         {
             "id": session.id,
             "user_id": session.user_id,
             "element_type": session.element_type,
             "video_key": session.video_key,
-            "video_url": get_object_url(session.video_key)
-            if session.video_key
-            else session.video_url,
+            "video_url": video_url,
             "processed_video_key": session.processed_video_key,
-            "processed_video_url": (
-                get_object_url(session.processed_video_key)
-                if session.processed_video_key
-                else session.processed_video_url
-            ),
+            "processed_video_url": processed_video_url,
             "poses_url": session.poses_url,
             "csv_url": session.csv_url,
             "pose_data": session.pose_data,
@@ -66,7 +68,7 @@ async def create_session(body: CreateSessionRequest, user: CurrentUser, db: DbDe
         video_key=body.video_key,
         status="queued" if body.video_key else "uploading",
     )
-    return _session_to_response(session)
+    return await _session_to_response(session)
 
 
 @router.get("/sessions", response_model=SessionListResponse)
@@ -101,7 +103,7 @@ async def list_sessions(
         sort=sort,
     )
     return SessionListResponse(
-        sessions=[_session_to_response(s) for s in sessions], total=len(sessions)
+        sessions=[await _session_to_response(s) for s in sessions], total=len(sessions)
     )
 
 
@@ -117,7 +119,7 @@ async def get_session(session_id: str, user: CurrentUser, db: DbDep):
         connection_type=ConnectionType.COACHING,
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    return _session_to_response(session)
+    return await _session_to_response(session)
 
 
 @router.patch("/sessions/{session_id}", response_model=SessionResponse)
@@ -133,7 +135,7 @@ async def patch_session(
     if session.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     session = await update(db, session, **body.model_dump(exclude_unset=True))
-    return _session_to_response(session)
+    return await _session_to_response(session)
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
