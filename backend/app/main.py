@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 import structlog
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,11 +25,32 @@ from app.routes import (
     uploads,
     users,
 )
+from app.task_manager import close_valkey_pool, init_valkey_pool
 
 configure_logging()
 logger = structlog.get_logger()
 
-app = FastAPI(title="AI Тренер — Фигурное катание")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    await init_valkey_pool()
+
+    # arq pool singleton for job enqueue
+    app.state.arq_pool = await create_pool(
+        RedisSettings(
+            host=settings.valkey.host,
+            port=settings.valkey.port,
+            database=settings.valkey.db,
+            password=settings.valkey.password.get_secret_value(),
+        )
+    )
+    yield
+    await app.state.arq_pool.close()
+    await close_valkey_pool()
+
+
+app = FastAPI(title="AI Тренер — Фигурное катание", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

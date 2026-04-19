@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import uuid
 
-from arq import create_pool
-from arq.connections import RedisSettings
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
-from app.config import get_settings
 from app.schemas import (
     MLModelFlags,
     ProcessRequest,
@@ -26,13 +25,15 @@ from app.task_manager import (
     set_cancel_signal,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+SSE_STREAM_TIMEOUT = 60  # seconds
 
 
 @router.post("/process/queue", response_model=QueueProcessResponse)
-async def enqueue_process(req: ProcessRequest):
+async def enqueue_process(request: Request, req: ProcessRequest):
     """Enqueue video processing job and return task_id immediately."""
-    settings = get_settings()
     task_id = f"proc_{uuid.uuid4().hex[:12]}"
 
     valkey = await get_valkey_client()
@@ -50,30 +51,19 @@ async def enqueue_process(req: ProcessRequest):
         inpainting=req.inpainting,
     )
 
-    arq_pool = await create_pool(
-        RedisSettings(
-            host=settings.valkey.host,
-            port=settings.valkey.port,
-            database=settings.valkey.db,
-            password=settings.valkey.password.get_secret_value(),
-        )
+    await request.app.state.arq_pool.enqueue_job(
+        "process_video_task",
+        task_id=task_id,
+        video_key=req.video_key,
+        person_click={"x": req.person_click.x, "y": req.person_click.y},
+        frame_skip=req.frame_skip,
+        layer=req.layer,
+        tracking=req.tracking,
+        export=req.export,
+        ml_flags=ml_flags,
+        session_id=req.session_id,
+        _priority=10,  # Low priority for full analysis
     )
-    try:
-        await arq_pool.enqueue_job(
-            "process_video_task",
-            task_id=task_id,
-            video_key=req.video_key,
-            person_click={"x": req.person_click.x, "y": req.person_click.y},
-            frame_skip=req.frame_skip,
-            layer=req.layer,
-            tracking=req.tracking,
-            export=req.export,
-            ml_flags=ml_flags,
-            session_id=req.session_id,
-            _priority=10,  # Low priority for full analysis
-        )
-    finally:
-        await arq_pool.close()
 
     return QueueProcessResponse(task_id=task_id)
 
@@ -124,21 +114,30 @@ async def stream_process_status(task_id: str):
             # Send initial state
             state = await get_task_state(task_id, valkey=valkey)
             if state:
-                yield f"data: {json.dumps(state)}\n\n"
+                yield {"data": json.dumps(state)}
             else:
-                yield f"data: {json.dumps({'status': 'unknown'})}\n\n"
+                yield {"data": json.dumps({"status": "unknown"})}
 
-            async for message in pubsub.listen():
-                if message["type"] == "message":
-                    yield f"data: {message['data'].decode()}\n\n"
-                    try:
-                        data = json.loads(message["data"])
-                        if data.get("status") in ("completed", "failed", "cancelled"):
-                            break
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+            async with asyncio.timeout(SSE_STREAM_TIMEOUT):
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        yield {"data": message["data"].decode()}
+                        try:
+                            data = json.loads(message["data"])
+                            if data.get("status") in ("completed", "failed", "cancelled"):
+                                break
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+        except TimeoutError:
+            # No messages for 60s — poll final state and yield timeout event
+            logger.warning("SSE stream timeout for task %s", task_id)
+            state = await get_task_state(task_id, valkey=valkey)
+            payload = state or {"status": "unknown"}
+            payload["_timeout"] = True
+            yield {"data": json.dumps(payload)}
         finally:
             await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
             await valkey.close()
 
     return EventSourceResponse(event_generator())

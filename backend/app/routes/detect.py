@@ -5,11 +5,8 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from arq import create_pool
-from arq.connections import RedisSettings
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from app.config import get_settings
 from app.schemas import (
     DetectQueueResponse,
     DetectResultResponse,
@@ -28,6 +25,7 @@ router = APIRouter()
 
 @router.post("/detect", response_model=DetectQueueResponse)
 async def enqueue_detect(
+    request: Request,
     video: UploadFile,
     tracking: str = "auto",
 ) -> DetectQueueResponse:
@@ -38,7 +36,6 @@ async def enqueue_detect(
     content = await video.read()
     upload_bytes(content, video_key)
 
-    settings = get_settings()
     task_id = f"det_{uuid.uuid4().hex[:12]}"
 
     valkey = await get_valkey_client()
@@ -47,24 +44,13 @@ async def enqueue_detect(
     finally:
         await valkey.close()
 
-    arq_pool = await create_pool(
-        RedisSettings(
-            host=settings.valkey.host,
-            port=settings.valkey.port,
-            database=settings.valkey.db,
-            password=settings.valkey.password.get_secret_value(),
-        )
+    await request.app.state.arq_pool.enqueue_job(
+        "detect_video_task",
+        task_id=task_id,
+        video_key=video_key,
+        tracking=tracking,
+        _priority=0,  # High priority for fast preview
     )
-    try:
-        await arq_pool.enqueue_job(
-            "detect_video_task",
-            task_id=task_id,
-            video_key=video_key,
-            tracking=tracking,
-            _priority=0,  # High priority for fast preview
-        )
-    finally:
-        await arq_pool.close()
 
     return DetectQueueResponse(task_id=task_id, video_key=video_key)
 
