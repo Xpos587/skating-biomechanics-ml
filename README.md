@@ -1,11 +1,7 @@
 # Skating Biomechanics ML
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Xpos587/skating-biomechanics-ml/ci.yml?branch=master&label=CI)](https://github.com/Xpos587/skating-biomechanics-ml/actions)
-[![Tests](https://img.shields.io/github/actions/workflow/status/Xpos587/skating-biomechanics-ml/ci.yml?branch=master&label=tests)](https://github.com/Xpos587/skating-biomechanics-ml/actions)
+[![CI](https://github.com/Xpos587/skating-biomechanics-ml/actions/workflows/ci.yml/badge.svg?branch=master&label=CI)](https://github.com/Xpos587/skating-biomechanics-ml/actions)
 [![codecov](https://codecov.io/github/Xpos587/skating-biomechanics-ml/graph/badge.svg?token=0QK5TTR8QZ)](https://codecov.io/github/Xpos587/skating-biomechanics-ml)
-[![License: MIT](https://img.shields.io/github/license/Xpos587/skating-biomechanics-ml)](https://github.com/Xpos587/skating-biomechanics-ml/blob/master/LICENSE)
-[![Last Commit](https://img.shields.io/github/last-commit/Xpos587/skating-biomechanics-ml)](https://github.com/Xpos587/skating-biomechanics-ml/commits/master)
-[![Issues](https://img.shields.io/github/issues/Xpos587/skating-biomechanics-ml)](https://github.com/Xpos587/skating-biomechanics-ml/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/Xpos587/skating-biomechanics-ml/pulls)
 
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
@@ -14,7 +10,7 @@
 [![CUDA](https://img.shields.io/badge/CUDA-GPU-76B900?logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-zone)
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![mypy](https://img.shields.io/badge/mypy-checked-blue?logo=mypy&logoColor=white)](https://mypy-lang.org)
+[![basedpyright](https://img.shields.io/badge/basedpyright-checked-blue?logo=python&logoColor=white)](https://github.com/detachhead/basedpyright)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 
