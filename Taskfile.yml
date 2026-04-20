@@ -79,11 +79,21 @@ tasks:
       - task: fe-typecheck
       - task: fe-build
 
+  # Ast-grep tasks
+  sg-test:
+    desc: Run ast-grep rule tests
+    cmd: ast-grep test
+
+  sg-scan:
+    desc: Run ast-grep scan on all source files
+    cmd: ast-grep scan
+
   # Unified tasks
   ci:
     desc: Run all CI checks (Python + Frontend)
     dir: .
     cmds:
+      - task: sg-test
       - task: py-all
       - task: fe-all
 
