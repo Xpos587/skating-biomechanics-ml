@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Force SKIP_AUTH=false for all tests so auth logic is exercised.
 # Must happen before any import of app.config (which caches settings via @lru_cache).
-os.environ.setdefault("APP_SKIP_AUTH", "false")
+os.environ["APP_SKIP_AUTH"] = "false"
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))

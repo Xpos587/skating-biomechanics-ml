@@ -87,6 +87,7 @@ async def test_upload_music_enqueues_job(mock_user, mock_db, mock_file, mock_req
     mock_music.filename = "test.mp3"
 
     with (
+        patch("app.routes.choreography.find_music_by_fingerprint", return_value=None),
         patch("app.routes.choreography.create_music_analysis") as mock_create,
         patch("app.routes.choreography.upload_file"),
         patch("app.routes.choreography.tempfile.NamedTemporaryFile", return_value=mock_tmp),
@@ -124,6 +125,7 @@ async def test_upload_music_handles_upload_failure(
     mock_music.id = "music_456"
 
     with (
+        patch("app.routes.choreography.find_music_by_fingerprint", return_value=None),
         patch("app.routes.choreography.create_music_analysis", return_value=mock_music),
         patch("app.routes.choreography.upload_file", side_effect=OSError("Upload failed")),
         patch("app.routes.choreography.update_music_analysis") as mock_update,

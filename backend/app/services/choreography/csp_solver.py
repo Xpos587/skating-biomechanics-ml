@@ -7,6 +7,7 @@ optimizing for maximum TES with back-half bonus.
 from __future__ import annotations
 
 import random
+from itertools import combinations
 
 from app.services.choreography.elements_db import ELEMENTS
 from app.services.choreography.rules_engine import validate_layout
@@ -18,37 +19,149 @@ def _parse_combination(combo_str: str) -> list[str]:
     return [c.strip() for c in combo_str.split("+")]
 
 
+def _base_jump(code: str) -> str:
+    """Extract base jump type (without rotation number) for Zayak tracking.
+
+    '3Lz' -> 'Lz', '4T' -> 'T', '1Eu' -> 'Eu', '2A' -> 'A'
+    """
+    return code.lstrip("0123456789")
+
+
+def _layout_fingerprint(elements: list[dict]) -> frozenset[str]:
+    """Fingerprint layout by element codes (order-independent)."""
+    return frozenset(e["code"] for e in elements)
+
+
+def _score_layout(
+    elements: list[dict],
+    back_half_indices: set[int],
+) -> float:
+    """Score a layout with given back-half placement."""
+    flat = [{"code": e["code"], "goe": e["goe"]} for e in elements]
+    return calculate_tes(flat, back_half_indices)
+
+
+def _generate_back_half_variants(
+    base_elements: list[dict],
+    segment: str,
+    max_variants: int = 5,
+) -> list[dict]:
+    """Generate layouts with different back-half jump pass placements.
+
+    Takes a base layout and produces variants where different jump passes
+    receive the back-half bonus, yielding different TES scores.
+    """
+    jump_pass_indices = [i for i, e in enumerate(base_elements) if "jump_pass_index" in e]
+    n_jp = len(jump_pass_indices)
+    if n_jp < 3 or segment != "free_skate":
+        return []
+
+    # Generate distinct back-half selections: always last 3, plus other combos
+    variants: list[dict] = []
+    seen_bh: set[frozenset[int]] = set()
+
+    # All possible ways to pick 3 jump passes for back-half bonus
+    for combo in combinations(range(n_jp), 3):
+        bh = frozenset(jump_pass_indices[i] for i in combo)
+        if bh in seen_bh:
+            continue
+        seen_bh.add(bh)
+
+        tes = _score_layout(base_elements, bh)
+        variants.append(
+            {
+                "elements": [dict(e) for e in base_elements],
+                "total_tes": round(tes, 2),
+                "back_half_indices": sorted(bh),
+            }
+        )
+        if len(variants) >= max_variants:
+            break
+
+    variants.sort(key=lambda c: c["total_tes"], reverse=True)
+    return variants
+
+
 def _generate_candidates(
     inventory: dict,
     segment: str,
 ) -> list[dict]:
-    """Generate candidate layouts via constraint-guided random search."""
+    """Generate candidate layouts via constraint-guided random search.
+
+    Builds jump passes with Zayak awareness: each base jump type appears
+    at most twice, and if twice, at least once in a combination.
+    Deduplicates by element fingerprint, keeping highest TES per unique combo.
+    """
     jumps = inventory.get("jumps", [])
     spins = inventory.get("spins", [])
     combos = inventory.get("combinations", [])
 
-    jump_pass_options: list[list[str]] = []
-    for j in jumps:
-        jump_pass_options.append([j])
+    # Separate single jumps from combos; exclude 1Eu from singles (half-jump only for combos)
+    single_jumps = [j for j in jumps if j != "1Eu"]
+    combo_passes: list[list[str]] = []
     for c in combos:
         parsed = _parse_combination(c)
         if parsed:
-            jump_pass_options.append(parsed)
+            combo_passes.append(parsed)
 
     step_options = ["StSq4", "StSq3", "StSq2"]
     choreo_options = ["ChSq1"]
 
-    candidates: list[dict] = []
+    # ISU limits
+    min_passes = 3 if segment == "short_program" else 5
+    max_passes = 7 if segment == "free_skate" else min(7, len(single_jumps) + len(combo_passes))
+
+    # best[fp] = (tes, layout) — keep highest TES per unique element set
+    best_by_fp: dict[frozenset[str], tuple[float, dict]] = {}
 
     for _ in range(500):
-        num_passes = min(7, len(jump_pass_options))
-        if num_passes < 5:
-            continue
+        # Shuffle options for variety
+        shuffled_singles = list(single_jumps)
+        random.shuffle(shuffled_singles)
+        shuffled_combos = list(combo_passes)
+        random.shuffle(shuffled_combos)
 
-        selected_passes = random.sample(jump_pass_options, num_passes)
-        all_jump_codes: list[str] = []
-        for jp in selected_passes:
-            all_jump_codes.extend(jp)
+        num_passes = random.randint(min_passes, max(min_passes, max_passes))
+
+        # Build passes with Zayak constraint: each base jump max 2 times
+        selected_passes: list[list[str]] = []
+        base_jump_counts: dict[str, int] = {}
+        base_jump_in_combo: set[str] = set()
+
+        # Collect all base jumps used in combos (for Zayak combo check)
+        pool = shuffled_combos + [[j] for j in shuffled_singles]
+        random.shuffle(pool)
+
+        for pass_codes in pool:
+            if len(selected_passes) >= num_passes:
+                break
+
+            # Get base jumps in this pass (excluding 1Eu)
+            pass_bases = [_base_jump(c) for c in pass_codes if c != "1Eu"]
+
+            # Check Zayak: each base jump max 2 total
+            can_add = True
+            for base in pass_bases:
+                current = base_jump_counts.get(base, 0)
+                if current >= 2:
+                    can_add = False
+                    break
+                # If this would be the 2nd use, it must be in a combo
+                if current == 1 and len(pass_codes) == 1:
+                    can_add = False
+                    break
+
+            if not can_add:
+                continue
+
+            selected_passes.append(pass_codes)
+            for base in pass_bases:
+                base_jump_counts[base] = base_jump_counts.get(base, 0) + 1
+            if len(pass_codes) > 1:
+                base_jump_in_combo.update(pass_bases)
+
+        if len(selected_passes) < min_passes:
+            continue
 
         available_spins = [s for s in spins if s in ELEMENTS]
         if len(available_spins) < 3:
@@ -88,22 +201,72 @@ def _generate_candidates(
         else:
             back_half = set()
 
-        flat = [{"code": e["code"], "goe": e["goe"]} for e in elements]
-        tes = calculate_tes(flat, back_half)
+        tes = _score_layout(elements, back_half)
 
-        candidates.append(
-            {
-                "elements": elements,
-                "total_tes": round(tes, 2),
-                "back_half_indices": sorted(back_half),
-            }
-        )
+        # Dedup by fingerprint — keep highest TES per unique element set
+        fp = _layout_fingerprint(elements)
+        if fp not in best_by_fp or tes > best_by_fp[fp][0]:
+            best_by_fp[fp] = (
+                tes,
+                {
+                    "elements": elements,
+                    "total_tes": round(tes, 2),
+                    "back_half_indices": sorted(back_half),
+                },
+            )
 
-        if len(candidates) >= 50:
-            break
-
+    candidates = [layout for _, layout in best_by_fp.values()]
     candidates.sort(key=lambda c: c["total_tes"], reverse=True)
-    return candidates
+
+    # Fallback: if < 10 unique combos, add back-half placement variants
+    # Same element set but different jump passes in back-half → different TES
+    if len(candidates) < 10:
+        extended: list[dict] = list(candidates)
+        seen_tes: set[float] = set()
+        for c in candidates:
+            if len(extended) >= 50:
+                break
+            variants = _generate_back_half_variants(c["elements"], segment, max_variants=3)
+            for v in variants:
+                if v["total_tes"] in seen_tes:
+                    continue
+                seen_tes.add(v["total_tes"])
+                extended.append(v)
+                if len(extended) >= 50:
+                    break
+
+        extended.sort(key=lambda c: c["total_tes"], reverse=True)
+        return extended
+
+    return candidates[:50]
+
+
+def _generate_positions(n: int) -> list[dict]:
+    """Generate rink positions for n elements on a 60x30m rink.
+
+    Uses a simple Poisson-disk-like approach: jittered grid to avoid clustering.
+    Elements are spread across the full rink surface with padding from edges.
+    """
+    random.seed()  # ensure different layout each call
+    positions: list[dict] = []
+
+    # Grid-based jittered sampling for even distribution
+    cols = max(1, int(n**0.5 * 1.5))
+    rows = max(1, (n + cols - 1) // cols)
+    cell_w = 52.0 / cols  # rink inner area: 4..56 x 3..27
+    cell_h = 24.0 / rows
+
+    for i in range(n):
+        row = i // cols
+        col = i % cols
+        x = 4.0 + col * cell_w + random.uniform(cell_w * 0.2, cell_w * 0.8)
+        y = 3.0 + row * cell_h + random.uniform(cell_h * 0.2, cell_h * 0.8)
+        x = round(min(max(x, 4.0), 56.0), 1)
+        y = round(min(max(y, 3.0), 27.0), 1)
+        positions.append({"x": x, "y": y})
+
+    random.shuffle(positions)
+    return positions
 
 
 def solve_layout(
@@ -137,5 +300,10 @@ def solve_layout(
                 target_time = duration * (i + 1) / (n + 1)
             el["timestamp"] = round(target_time, 1)
             el["goe"] = 0
+
+        # Assign rink positions
+        positions = _generate_positions(n)
+        for i, el in enumerate(elements):
+            el["position"] = positions[i]
 
     return candidates[:num_layouts]
