@@ -6,31 +6,61 @@
 
 ---
 
-## Task 0: Training Time Estimation
+## Task 0: Training Time & Risk Estimation
 
 Calculate expected training time using published benchmarks.
 
 **Reference:** Ultralytics docs — **2.8s compute per 1000 images on RTX 4090** (YOLO26n, baseline).
 
-**Full pipeline cost (RTX 4090 $0.295/hr, RTX 5090 $0.305/hr, KD overhead 2.0x):**
+### Risk Mitigation Strategies
 
-| Dataset | Stage 2 (ablation) | Stage 2.5 (teacher) | Stage 3 (KD) | Stage 4 (sizes) | Total | Cost (5090) | Cost (4090) |
-|---------|-------------------|--------------------|--------------------|--------------------|-------|-------------|-------------|
-| ~343K (expected) | 32h | 8h | 53h | 123h | 216h | $66 | $64 |
+**1. Offline teacher heatmaps (biggest cost saving)**
+Pre-compute MogaNet-B heatmaps ONCE for all training images, store as .npy alongside labels. Eliminates 1.5× teacher overhead during KD, eliminates VRAM concern. Stage 3 time drops ~33%.
 
-**Conclusion:** $150 budget is NOT a limiting factor. Expected ~343K images × full pipeline = $64-66. Dataset size driven by domain coverage (FineFS + FSAnno), not budget.
+**2. Skip Stage 2 ablation — POST-MORTEM already answered**
+Previous experiment: freeze=20 was best (0.517 vs 0.406 at freeze=0). Start KD from pretrained + freeze=10-20. Fallback to ablation only if KD fails.
 
-**VRAM budget (teacher + student):**
-- YOLO26n + MogaNet-B (eval): ~8-10GB → RTX 4090 24GB OK
-- YOLO26s + MogaNet-B (eval): ~12-14GB → RTX 4090 24GB OK
-- YOLO26m + MogaNet-B (eval): ~18-20GB → RTX 4090 24GB tight (batch=16)
+**3. Gate Stage 2.5 — skip if teacher already good on skating**
+Run MogaNet-B eval on 100 skating val images first. If AP > 0.85: skip teacher adaptation. Expected: MogaNet-B AP=0.962 on AP3D, likely > 0.85 on skating.
+
+**4. Gate Stage 3.5 — skip if gap is small**
+After Stage 3 converges: check teacher-student gap. gap < 0.08 → DONE, skip TDE. 50% probability of saving 53h.
+
+**5. Progressive sizing — n first, then s/m only if needed**
+Train YOLO26n (100 epochs). If AP >= 0.85 → DONE. Saves ~50h if n is sufficient.
+
+**6. Data validation locally — zero GPU cost**
+Convert ALL datasets locally. Spot-check: visual overlay on 10 random frames per dataset. `yolo val` on 100 images to verify format. Fix bugs BEFORE renting GPU.
+
+### Revised Pipeline (risk-mitigated)
+
+| Stage | Eff epochs | 4090 h | 5090 h | Probability |
+|-------|-----------|--------|--------|-------------|
+| Data conversion (LOCAL, no GPU) | 0 | 0h | 0h | 100% |
+| Teacher heatmap pre-compute | 30 | 8h | 4h | 100% |
+| Stage 1: Baseline val | 5 | 1h | 1h | 100% |
+| Stage 3: KD (offline heatmaps) | 260 | 69h | 33h | 100% |
+| Stage 2.5: Teacher adap (gated) | 15 | 4h | 2h | 50% |
+| Stage 3.5: TDE (gated) | 100 | 27h | 13h | 50% |
+| Stage 4: YOLO26n (progressive) | 120 | 32h | 15h | 100% |
+| Stage 4b: YOLO26s (if n fails) | 50 | 13h | 6h | 50% |
+| **TOTAL** | | **155h** | **74h** | |
+
+**Cost estimate (with contingency):**
+
+| GPU | ETA | Cost | Remaining ($150) |
+|-----|-----|------|-------------------|
+| RTX 5090 ($0.305/hr) | 74h | **$23** | $127 (85%) |
+| RTX 4090 ($0.295/hr) | 155h | **$46** | $104 (70%) |
+
+**VRAM:** Not a concern with offline heatmaps. Teacher model NOT in GPU during training. Any 24GB GPU works for YOLO26n/s/m.
 
 **Actions:**
-- [ ] After data conversion (Task 3-5): record actual N_images
+- [ ] After data conversion (Task 3-4): record actual N_images
 - [ ] Recalculate using table above with real N_images
-- [ ] Verify RTX 4090 24GB is sufficient (if using YOLO26m, plan batch=16)
+- [ ] Pre-compute teacher heatmaps as first step on rented GPU (one-time, ~4-8h)
 
-**Validation:** Total cost < $150 (already confirmed for any realistic N).
+**Validation:** Total cost < $150 with >70% margin.
 
 ---
 
@@ -228,41 +258,35 @@ Measure pretrained baselines on skating val. CRITICAL before any training.
 
 ---
 
-## Task 9: Stage 2 — Fine-tune Ablation (Grid Search)
+## Task 9: Stage 2 — Fine-tune Ablation [SKIP BY DEFAULT]
 
-Fine-tune YOLO26 on GT data to find best config.
+**Status:** SKIP — POST-MORTEM already answered. Previous experiment showed freeze=20 was best (0.517 vs 0.406 at freeze=0). Start KD from pretrained + freeze=10-20.
 
-**Actions:**
-- [ ] Create fine-tune training script (extends existing `train_yolo26_pose.py`)
-- [ ] Define grid: freeze=[0,10,20], lr=[0.0005,0.001], epochs=50
-- [ ] Run experiments sequentially (single GPU)
+**Fallback trigger:** Only run if Stage 3 KD fails (student AP < 0.70 after convergence).
+
+**Actions (only if triggered):**
+- [ ] Create fine-tune training script
+- [ ] Grid: freeze=[10,20], lr=[0.0005,0.001], epochs=50
 - [ ] All configs: `val=true, save_period=10, patience=20`
-- [ ] Track: train/val loss, AP per epoch
-- [ ] After all runs: compile results table, find best config
+- [ ] Use fine-tuned weights for Stage 3 retry
 
-**Output:** `results/stage2_finetune_results.csv`
-
-**Decision point:**
-- If best fine-tune > pretrained → use fine-tuned weights for Stage 3
-- If pretrained wins all → use pretrained directly for Stage 3
-- If all fine-tune < pretrained → STOP, debug data quality
+**Output:** `results/stage2_finetune_results.csv` (only if triggered)
 
 ---
 
-## Task 10: Stage 2.5 — Teacher Domain Adaptation
+## Task 10: Stage 2.5 — Teacher Domain Adaptation [GATED]
 
-Adapt MogaNet-B to skating domain.
+**Gate:** Skip if MogaNet-B AP > 0.85 on 100 skating val images (likely — AP=0.962 on AP3D).
 
 **Actions:**
-- [ ] Create MogaNet training script with frozen backbone
-- [ ] Fine-tune deconv head only (3 layers, 256 channels)
-- [ ] Config: lr=0.0001, epochs=10-15, data=skating train
-- [ ] Validate on skating val before and after
-- [ ] Save adapted weights: `moganet_b_skating_adapted.pth`
+- [ ] Run MogaNet-B eval on 100 skating val images → record AP
+- [ ] If AP > 0.85: **SKIP**, use original weights. Proceed to Task 11.
+- [ ] If AP <= 0.85: fine-tune deconv head only (frozen backbone)
+  - [ ] Config: lr=0.0001, epochs=10-15, data=skating train
+  - [ ] Validate AP before and after
+  - [ ] Save: `moganet_b_skating_adapted.pth`
 
-**Output:** MogaNet-B weights adapted to skating domain.
-
-**Validation:** AP on skating val must improve (or stay same). If it drops, use original weights.
+**Output:** Decision (skip or adapted weights).
 
 ---
 
@@ -282,44 +306,54 @@ Implement MSRA encoding for DistilPose KD.
 
 ---
 
-## Task 12: DistilPoseTrainer Implementation
+## Task 12: DistilPoseTrainer Implementation (Offline Heatmaps)
 
-Implement custom Ultralytics trainer with KD loss.
+Implement custom Ultralytics trainer with KD loss using **pre-computed offline teacher heatmaps**.
+
+**Key change:** Teacher model NOT loaded during training. Heatmaps pre-computed once (Task 13 step 0), stored as .npy alongside labels. Eliminates 1.5× overhead and VRAM concern.
 
 **Actions:**
 - [ ] Create `experiments/yolo26-pose-kd/scripts/distill_trainer.py`
 - [ ] Subclass `BaseTrainer` from Ultralytics
-- [ ] Load teacher model (MogaNet-B) in `__init__`, set `eval()`
+- [ ] Override `get_dataset()` to load offline heatmaps (.npy) alongside labels
 - [ ] Override `compute_loss()`:
   - Get GT loss from `super().compute_loss(batch)`
   - Extract student keypoints from current batch predictions
   - Convert to simulated heatmaps (Task 11)
-  - Teacher forward pass with `torch.no_grad()`
-  - Resize teacher heatmaps to match student resolution
+  - Load pre-computed teacher heatmaps for current batch (no teacher model needed)
   - Compute KL divergence with temperature scaling
   - Return `gt_loss + alpha * kd_loss`
 - [ ] Alpha annealing: 0.5 → 0.3 linearly over training
 - [ ] Warm-up: alpha=0 for first 10 epochs
-- [ ] Fallback: offline teacher heatmaps if VRAM insufficient
 - [ ] Test: run 1 epoch on 10 images, verify loss decreases
 
 **Output:** `distill_trainer.py` with DistilPoseTrainer class.
 
 ---
 
-## Task 13: Stage 3 — DistilPose Response KD
+## Task 13: Stage 3 — DistilPose Response KD (Progressive Sizing)
 
-Run knowledge distillation training.
+Run knowledge distillation training with offline teacher heatmaps.
 
-**Actions:**
+**Step 0: Pre-compute teacher heatmaps (first thing on rented GPU)**
+- [ ] Run MogaNet-B inference on all training images → save heatmaps as .npy
+- [ ] File naming: `{image_id}_teacher_hm.npy`, shape (17, 48, 64)
+- [ ] Verify: load 10 random heatmaps, visualize, check peaks match GT keypoints
+- [ ] Estimated time: ~4h on RTX 5090, ~8h on RTX 4090
+
+**Step 1: Train YOLO26n (primary)**
 - [ ] Create `configs/stage3_distill.yaml` with KD params
-- [ ] Run training: `model.train(data=skating_full.yaml, trainer=DistilPoseTrainer, ...)`
+- [ ] Run: `model.train(data=skating_full.yaml, trainer=DistilPoseTrainer, freeze=10, epochs=100)`
 - [ ] Monitor: GT loss, KD loss, total loss, val AP per epoch
-- [ ] Check: KD loss should decrease, val AP should increase
 - [ ] Early stop on val AP (patience=20)
 - [ ] Save best model by skating val AP
 
-**Output:** Trained YOLO26 model with distilled knowledge.
+**Step 2: Check success criteria**
+- [ ] If YOLO26n AP >= 0.85 on skating val → **DONE**, skip s/m
+- [ ] If YOLO26n AP < 0.85 → train YOLO26s with same config (Step 3)
+- [ ] If YOLO26s AP < 0.85 → train YOLO26m (Step 4, last resort)
+
+**Output:** Trained YOLO26 model(s) with distilled knowledge.
 
 **Decision point:**
 - If gap (teacher - student) < 0.08 AP → skip Stage 3.5
@@ -327,9 +361,9 @@ Run knowledge distillation training.
 
 ---
 
-## Task 14: Stage 3.5 — Optional TDE + Feature KD [CONDITIONAL]
+## Task 14: Stage 3.5 — Optional TDE + Feature KD [GATED]
 
-Only if Stage 3 gap >= 0.08 AP.
+**Gate:** Only if Stage 3 gap >= 0.08 AP.
 
 **Actions:**
 - [ ] Research DistilPose TDE implementation from github.com/yshMars/DistilPose
@@ -342,16 +376,16 @@ Only if Stage 3 gap >= 0.08 AP.
 
 ---
 
-## Task 15: Stage 4 — Student Size Selection
+## Task 15: Stage 4 — Student Size Selection [PROGRESSIVE]
 
-Determine optimal student model size.
+Already handled in Task 13 (progressive sizing). This task is for final evaluation.
 
 **Actions:**
-- [ ] Run Stage 3 KD with best config for YOLO26n, YOLO26s, YOLO26m (parallel if multi-GPU)
 - [ ] Compile final comparison table:
   - Model | AP (skating val) | AP (AP3D val) | Speed (FPS) | Params | Gap vs teacher
 - [ ] Select smallest model meeting all success criteria
 - [ ] Export selected model to ONNX for production use
+- [ ] If no model meets criteria → increase data or add Stage 3.5
 
 **Output:** Final model + comparison table.
 
@@ -376,7 +410,7 @@ Document all results.
 ## Dependency Graph
 
 ```
-Task 0 (time estimation) ──→ recalculate after Task 3-5 (actual N_images)
+Task 0 (time estimation) ──→ recalculate after Task 3-4 (actual N_images)
 
 Task 1 (structure)
   ├── Task 2 (explore FineFS) ──→ Task 3 (FineFS converter)
@@ -384,16 +418,17 @@ Task 1 (structure)
 
 Task 3 + Task 4 ──→ Task 6 (data.yaml) ──→ Task 7 (Vast.ai setup)
                                                          └──→ Task 8 (baseline)
-
-Task 8 ──→ Task 9 (fine-tune ablation)
-Task 8 ──→ Task 10 (teacher adaptation)
+                                                                └──→ Task 10 (teacher adap, GATED)
+                                                                       └──→ Task 13 step 0 (pre-compute heatmaps)
 
 Task 11 (heatmap module) ──→ Task 12 (DistilPoseTrainer)
 
-Task 9 + Task 10 + Task 12 ──→ Task 13 (KD training)
-  └──→ Task 14 (TDE, conditional)
-       └──→ Task 15 (student size selection)
+Task 10 + Task 12 ──→ Task 13 (KD training + progressive sizing)
+  └──→ Task 14 (TDE, GATED)
+       └──→ Task 15 (final evaluation)
             └──→ Task 16 (results)
+
+Task 9 (fine-tune ablation) — SKIP by default, only if KD fails
 ```
 
 ## Parallelization Opportunities
@@ -404,4 +439,5 @@ Task 9 + Task 10 + Task 12 ──→ Task 13 (KD training)
 | Data converters | 3, 4 | Yes (after Task 2) |
 | KD modules | 11, 12 | Yes (sequential, 11→12) |
 | Vast.ai setup | 7 | After Task 6 (needs data ready) |
-| Baseline + teacher adaptation | 8, 10 | Partially (8 first, then 10) |
+| Baseline → teacher eval → heatmaps | 8, 10, 13-step0 | Sequential (8→10→13) |
+| Task 9 (ablation) | 9 | SKIP by default |

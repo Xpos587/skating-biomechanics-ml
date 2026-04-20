@@ -96,6 +96,8 @@ Source: DistilPose (CVPR 2023) - "Tokenized Pose Regression with Heatmap Distill
 
 Core idea: Convert student regression output to simulated heatmaps, then apply KL divergence with teacher's real heatmaps.
 
+**Optimization: Offline teacher heatmaps.** Pre-compute MogaNet-B heatmaps once for all training images, store as .npy. Eliminates 1.5× teacher inference overhead during KD training and removes VRAM concern (teacher model not loaded during training).
+
 #### Simulated Heatmap Encoding (MSRA)
 
 ```python
@@ -110,7 +112,7 @@ sigma = 2.0  # standard for 64x48 heatmap resolution
 ```
 L_total = L_yolo_pose(GT) + alpha * T^2 * KL_div(
     softmax(student_simulated_hm / T),
-    softmax(teacher_hm / T)
+    softmax(teacher_hm_offline / T)  # pre-computed, loaded from .npy
 )
 ```
 
@@ -119,17 +121,18 @@ Where:
 - `alpha` = 0.5 (annealing to 0.3 over training)
 - `T` = 4 (temperature, Hinton standard)
 - `T^2` = standard Hinton KD normalization
+- `teacher_hm_offline` = pre-computed heatmaps loaded from disk (no teacher model in GPU)
 
-#### Implementation: Custom Ultralytics Trainer
+#### Implementation: Custom Ultralytics Trainer (Offline Heatmaps)
 
 ```python
 class DistilPoseTrainer(BaseTrainer):
-    def __init__(self, *args, teacher_model=None, alpha=0.5, temp=4.0, **kwargs):
+    def __init__(self, *args, heatmap_dir=None, alpha=0.5, temp=4.0, **kwargs):
         super().__init__(*args, **kwargs)
-        self.teacher = teacher_model
-        self.teacher.eval()
+        self.heatmap_dir = heatmap_dir  # path to pre-computed teacher heatmaps
         self.alpha = alpha
         self.temp = temp
+        # NO teacher model loaded — heatmaps are pre-computed
 
     def compute_loss(self, batch):
         gt_loss = super().compute_loss(batch)
@@ -137,10 +140,8 @@ class DistilPoseTrainer(BaseTrainer):
         # Student keypoints -> simulated heatmaps (MSRA encoding)
         student_hm = keypoints_to_heatmap(student_kpts, sigma=2.0, visibility=gt_visibility)
 
-        # Teacher forward (no grad)
-        with torch.no_grad():
-            teacher_hm = self.teacher(batch['img'])  # MogaNet heatmaps
-            teacher_hm = resize_to_match(teacher_hm, student_hm.shape)
+        # Load pre-computed teacher heatmaps for this batch (from .npy files)
+        teacher_hm = load_offline_heatmaps(batch['img_ids'], self.heatmap_dir)
 
         # KL divergence on heatmaps
         kd_loss = (self.temp ** 2) * F.kl_div(
@@ -168,6 +169,23 @@ Convert all datasets to YOLO pose format.
 
 **Validation:** Spot-check 10 random annotations per dataset, visual overlay on images.
 
+### Stage 0.5: Teacher Heatmap Pre-computation (Offline)
+
+Pre-compute MogaNet-B heatmaps for all training images before any KD training.
+
+```bash
+# Run MogaNet-B on all training images, save heatmaps as .npy
+python scripts/precompute_teacher_heatmaps.py \
+    --model moganet_b_ap2d.pth \
+    --images data/finefs/train/ data/fsanno/train/ data/ap3d/train/ \
+    --output data/teacher_heatmaps/ \
+    --hm_shape 17x48x64
+```
+
+**Output:** One `.npy` file per image, shape (17, 48, 64). ~4h on RTX 5090, ~8h on RTX 4090.
+
+**Validation:** Load 10 random heatmaps, visualize peaks, verify they match GT keypoints.
+
 ### Stage 1: Baseline Validation
 
 **CRITICAL: Must complete BEFORE any fine-tuning or KD.**
@@ -189,7 +207,11 @@ yolo val model=yolo26n-pose.pt data=ap3d.yaml device=0
 
 **Output:** Baseline comparison table with real numbers on skating val.
 
-### Stage 2: Fine-tune Ablation
+### Stage 2: Fine-tune Ablation [SKIP BY DEFAULT]
+
+**Status:** Skip — previous experiment (POST-MORTEM) already showed freeze=20 was optimal. Start KD from pretrained + freeze=10-20.
+
+**Fallback:** Only run if Stage 3 KD fails (student AP < 0.70 after convergence).
 
 Fine-tune YOLO26n/s/m on GT data with validation every epoch.
 
@@ -211,7 +233,9 @@ patience: 20
 
 **Output:** Best fine-tune config (or confirmation that pretrained is optimal).
 
-### Stage 2.5: Teacher Domain Adaptation
+### Stage 2.5: Teacher Domain Adaptation [GATED]
+
+**Gate:** Skip if MogaNet-B AP > 0.85 on 100 skating val images. Expected: MogaNet-B AP=0.962 on AP3D, likely > 0.85 on skating.
 
 Fine-tune MogaNet-B head on skating GT to improve soft-target quality.
 
@@ -224,23 +248,23 @@ Fine-tune MogaNet-B head on skating GT to improve soft-target quality.
 
 **Validation:** MogaNet AP on skating val (before and after).
 
-### Stage 3: DistilPose Response KD
+### Stage 3: DistilPose Response KD (Offline Heatmaps + Progressive Sizing)
 
-Apply DistilPose-style response KD.
+Apply DistilPose-style response KD using pre-computed teacher heatmaps.
 
 **Training config:**
 ```yaml
-model: yolo26{s}-pose.pt  # best from Stage 2
+model: yolo26n-pose.pt          # start with n (smallest)
 data: skating_full.yaml
 epochs: 100
-batch: 32  # depends on GPU VRAM
+batch: 32                       # any GPU works (no teacher model in VRAM)
 imgsz: 640
-freeze: 10  # backbone warm-up
+freeze: 10                      # backbone warm-up
 
-# KD params
+# KD params (offline heatmaps)
 trainer: DistilPoseTrainer
-teacher: moganet_b_skating_adapted.pth
-alpha: 0.5  # annealing to 0.3
+heatmap_dir: data/teacher_heatmaps/  # pre-computed, no teacher model needed
+alpha: 0.5                      # annealing to 0.3
 temp: 4.0
 
 # Augmentation
@@ -255,14 +279,20 @@ save_period: 10
 patience: 20
 ```
 
+**Progressive sizing:**
+1. Train YOLO26n (100 epochs). If AP >= 0.85 on skating val → DONE.
+2. If n fails → train YOLO26s with same config.
+3. If s fails → train YOLO26m (last resort).
+
 **Warm-up:** First 10 epochs with GT loss only (alpha=0), then enable KD.
 
 **Files to create:**
-- `scripts/distill_trainer.py` - DistilPoseTrainer implementation
+- `scripts/distill_trainer.py` - DistilPoseTrainer implementation (offline heatmaps)
 - `scripts/simulate_heatmap.py` - MSRA heatmap encoding
+- `scripts/precompute_teacher_heatmaps.py` - offline heatmap generation
 - `configs/stage3_distill.yaml` - KD training config
 
-### Stage 3.5: Optional TDE + Feature KD
+### Stage 3.5: Optional TDE + Feature KD [GATED]
 
 **Trigger:** Only if gap > 0.08 AP after Stage 3 convergence.
 
@@ -276,9 +306,9 @@ patience: 20
 - MSE on intermediate backbone features
 - Additional loss term: `beta * MSE(student_feat, adapter(teacher_feat))`
 
-### Stage 4: Student Size Selection
+### Stage 4: Student Size Selection [MERGED INTO STAGE 3]
 
-Parallel training of n/s/m with best KD config from Stage 3.
+Progressive sizing is now part of Stage 3 (train n first, s/m only if needed).
 
 | Size | Params | Speed (est.) | Trade-off |
 |------|--------|-------------|-----------|
@@ -305,25 +335,37 @@ Parallel training of n/s/m with best KD config from Stage 3.
 
 | GPU | DLPerf (est.) | $/hr (verified) | $/DLPerf-hr | Max hours on $150 |
 |-----|---------------|-----------------|-------------|-------------------|
-| RTX 4090 | ~55 | $0.28 | **0.005** | 536 hrs |
+| RTX 5090 | ~199 | $0.305 | **0.0015** | 492 hrs |
+| RTX 4090 | ~95 | $0.295 | 0.003 | 508 hrs |
 | A100 PCIE 40GB | ~52 | $0.52 | 0.010 | 288 hrs |
-| A100 SXM 80GB | ~52 | $0.67 | 0.013 | 224 hrs |
 | H100 SXM 80GB | ~165 | $1.35 | 0.008 | 111 hrs |
 
-**Primary:** RTX 4090 (best $/DLPerf-hr). 24GB VRAM sufficient for YOLO26n/s + MogaNet-B teacher.
-**Fallback:** A100 40GB if VRAM insufficient for YOLO26m + teacher.
+**Primary:** RTX 5090 (best DLPerf/$). **Fallback:** RTX 4090. Both 24GB — sufficient for YOLO26n/s/m (teacher NOT in GPU during training, heatmaps pre-computed).
+
+**VRAM:** Not a concern with offline heatmaps. Teacher model is only needed for Stage 0.5 (pre-compute), not during KD training. Any 24GB GPU handles all stages.
 
 ### Training Time Estimation
 
 **Reference:** Ultralytics docs — 2.8s compute per 1000 images on RTX 4090 (YOLO26n baseline).
 
-**Full pipeline cost (RTX 4090, $0.28/hr, KD overhead 2.0x):**
+**Pipeline cost with offline heatmaps (no teacher overhead during KD):**
 
-| Dataset | Total time | Cost |
-|---------|-----------|------|
-| 50K images | 31.8h | $8.9 |
-| 100K images | 63.5h | $17.8 |
-| 200K images | 127h | $35.6 |
+| Stage | RTX 4090 | RTX 5090 | Probability |
+|-------|----------|----------|-------------|
+| Teacher heatmap pre-compute | 8h | 4h | 100% |
+| Baseline validation | 1h | 1h | 100% |
+| KD training (100 epochs, ~343K images) | 69h | 33h | 100% |
+| Teacher adaptation (gated) | 4h | 2h | 50% |
+| TDE (gated) | 27h | 13h | 50% |
+| YOLO26s fallback | 13h | 6h | 50% |
+| **Total (expected)** | **~96h** | **~47h** | |
+
+**Cost estimate (with contingency):**
+
+| GPU | Cost | Remaining ($150) |
+|-----|------|-------------------|
+| RTX 5090 ($0.305/hr) | **$23** | $127 (85%) |
+| RTX 4090 ($0.295/hr) | **$46** | $104 (70%) |
 
 $150 budget is not a limiting factor. Dataset size determined by quality, not cost.
 
@@ -334,6 +376,7 @@ $150 budget is not a limiting factor. Dataset size determined by quality, not co
   - Filter: reliability >= 95%, CUDA >= 12
   - Smoke test: 15 min at 100% GPU load, check temps and clocks
   - If passes → stable for training. If fails → destroy, rent another.
+- **GPU:** RTX 5090 preferred (DLPerf~199, ~$0.305/hr). RTX 4090 fallback.
 - **Container:** Docker/Podman with CUDA, PyTorch, Ultralytics, MMPose
 - **Persistent storage:** Dataset + checkpoints
 - **Checkpointing:** Save best + every 10 epochs (required for interruptible recovery)
@@ -365,7 +408,8 @@ experiments/yolo26-pose-kd/
 │   ├── convert_fsanno.py      # FSAnno -> YOLO format
 │   ├── convert_fsc_mcfs.py    # FSC/MCFS -> YOLO format
 │   ├── simulate_heatmap.py    # Keypoint -> simulated heatmap (MSRA)
-│   ├── distill_trainer.py     # DistilPoseTrainer (Ultralytics)
+│   ├── precompute_teacher_heatmaps.py  # MogaNet-B -> offline .npy heatmaps
+│   ├── distill_trainer.py     # DistilPoseTrainer (Ultralytics, offline heatmaps)
 │   └── eval_moganet.py        # MogaNet evaluation script
 ├── checkpoints/               # .gitignore - no commits
 ├── results/                   # Training logs, evaluation tables
@@ -381,7 +425,7 @@ experiments/yolo26-pose-kd/
 | Fine-tune kills pretrained (again) | Medium | High | Stage 1 baseline check; early stopping; patience=20 |
 | MogaNet-B domain gap on skating | Medium | Medium | Stage 2.5 teacher adaptation; AP3D contains some skating |
 | Data conversion bugs | High | Medium | Spot-check 10 samples per dataset; visual overlay validation |
-| Insufficient VRAM for teacher+student | Low | Medium | RTX 4090 24GB fits n/s; YOLO26m may need batch=16; fallback A100 40GB |
+| Insufficient VRAM for teacher+student | **Eliminated** | N/A | Offline heatmaps: teacher NOT in GPU during training |
 | Simulated heatmap resolution mismatch | Medium | Medium | Match teacher heatmap resolution exactly; resize both to same grid |
 | Skating annotations quality varies | Medium | Medium | Filter frames with < 5 visible keypoints; confidence weighting |
 | Unverified instance dies mid-training | Medium | Low | 15-min smoke test; checkpointing every 10 epochs; resume on new instance |

@@ -1,0 +1,10 @@
+id: no-i18n-return-text
+valid:
+  - "return t('track.jumps')"
+  - "return someVar"
+  - 'return ""'
+  - 'return "https://example.com"'
+invalid:
+  - 'return "Прыжок"'
+  - 'return "Анализ видео"'
+  - 'return x ? "Да" : "Нет"'

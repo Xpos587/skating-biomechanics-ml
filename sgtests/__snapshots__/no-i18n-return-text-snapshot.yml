@@ -1,0 +1,32 @@
+id: no-i18n-return-text
+snapshots:
+  return "Анализ видео":
+    labels:
+    - source: return "Анализ видео"
+      style: primary
+      start: 0
+      end: 32
+    - source: Анализ видео
+      style: secondary
+      start: 8
+      end: 31
+  return "Прыжок":
+    labels:
+    - source: return "Прыжок"
+      style: primary
+      start: 0
+      end: 21
+    - source: Прыжок
+      style: secondary
+      start: 8
+      end: 20
+  'return x ? "Да" : "Нет"':
+    labels:
+    - source: 'return x ? "Да" : "Нет"'
+      style: primary
+      start: 0
+      end: 28
+    - source: Да
+      style: secondary
+      start: 12
+      end: 16
