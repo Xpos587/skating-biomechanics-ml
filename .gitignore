@@ -47,6 +47,7 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.json
 *.cover
 .hypothesis/
 
