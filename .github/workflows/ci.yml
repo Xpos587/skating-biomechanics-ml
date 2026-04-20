@@ -14,9 +14,11 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+  checks: write
 
 jobs:
   ci:
     uses: ./.github/workflows/ci-reusable.yml
     with:
       python-version: "3.11"
+    secrets: inherit
