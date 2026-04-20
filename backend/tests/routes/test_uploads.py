@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-from app.auth.security import create_access_token, hash_password
-from app.models.user import User
-from app.routes.uploads import CHUNK_SIZE
-from httpx import ASGITransport, AsyncClient
+import pytest  # noqa: E402 — must follow sys.modules mock
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+
+# Mock aiobotocore before importing routes that depend on it
+_mock_aiobotocore = MagicMock()
+sys.modules["aiobotocore"] = _mock_aiobotocore
+sys.modules["aiobotocore.session"] = MagicMock()
+
+from app.auth.security import create_access_token, hash_password  # noqa: E402
+from app.models.user import User  # noqa: E402
+from app.routes.uploads import CHUNK_SIZE  # noqa: E402
 
 
 @pytest.fixture

@@ -5,6 +5,8 @@ import { useTranslations } from "@/i18n"
 import type { LayoutElement, TrackType } from "@/types/choreography"
 import { TRACK_CONFIG } from "@/types/choreography"
 import { useChoreographyEditor } from "./editor/store"
+import { JumpTrace, SequenceTrace, SpinMarker } from "./rink-figures"
+import { FlowPaths } from "./rink-flow"
 
 const VW = 60
 const VH = 30
@@ -248,40 +250,8 @@ export function RinkDiagram({
           </g>
         ))}
 
-        {/* Flow lines */}
-        {rinkElements.length > 1 &&
-          rinkElements.slice(0, -1).map((el, i) => {
-            const next = rinkElements[i + 1]!
-            const dx = next.x - el.x
-            const dy = next.y - el.y
-            const dist = Math.sqrt(dx * dx + dy * dy)
-            if (dist < 2) return null
-            const angle = Math.atan2(dy, dx)
-            const mx = (el.x + next.x) / 2
-            const my = (el.y + next.y) / 2
-            const al = 0.6
-            return (
-              <g key={`flow-${el.id}`}>
-                <line
-                  x1={el.x}
-                  y1={el.y}
-                  x2={next.x}
-                  y2={next.y}
-                  stroke="oklch(0.6 0.02 260)"
-                  strokeWidth={0.08}
-                  strokeDasharray="0.6,0.4"
-                  opacity={0.4}
-                />
-                <polyline
-                  points={`${mx - al * Math.cos(angle - 0.5)},${my - al * Math.sin(angle - 0.5)} ${mx},${my} ${mx - al * Math.cos(angle + 0.5)},${my - al * Math.sin(angle + 0.5)}`}
-                  fill="none"
-                  stroke="oklch(0.6 0.02 260)"
-                  strokeWidth={0.08}
-                  opacity={0.4}
-                />
-              </g>
-            )
-          })}
+        {/* Flow paths between sequential elements */}
+        <FlowPaths elements={rinkElements} />
 
         {/* Elements */}
         {rinkElements.map((el, i) => {
@@ -308,33 +278,15 @@ export function RinkDiagram({
                 />
               )}
 
-              {/* Marker by type */}
+              {/* Trace figure by type */}
+              {el.trackType === "jumps" && (
+                <JumpTrace x={el.x} y={el.y} code={el.code} color={color} elementId={el.id} />
+              )}
               {el.trackType === "spins" && (
-                <circle
-                  cx={el.x}
-                  cy={el.y}
-                  r={1.3}
-                  fill={color}
-                  opacity={0.25}
-                  stroke={color}
-                  strokeWidth={0.15}
-                />
+                <SpinMarker x={el.x} y={el.y} color={color} />
               )}
               {el.trackType === "sequences" && (
-                <rect
-                  x={el.x - 1.2}
-                  y={el.y - 0.5}
-                  width={2.4}
-                  height={1}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={0.15}
-                  strokeDasharray="0.4,0.2"
-                  rx={0.2}
-                />
-              )}
-              {el.trackType === "jumps" && (
-                <circle cx={el.x} cy={el.y} r={0.7} fill={color} opacity={0.85} />
+                <SequenceTrace x={el.x} y={el.y} code={el.code} color={color} elementId={el.id} />
               )}
 
               {/* Number badge */}
@@ -360,7 +312,7 @@ export function RinkDiagram({
               {/* Code label */}
               <text
                 x={el.x}
-                y={el.y + 1.8}
+                y={el.y + 2.2}
                 textAnchor="middle"
                 fontSize={0.9}
                 fill="oklch(var(--foreground))"
