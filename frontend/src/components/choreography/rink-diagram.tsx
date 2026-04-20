@@ -6,6 +6,7 @@ import type { LayoutElement, TrackType } from "@/types/choreography"
 import { TRACK_CONFIG } from "@/types/choreography"
 import { useChoreographyEditor } from "./editor/store"
 import { JumpTrace, SequenceTrace, SpinMarker } from "./rink-figures"
+import { FlowPaths } from "./rink-flow"
 
 const VW = 60
 const VH = 30
@@ -248,6 +249,9 @@ export function RinkDiagram({
             <circle cx={cx} cy={cy} r={0.15} fill="oklch(0.5 0.15 25)" />
           </g>
         ))}
+
+        {/* Flow paths between sequential elements */}
+        <FlowPaths elements={rinkElements} />
 
         {/* Elements */}
         {rinkElements.map((el, i) => {
