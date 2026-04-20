@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+librosa = pytest.importorskip("librosa", reason="librosa not installed")
+
 
 @pytest.fixture
 def sample_audio(tmp_path):
