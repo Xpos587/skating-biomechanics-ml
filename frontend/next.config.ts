@@ -15,6 +15,3 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts")
 export default withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 })(withNextIntl(nextConfig))
-
-const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts")
-export default withNextIntl(nextConfig)
