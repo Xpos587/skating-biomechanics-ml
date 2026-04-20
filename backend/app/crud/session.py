@@ -18,7 +18,7 @@ async def create(db: AsyncSession, *, user_id: str, element_type: str, **kwargs)
     session = Session(user_id=user_id, element_type=element_type, **kwargs)
     db.add(session)
     await db.flush()
-    await db.refresh(session)
+    await db.refresh(session, attribute_names=["metrics"])
     return session
 
 
@@ -38,7 +38,7 @@ async def list_by_user(
     offset: int = 0,
     sort: str = "created_at",
 ) -> list[Session]:
-    query = select(Session).where(Session.user_id == user_id)
+    query = select(Session).options(selectinload(Session.metrics)).where(Session.user_id == user_id)
     if element_type:
         query = query.where(Session.element_type == element_type)
     if sort == "overall_score":
@@ -69,7 +69,7 @@ async def update(db: AsyncSession, session: Session, **kwargs) -> Session:
             setattr(session, key, value)
     db.add(session)
     await db.flush()
-    await db.refresh(session)
+    await db.refresh(session, attribute_names=["metrics"])
     return session
 
 

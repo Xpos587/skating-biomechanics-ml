@@ -144,3 +144,52 @@ async def test_refresh_tokens(client: AsyncClient, db_session: AsyncSession):
         json={"refresh_token": old_refresh},
     )
     assert second_refresh.status_code == 401
+
+
+async def test_refresh_with_completely_unknown_token(client: AsyncClient):
+    """Test refresh with a token that was never issued returns 401."""
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": "a" * 64},
+    )
+    assert response.status_code == 401
+    assert "Invalid or expired" in response.json()["detail"]
+
+
+async def test_logout_with_valid_token(client: AsyncClient, db_session: AsyncSession):
+    """Test logout revokes the refresh token."""
+    user = User(email="logout@example.com", hashed_password=hash_password("pass"))
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    # Login to get tokens
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "logout@example.com", "password": "pass"},
+    )
+    tokens = login_resp.json()
+    refresh_token = tokens["refresh_token"]
+
+    # Logout
+    logout_resp = await client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": refresh_token},
+    )
+    assert logout_resp.status_code == 204
+
+    # Refresh should now fail (token revoked)
+    refresh_resp = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+    assert refresh_resp.status_code == 401
+
+
+async def test_logout_with_nonexistent_token(client: AsyncClient):
+    """Test logout with a token that was never issued returns 204 (idempotent)."""
+    response = await client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": "b" * 64},
+    )
+    assert response.status_code == 204
