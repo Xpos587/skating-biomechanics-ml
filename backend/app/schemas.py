@@ -460,6 +460,9 @@ class ProgramListResponse(BaseModel):
 
 
 class SaveProgramRequest(BaseModel):
+    music_analysis_id: str | None = None
+    discipline: str | None = None
+    segment: str | None = None
     title: str | None = None
     layout: dict | None = None
     total_tes: float | None = None
