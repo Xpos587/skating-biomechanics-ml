@@ -71,8 +71,14 @@ export const ValidationResultSchema = z.object({
   total_tes: z.number().nullable(),
 })
 
+const ProgramLayoutElementSchema = z.object({
+  code: z.string(),
+  goe: z.number(),
+  timestamp: z.number(),
+})
+
 const ProgramLayoutSchema = z.object({
-  elements: z.array(LayoutElementSchema),
+  elements: z.array(ProgramLayoutElementSchema),
 })
 
 export const ChoreographyProgramSchema = z.object({

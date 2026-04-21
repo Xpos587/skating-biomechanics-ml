@@ -70,8 +70,14 @@ export interface ValidationResult {
 // Programs
 // ---------------------------------------------------------------------------
 
+export interface ProgramLayoutElement {
+  code: string
+  goe: number
+  timestamp: number
+}
+
 export interface ProgramLayout {
-  elements: LayoutElement[]
+  elements: ProgramLayoutElement[]
 }
 
 export interface ChoreographyProgram {
@@ -119,11 +125,16 @@ export type RinkPreset = "olympic" | "nhl" | "training" | "custom"
 
 export const TRACK_CONFIG: Record<
   TrackType,
-  { maxElements: number; color: string; colorVar: string }
+  { maxElements: number; color: string; colorVar: string; hex: string }
 > = {
-  jumps: { maxElements: 7, color: "text-orange-500", colorVar: "bg-orange-500/20" },
-  spins: { maxElements: 3, color: "text-purple-500", colorVar: "bg-purple-500/20" },
-  sequences: { maxElements: 10, color: "text-emerald-500", colorVar: "bg-emerald-500/20" },
+  jumps: { maxElements: 7, color: "text-orange-400", colorVar: "bg-orange-500/20", hex: "#fb923c" },
+  spins: { maxElements: 3, color: "text-violet-400", colorVar: "bg-violet-500/20", hex: "#a78bfa" },
+  sequences: {
+    maxElements: 10,
+    color: "text-emerald-400",
+    colorVar: "bg-emerald-500/20",
+    hex: "#34d399",
+  },
 }
 
 export const RINK_PRESETS: { name: string; width: number; height: number }[] = [
@@ -150,7 +161,10 @@ export interface TimelineElement {
   notes?: string
 }
 
-export function layoutElementToTimeline(el: LayoutElement, index: number): TimelineElement {
+export function layoutElementToTimeline(
+  el: ProgramLayoutElement | LayoutElement,
+  index: number,
+): TimelineElement {
   const trackType: TrackType = el.code.includes("Sp")
     ? "spins"
     : el.code.startsWith("StSq") || el.code.startsWith("ChSq")
@@ -163,8 +177,8 @@ export function layoutElementToTimeline(el: LayoutElement, index: number): Timel
     timestamp: el.timestamp,
     duration: DEFAULT_DURATIONS[trackType],
     goe: el.goe,
-    jumpPassIndex: el.jump_pass_index ?? undefined,
-    position: el.position ?? undefined,
+    jumpPassIndex: "jump_pass_index" in el ? (el.jump_pass_index ?? undefined) : undefined,
+    position: "position" in el ? (el.position ?? undefined) : undefined,
   }
 }
 
