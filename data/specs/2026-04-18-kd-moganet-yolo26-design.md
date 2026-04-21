@@ -96,14 +96,19 @@ Source: DistilPose (CVPR 2023) - "Tokenized Pose Regression with Heatmap Distill
 
 Core idea: Convert student regression output to simulated heatmaps, then apply KL divergence with teacher's real heatmaps.
 
-**Optimization: Offline teacher heatmaps.** Pre-compute MogaNet-B heatmaps once for all training images, store as .npy. Eliminates 1.5× teacher inference overhead during KD training and removes VRAM concern (teacher model not loaded during training).
+**Optimization: Offline teacher heatmaps.** Pre-compute MogaNet-B heatmaps once for all training images, store as **single HDF5 file** (not 343K individual .npy — I/O bottleneck). Eliminates 1.5× teacher inference overhead during KD training and removes VRAM concern (teacher model not loaded during training).
+
+**CRITICAL: MogaNet-B is top-down.** Requires bounding boxes as input. Use GT boxes from YOLO labels (already available after data conversion). Algorithm: crop by GT bbox with 0.2 padding → resize to 384×288 → MogaNet inference → heatmap.
 
 #### Simulated Heatmap Encoding (MSRA)
 
 ```python
 # Student predicts keypoints (x, y, conf) -> simulated heatmaps
 heatmap[j, y, x] = exp(-(dx^2 + dy^2) / (2 * sigma^2))
-sigma = 2.0  # standard for 64x48 heatmap resolution
+sigma = 2.0  # standard
+# hm_shape MUST be verified from actual MogaNet-B model output
+# Load model, run forward() on test crop, check exact heatmap.shape
+# Likely (17, 48, 64) for 384×288 input, but DO NOT assume
 # Mask invisible keypoints from GT (FineFS/FSAnno visibility flags)
 ```
 
@@ -112,7 +117,7 @@ sigma = 2.0  # standard for 64x48 heatmap resolution
 ```
 L_total = L_yolo_pose(GT) + alpha * T^2 * KL_div(
     softmax(student_simulated_hm / T),
-    softmax(teacher_hm_offline / T)  # pre-computed, loaded from .npy
+    softmax(teacher_hm_offline / T)  # pre-computed, loaded from HDF5
 )
 ```
 
@@ -121,15 +126,20 @@ Where:
 - `alpha` = 0.5 (annealing to 0.3 over training)
 - `T` = 4 (temperature, Hinton standard)
 - `T^2` = standard Hinton KD normalization
-- `teacher_hm_offline` = pre-computed heatmaps loaded from disk (no teacher model in GPU)
+- `teacher_hm_offline` = pre-computed heatmaps loaded from HDF5 (no teacher model in GPU)
 
-#### Implementation: Custom Ultralytics Trainer (Offline Heatmaps)
+#### Implementation: Custom Ultralytics Trainer (Offline Heatmaps, HDF5)
 
 ```python
+import h5py
+
 class DistilPoseTrainer(BaseTrainer):
-    def __init__(self, *args, heatmap_dir=None, alpha=0.5, temp=4.0, **kwargs):
+    def __init__(self, *args, heatmap_hdf5=None, hm_index_json=None,
+                 hm_shape=(17, 48, 64), alpha=0.5, temp=4.0, **kwargs):
         super().__init__(*args, **kwargs)
-        self.heatmap_dir = heatmap_dir  # path to pre-computed teacher heatmaps
+        self.h5 = h5py.File(heatmap_hdf5, 'r')
+        self.hm_index = json.load(open(hm_index_json))
+        self.hm_shape = hm_shape  # verified from actual MogaNet-B output
         self.alpha = alpha
         self.temp = temp
         # NO teacher model loaded — heatmaps are pre-computed
@@ -138,10 +148,13 @@ class DistilPoseTrainer(BaseTrainer):
         gt_loss = super().compute_loss(batch)
 
         # Student keypoints -> simulated heatmaps (MSRA encoding)
-        student_hm = keypoints_to_heatmap(student_kpts, sigma=2.0, visibility=gt_visibility)
+        student_hm = keypoints_to_heatmap(student_kpts, sigma=2.0,
+                                           hm_shape=self.hm_shape,
+                                           visibility=gt_visibility)
 
-        # Load pre-computed teacher heatmaps for this batch (from .npy files)
-        teacher_hm = load_offline_heatmaps(batch['img_ids'], self.heatmap_dir)
+        # Load pre-computed teacher heatmaps from HDF5 by image index
+        indices = [self.hm_index[img_path] for img_path in batch['im_file']]
+        teacher_hm = torch.from_numpy(self.h5['heatmaps'][indices])
 
         # KL divergence on heatmaps
         kd_loss = (self.temp ** 2) * F.kl_div(
@@ -169,22 +182,34 @@ Convert all datasets to YOLO pose format.
 
 **Validation:** Spot-check 10 random annotations per dataset, visual overlay on images.
 
-### Stage 0.5: Teacher Heatmap Pre-computation (Offline)
+### Stage 0.5: Teacher Heatmap Pre-computation (Offline, Top-Down)
 
 Pre-compute MogaNet-B heatmaps for all training images before any KD training.
 
+**CRITICAL:** MogaNet-B is a top-down model (MMPose). It requires bounding boxes, not raw images.
+
 ```bash
-# Run MogaNet-B on all training images, save heatmaps as .npy
 python scripts/precompute_teacher_heatmaps.py \
     --model moganet_b_ap2d.pth \
-    --images data/finefs/train/ data/fsanno/train/ data/ap3d/train/ \
-    --output data/teacher_heatmaps/ \
-    --hm_shape 17x48x64
+    --labels data/finefs/train/labels/ data/fsanno/train/labels/ data/ap3d/train/labels/ \
+    --images data/finefs/train/images/ data/fsanno/train/images/ data/ap3d/train/images/ \
+    --output data/teacher_heatmaps.h5 \
+    --hm_shape auto  # verify from model.forward() output
 ```
 
-**Output:** One `.npy` file per image, shape (17, 48, 64). ~4h on RTX 5090, ~8h on RTX 4090.
+**Algorithm:**
+1. Load MogaNet-B, verify exact `heatmap.shape` from `model.forward(test_crop)`
+2. For each training image:
+   - Read GT bbox from YOLO label (.txt): `class x_center y_center width height`
+   - Crop image around bbox with 0.2 padding
+   - Resize crop to MogaNet input size (384×288)
+   - Run MogaNet top-down inference → heatmap
+3. Store all heatmaps in single HDF5 file:
+   - `/heatmaps`: shape `(N, 17, H, W)`, dtype `float16`
+   - Sidecar `heatmap_index.json`: `{image_path: row_index}`
+4. Verify: load 10 random entries, visualize peaks, check vs GT keypoints
 
-**Validation:** Load 10 random heatmaps, visualize peaks, verify they match GT keypoints.
+**Output:** Single `teacher_heatmaps.h5` file + `heatmap_index.json`. ~1.5h on RTX 5090, ~3h on RTX 4090.
 
 ### Stage 1: Baseline Validation
 
@@ -263,7 +288,9 @@ freeze: 10                      # backbone warm-up
 
 # KD params (offline heatmaps)
 trainer: DistilPoseTrainer
-heatmap_dir: data/teacher_heatmaps/  # pre-computed, no teacher model needed
+heatmap_hdf5: data/teacher_heatmaps.h5    # single HDF5 file, not 343K .npy
+hm_index_json: data/heatmap_index.json    # image_path → row index
+hm_shape: auto                            # verified from MogaNet model output
 alpha: 0.5                      # annealing to 0.3
 temp: 4.0
 
@@ -329,7 +356,7 @@ Progressive sizing is now part of Stage 3 (train n first, s/m only if needed).
 
 - **Budget:** $150 total
 - **GPU selection:** Based on DLPerf/$/hr ratio (higher is better)
-- **Rental type:** On-Demand, Verified only (unverified may be killed mid-training)
+- **Rental type:** On-Demand, Unverified with smoke test (50-80% cheaper)
 
 ### GPU Selection
 
@@ -346,26 +373,33 @@ Progressive sizing is now part of Stage 3 (train n first, s/m only if needed).
 
 ### Training Time Estimation
 
-**Reference:** Ultralytics docs — 2.8s compute per 1000 images on RTX 4090 (YOLO26n baseline).
+**Reference:** Ultralytics docs — **2.8s compute per 1000 images per epoch** on RTX 4090 (YOLO26n). "Number of Epochs: Direct multiplier on training time." Source: docs.ultralytics.com/platform/cloud-training/.
 
-**Pipeline cost with offline heatmaps (no teacher overhead during KD):**
+**Base calculation (343K images):**
+- 1 epoch = 343 × 2.8s = 960s = 16 min
+- 100 epochs = 26.7h on RTX 4090
+- KD overhead (simulated heatmap + KL, no teacher): ~1.1× → **29h**
+- RTX 5090 (2.1× faster via DLPerf): **14h**
+
+**Pipeline cost with offline heatmaps:**
 
 | Stage | RTX 4090 | RTX 5090 | Probability |
 |-------|----------|----------|-------------|
-| Teacher heatmap pre-compute | 8h | 4h | 100% |
-| Baseline validation | 1h | 1h | 100% |
-| KD training (100 epochs, ~343K images) | 69h | 33h | 100% |
-| Teacher adaptation (gated) | 4h | 2h | 50% |
-| TDE (gated) | 27h | 13h | 50% |
-| YOLO26s fallback | 13h | 6h | 50% |
-| **Total (expected)** | **~96h** | **~47h** | |
+| Teacher heatmap pre-compute (top-down, GT boxes) | 3h | 1.5h | 100% |
+| Baseline validation | 0.5h | 0.3h | 100% |
+| KD training (100 epochs, ~343K images) | 29h | 14h | 100% |
+| Teacher adaptation (gated) | 2h | 1h | 50% |
+| TDE (gated) | 12h | 6h | 50% |
+| YOLO26s fallback (progressive) | 6h | 3h | 50% |
+| **Expected total** | **~43h** | **~21h** | |
+| **With 1.5× contingency** | **~65h** | **~31h** | |
 
-**Cost estimate (with contingency):**
+**Cost estimate (with 1.5× contingency):**
 
 | GPU | Cost | Remaining ($150) |
 |-----|------|-------------------|
-| RTX 5090 ($0.305/hr) | **$23** | $127 (85%) |
-| RTX 4090 ($0.295/hr) | **$46** | $104 (70%) |
+| RTX 5090 ($0.305/hr) | **$9** | $141 (94%) |
+| RTX 4090 ($0.295/hr) | **$19** | $131 (87%) |
 
 $150 budget is not a limiting factor. Dataset size determined by quality, not cost.
 
