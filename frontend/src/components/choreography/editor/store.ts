@@ -34,6 +34,7 @@ interface ChoreographyEditorState {
   // Timeline
   pixelsPerSecond: number
   snapMode: SnapMode
+  editorBpm: number
 
   // Rink
   rinkPreset: RinkPreset
@@ -50,6 +51,7 @@ interface ChoreographyEditorState {
     musicDuration: number,
     beatMarkers: number[],
     phraseMarkers: number[],
+    bpm: number,
   ) => void
 
   // Actions — elements
@@ -70,6 +72,7 @@ interface ChoreographyEditorState {
   // Actions — rink
   setRinkPreset: (preset: RinkPreset, width?: number, height?: number) => void
   setRinkDimensions: (width: number, height: number) => void
+  updateElementPosition: (id: string, x: number, y: number) => void
 
   // Actions — save
   setTitle: (title: string) => void
@@ -106,12 +109,13 @@ export const useChoreographyEditor = create<ChoreographyEditorState>((set, get) 
   isPlaying: false,
   pixelsPerSecond: 15,
   snapMode: "beats",
+  editorBpm: 0,
   rinkPreset: "olympic",
   rinkWidth: 60,
   rinkHeight: 30,
   isLoading: false,
 
-  initFromProgram: (program, audioUrl, musicDuration, beatMarkers, phraseMarkers) => {
+  initFromProgram: (program, audioUrl, musicDuration, beatMarkers, phraseMarkers, bpm) => {
     idCounter = 0
     const layoutElements = program.layout?.elements ?? []
     const elements: TimelineElement[] = layoutElements.map(layoutElementToTimeline)
@@ -125,6 +129,7 @@ export const useChoreographyEditor = create<ChoreographyEditorState>((set, get) 
       musicDuration,
       beatMarkers,
       phraseMarkers,
+      editorBpm: bpm,
       elements,
       selectedElementId: null,
       currentTime: 0,
@@ -204,6 +209,11 @@ export const useChoreographyEditor = create<ChoreographyEditorState>((set, get) 
 
   setRinkDimensions: (width, height) =>
     set({ rinkWidth: width, rinkHeight: height, rinkPreset: "custom" }),
+
+  updateElementPosition: (id, x, y) =>
+    set(s => ({
+      elements: s.elements.map(e => (e.id === id ? { ...e, position: { x, y } } : e)),
+    })),
 
   setTitle: title => set({ title }),
 
