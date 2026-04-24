@@ -89,3 +89,12 @@ uv run python experiments/exp_<name>.py
 ```
 
 Requires `torch` with CUDA. Datasets must be in `data/datasets/`.
+
+## DWPose Knowledge Distillation Protocol
+
+> **CRITICAL PROTOCOL FOR DWPose TRAINING (Established 2026-04-24):**
+> 1. **Single Source of Truth:** All edits to `distill_trainer.py` MUST be done locally and pushed to Git.
+> 2. **HDF5 vs LMDB:** HDF5 causes fatal I/O bottlenecks with multiprocessing. Stage 1 uses `teacher_heatmaps.lmdb`.
+> 3. **Loader Architecture:** `TeacherHeatmapLoader` must use lazy initialization (`self.env` created inside `load()`) to prevent multiprocessing locks.
+> 4. **Pickle Bug:** The `kd_loss` function MUST remain a class method of `DistilPoseTrainer`. Never nest it inside `setup_model`.
+> 5. **KL Divergence:** Always use `F.log_softmax` for student and `F.softmax` for teacher to prevent NaN values.
