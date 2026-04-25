@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 
 def soft_argmax_heatmap(
-    heatmap: np.ndarray, temperature: float = 100.0
+    heatmap: np.ndarray, temperature: float = 0.01
 ) -> tuple[np.ndarray, np.ndarray]:
     """Extract sub-pixel coordinates via temperature-scaled spatial softmax.
 
@@ -59,13 +59,14 @@ def soft_argmax_heatmap(
 
 
 def soft_argmax_heatmap_batch(
-    hm_batch: np.ndarray, temperature: float = 100.0
+    hm_batch: np.ndarray, temperature: float = 0.01
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Vectorized soft argmax for batch of heatmaps.
 
     Uses temperature-scaled softmax so the peak dominates over 6912 spatial bins.
-    temperature=100 concentrates probability on the Gaussian peak (sub-pixel accuracy).
-    For nearly-uniform heatmaps (occluded keypoints), returns center coords.
+    temperature=0.01 sharpens the distribution so the Gaussian peak gets most
+    probability mass (sub-pixel accuracy). For nearly-uniform heatmaps, returns
+    the center of mass.
 
     Args:
         hm_batch: (B, K, H, W) float16 heatmap batch.
