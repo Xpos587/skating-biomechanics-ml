@@ -136,7 +136,8 @@ def main():
             batch_hm = dataset[start:end]  # (B, K, H, W)
 
             # Vectorized soft argmax for entire batch
-            cx, cy, conf = soft_argmax_heatmap_batch(batch_hm.numpy())
+            batch_np = np.asarray(batch_hm)
+            cx, cy, conf = soft_argmax_heatmap_batch(batch_np)
             batch_size = end - start
 
             # Stack coords into (B, K, 2)
