@@ -5,9 +5,8 @@ Reads GT bboxes from YOLO labels, crops person, runs MogaNet-B top-down
 inference, stores heatmaps in HDF5 (float16).
 
 Heatmap Encoding:
-    MogaNet-B DeconvHead outputs raw logits (unbounded). Sigmoid is applied to
-    convert to [0,1] range, preserving Gaussian peak structure from training.
-    Expected peak ~0.7-0.9 at keypoint centers after sigmoid.
+    MogaNet-B DeconvHead outputs raw Gaussian values from JointsMSELoss training.
+    Expected peak ~2-6 at keypoint centers. No sigmoid applied.
 
 Usage:
     # Dry run: count images without inference
@@ -529,7 +528,7 @@ def discover_images(data_dirs):
             lbl = lbl_dir / (f.stem + ".txt")
             if not lbl.is_file():
                 continue
-            entries.append((str(f), str(lbl), dataset_name))
+            entries.append((str(f.resolve()), str(lbl), dataset_name))
 
     return entries
 
@@ -540,22 +539,25 @@ def parse_yolo_label(label_path, img_w, img_h):
     Format: class cx cy w h kp1_x kp1_y kp1_v ... kp17_x kp17_y kp17_v
 
     Returns (cx, cy, w, h) in pixel coordinates, or None if no valid bbox.
+    For multi-person labels, returns the first person bbox (class == 0).
     """
     with open(label_path) as f:
-        line = f.readline().strip()
-    if not line:
-        return None
-
-    parts = line.split()
-    if len(parts) < 5:
-        return None
-
-    cls, cx_n, cy_n, w_n, h_n = parts[:5]
-    cx = float(cx_n) * img_w
-    cy = float(cy_n) * img_h
-    w = float(w_n) * img_w
-    h = float(h_n) * img_h
-    return cx, cy, w, h
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            cls = int(parts[0])
+            if cls == 0:  # person class
+                cx_n, cy_n, w_n, h_n = parts[1:5]
+                cx = float(cx_n) * img_w
+                cy = float(cy_n) * img_h
+                w = float(w_n) * img_w
+                h = float(h_n) * img_h
+                return cx, cy, w, h
+    return None
 
 
 def crop_and_resize(img_pil, cx, cy, bw, bh):
