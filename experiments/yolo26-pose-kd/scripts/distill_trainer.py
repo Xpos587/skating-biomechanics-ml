@@ -164,6 +164,7 @@ class DistilPoseTrainer:
         self._backbone_unfrozen = False
         self._base_lr = 0.002
         self._trainer_ref = None
+        self._last_logged_epoch = None  # For diagnostic logging
 
     def __getstate__(self):
         """Exclude non-picklable objects (h5py, model) for deepcopy/EMA."""
@@ -172,6 +173,7 @@ class DistilPoseTrainer:
         state["_model"] = None
         state["_original_loss"] = None
         state["_trainer_ref"] = None
+        state["_last_logged_epoch"] = None
         return state
 
     def __setstate__(self, state):
@@ -418,6 +420,15 @@ class DistilPoseTrainer:
     def kd_loss(self, batch: dict[str, Any], preds=None) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute v35b KD loss: L_gt + coord_alpha * L_coord * batch_size."""
         model = self._model
+
+        # FIX: Fallback epoch tracking — if _current_epoch wasn't updated via preprocess_batch
+        if (
+            self._trainer_ref is not None
+            and hasattr(self._trainer_ref, "epoch")
+            and self._current_epoch != self._trainer_ref.epoch
+        ):
+            self._current_epoch = self._trainer_ref.epoch
+
         if model is None:
             # After deepcopy (EMA), _model is None — just compute GT loss
             if self._original_loss is None:
@@ -425,6 +436,14 @@ class DistilPoseTrainer:
             gt_loss, loss_items = self._original_loss(batch, preds)
             kd_pad = torch.zeros(2, device=gt_loss.device)
             return gt_loss, torch.cat([loss_items, kd_pad])
+
+        # FIX: Diagnostic logging — log once per epoch
+        if self._last_logged_epoch != self._current_epoch:
+            w = self.compute_kd_weight()
+            print(
+                f"[KD] Epoch {self._current_epoch}, warmup={self.warmup_epochs}, kd_weight={w:.4f}"
+            )
+            self._last_logged_epoch = self._current_epoch
 
         # Progressive unfreeze at unfreeze_epoch
         if (
@@ -714,7 +733,13 @@ def make_distil_pose_trainer(
         def preprocess_batch(self, batch):
             """Attach epoch info for KD warmup."""
             batch = super().preprocess_batch(batch)
-            self._kd.set_epoch(self.epoch)
+            # FIX: Safety net — verify self.epoch is not None/0 unexpectedly
+            if hasattr(self, "epoch") and self.epoch is not None and self.epoch > 0:
+                self._kd.set_epoch(self.epoch)
+            else:
+                print(
+                    "[KD WARNING] self.epoch is None or 0 in preprocess_batch, skipping set_epoch"
+                )
             return batch
 
         def get_validator(self):
