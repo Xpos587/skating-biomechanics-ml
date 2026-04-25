@@ -25,11 +25,14 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 
-def soft_argmax_heatmap(heatmap: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Extract sub-pixel coordinates via spatial softmax.
+def soft_argmax_heatmap(
+    heatmap: np.ndarray, temperature: float = 100.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract sub-pixel coordinates via temperature-scaled spatial softmax.
 
     Args:
         heatmap: (K, H, W) float16 heatmap.
+        temperature: softmax temperature. Higher = sharper peak.
 
     Returns:
         coords: (K, 2) float32 — (x, y) in [0, 1].
@@ -38,17 +41,14 @@ def soft_argmax_heatmap(heatmap: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     K, H, W = heatmap.shape
     hm = torch.from_numpy(heatmap.astype(np.float32))  # (K, H, W)
 
-    # Spatial softmax per keypoint
     flat = hm.reshape(K, -1)  # (K, H*W)
-    probs = F.softmax(flat, dim=-1)  # (K, H*W)
+    probs = F.softmax(flat / temperature, dim=-1)  # (K, H*W)
     probs = probs.reshape(K, H, W)
 
-    # Coordinate grids
     gx = torch.linspace(0, 1, W, device=hm.device)
     gy = torch.linspace(0, 1, H, device=hm.device)
-    grid_x, grid_y = torch.meshgrid(gx, gy, indexing="xy")  # (H, W)
+    grid_x, grid_y = torch.meshgrid(gx, gy, indexing="xy")
 
-    # Weighted average = soft argmax
     x_coords = (probs * grid_x.unsqueeze(0)).sum(dim=[1, 2])  # (K,)
     y_coords = (probs * grid_y.unsqueeze(0)).sum(dim=[1, 2])  # (K,)
 
@@ -58,11 +58,18 @@ def soft_argmax_heatmap(heatmap: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return coords.astype(np.float32), confidence.astype(np.float32)
 
 
-def soft_argmax_heatmap_batch(hm_batch: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def soft_argmax_heatmap_batch(
+    hm_batch: np.ndarray, temperature: float = 100.0
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Vectorized soft argmax for batch of heatmaps.
+
+    Uses temperature-scaled softmax so the peak dominates over 6912 spatial bins.
+    temperature=100 concentrates probability on the Gaussian peak (sub-pixel accuracy).
+    For nearly-uniform heatmaps (occluded keypoints), returns center coords.
 
     Args:
         hm_batch: (B, K, H, W) float16 heatmap batch.
+        temperature: softmax temperature. Higher = sharper peak.
 
     Returns:
         x_coords: (B, K) float32 — x coordinates in [0, 1].
@@ -72,21 +79,17 @@ def soft_argmax_heatmap_batch(hm_batch: np.ndarray) -> tuple[np.ndarray, np.ndar
     hm = torch.from_numpy(hm_batch.astype(np.float32))  # (B, K, H, W)
     B, K, H, W = hm.shape
 
-    # Spatial softmax per keypoint (batched)
     flat = hm.reshape(B, K, H * W)  # (B, K, H*W)
-    probs = F.softmax(flat, dim=-1).reshape(B, K, H, W)  # (B, K, H, W)
+    probs = F.softmax(flat / temperature, dim=-1).reshape(B, K, H, W)
 
-    # Coordinate grids
     gx = torch.linspace(0, 1, W, device=hm.device)
     gy = torch.linspace(0, 1, H, device=hm.device)
-    grid_x, grid_y = torch.meshgrid(gx, gy, indexing="xy")  # (H, W)
+    grid_x, grid_y = torch.meshgrid(gx, gy, indexing="xy")
 
-    # Weighted average = soft argmax (batched)
-    x_coords = (probs * grid_x.view(1, 1, H, W)).sum(dim=[2, 3])  # (B, K)
-    y_coords = (probs * grid_y.view(1, 1, H, W)).sum(dim=[2, 3])  # (B, K)
+    x_coords = (probs * grid_x.view(1, 1, H, W)).sum(dim=[2, 3])
+    y_coords = (probs * grid_y.view(1, 1, H, W)).sum(dim=[2, 3])
 
-    # Max confidence per keypoint
-    confidence = hm.flatten(2).max(dim=2).values  # (B, K)
+    confidence = hm.flatten(2).max(dim=2).values
 
     return (
         x_coords.numpy().astype(np.float32),
