@@ -4,20 +4,22 @@
 Teacher: MogaNet-B (pre-computed coordinates via soft argmax on heatmaps)
 Student: YOLO26-Pose (coordinate regression)
 
-v35b Architecture (2026-04-25):
+v35c Architecture (2026-04-25):
     Coordinate KD only: MSE(student_kpts, teacher_kpts_global) with confidence weighting
     Feature KD: REMOVED (spatial misalignment between crop and full-image features)
-    Progressive unfreeze: epoch 1-10 head only, epoch 11+ backbone with differential LR
+    Progressive unfreeze: epoch 1-7 head only, epoch 8+ backbone with differential LR
+    Progressive KD schedule: 0 during warmup, ramp 0->1 over 15 epochs, sustain at 1.0
 
 Fixes applied from code review (2026-04-25):
-    D2: Removed sigmoid from heatmap generation (raw Gaussian values)
-    C3/T1: Fixed .view() assignment (was no-op)
-    D5: Fixed student decode: (raw * 2.0 + (anchor - 0.5)) * stride
-    C1/D7: Inverse affine uses actual crop params (padding + edge clamping)
-    C4: Both student and teacher in normalized [0,1] space
-    T4: KD loss multiplied by batch_size to match PoseLoss26 scaling
-    C2: IoU-based anchor selection instead of hardcoded anchor 0
-    F2: Feature KD removed (crop vs full-image spatial misalignment)
+    v35b: D2, C3/T1, D5, C1/D7, C4, T4, C2, F2
+    v35c: BUG-1 PoseLoss26 decode formula (no *2.0, no -0.5)
+    v35c: BUG-2 KD weight schedule inverted (progressive growth, not decay)
+    v35c: BUG-3 cos_lr=True, lr0=0.001, warmup=3, mixup=0.1, patience=30, rect=True
+    v35c: BUG-5 Anchor fallback uses median of centers (not K/2)
+    v35c: BUG-6 teacher_conf.clamp(min=0.1) prevents inverse weights
+    v35c: ARCH-1 Letterboxing: use batch['img_shape'] for normalization
+    v35c: ARCH-3 Per-kp biomechanical weights, normalize by visible count
+    v35c: ARCH-4 Optimizer split: weight (wd) vs bias/bn (no wd) groups
 
 Usage:
     python3 distill_trainer.py train \\
@@ -27,7 +29,7 @@ Usage:
         --epochs 210 \\
         --batch 128 \\
         --coord-alpha 0.05 \\
-        --unfreeze-epoch 11
+        --unfreeze-epoch 8
 """
 
 from __future__ import annotations
@@ -140,8 +142,8 @@ class DistilPoseTrainer:
         self,
         teacher_coords_path: str | Path | None = None,
         coord_alpha: float = 0.05,
-        warmup_epochs: int = 5,
-        unfreeze_epoch: int = 11,
+        warmup_epochs: int = 3,
+        unfreeze_epoch: int = 8,
         freeze_backbone: bool = False,
         stage2: bool = False,
     ):
@@ -172,10 +174,16 @@ class DistilPoseTrainer:
         return self._coord_loader
 
     def compute_kd_weight(self) -> float:
+        """Progressive KD weight: 0 during warmup, ramp 0->1 over 15 epochs, then sustain at 1.0."""
         if self._max_epochs <= 1:
             return 1.0
-        w_kd = 1.0 - (self._current_epoch - 1) / self._max_epochs
-        return max(0.05, w_kd)
+        post_warmup = self._current_epoch - self.warmup_epochs
+        if post_warmup <= 0:
+            return 0.0
+        growth_epochs = 15
+        if post_warmup >= growth_epochs:
+            return 1.0
+        return post_warmup / growth_epochs
 
     def setup_model(self, model: nn.Module):
         """Patch model: init coord loader, replace loss."""
@@ -203,9 +211,13 @@ class DistilPoseTrainer:
     def _decode_student_kpts(self, preds, B, K):
         """Decode student keypoints to pixel space.
 
-        Matches v8PoseLoss.kpts_decode + stride multiplication:
-            raw * 2.0 + (anchor - 0.5)  =>  anchor-relative space
-            * stride                    =>  pixel space
+        Matches PoseLoss26.kpts_decode + stride multiplication:
+            raw + anchor  =>  anchor-relative space
+            * stride      =>  pixel space
+
+        Note: YOLO26's RealNVP flow replaced the v8 *2.0 - 0.5 scaling.
+        PoseLoss26.calculate_keypoints_loss() divides GT by stride (line ~933),
+        so kpts_decode returns anchor-relative coords. Adding stride gives pixel coords.
 
         Args:
             preds: dict from model.forward() during training
@@ -241,16 +253,12 @@ class DistilPoseTrainer:
         if sigma_perm is None:
             return None, None
 
-        # Decode: match v8PoseLoss.kpts_decode + stride
-        # v8PoseLoss: y[..., :2] *= 2.0; y[..., 0] += anchor - 0.5; y[..., 1] += anchor - 0.5
-        # Then multiply by stride for pixel space
+        # Decode: match PoseLoss26.kpts_decode + stride
+        # PoseLoss26: y[..., 0] += anchor; y[..., 1] += anchor (no *2.0, no -0.5)
+        # RealNVP flow replaced old v8 scaling. Then multiply by stride for pixel space.
         decoded = kpts.clone()
-        decoded[..., 0] = (decoded[..., 0] * 2.0 + anchor_points[:, [0]] - 0.5) * stride_tensor[
-            :, [0]
-        ]
-        decoded[..., 1] = (decoded[..., 1] * 2.0 + anchor_points[:, [1]] - 0.5) * stride_tensor[
-            :, [0]
-        ]
+        decoded[..., 0] = (decoded[..., 0] + anchor_points[:, [0]]) * stride_tensor[:, [0]]
+        decoded[..., 1] = (decoded[..., 1] + anchor_points[:, [1]]) * stride_tensor[:, [0]]
         decoded[..., 2] = decoded[..., 2].sigmoid()
 
         return decoded, stride_tensor
@@ -354,11 +362,12 @@ class DistilPoseTrainer:
         selected = torch.zeros(B, K, 3, device=student_kpts.device)
         for img_i in range(B):
             if gt_bboxes[img_i, 0] < 0:
-                # No valid GT — take anchor nearest to image center
-                center_x = student_kpts.shape[-1] / 2  # approximate
+                # No valid GT — take anchor nearest to median of all anchor centers
                 cx = (student_x1[img_i] + student_x2[img_i]) / 2
                 cy = (student_y1[img_i] + student_y2[img_i]) / 2
-                dist = (cx - center_x).abs() + (cy - center_x).abs()
+                median_cx = cx.median()
+                median_cy = cy.median()
+                dist = (cx - median_cx).abs() + (cy - median_cy).abs()
                 best = dist.argmin()
                 selected[img_i] = student_kpts[img_i, best]
                 continue
@@ -442,8 +451,15 @@ class DistilPoseTrainer:
                     batch_idx = batch.get("batch_idx")
 
                     if gt_kpts is not None and batch_idx is not None:
-                        # Get image dimensions
-                        img_h, img_w = batch["img"].shape[2], batch["img"].shape[3]
+                        # Get image dimensions — prefer original sizes (before letterboxing)
+                        if "img_shape" in batch:
+                            # batch["img_shape"]: (B, 2) with original (h, w) per image
+                            img_shapes = batch["img_shape"]  # (B, 2)
+                            img_h = img_shapes[0, 0].item()  # Use first image's original height
+                            img_w = img_shapes[0, 1].item()  # Use first image's original width
+                        else:
+                            # Fallback: letterboxed size (less accurate for non-square images)
+                            img_h, img_w = batch["img"].shape[2], batch["img"].shape[3]
 
                         # Select best anchor per image via IoU matching
                         student_selected = self._select_best_anchor(
@@ -489,12 +505,47 @@ class DistilPoseTrainer:
 
                         # Confidence-weighted MSE in [0,1] space
                         # FIX T4: multiply by batch_size to match PoseLoss26 scaling
-                        weight = teacher_conf * vis_mask * valid_cp.unsqueeze(1).float()
+                        # FIX BUG-6: clamp teacher_conf to prevent negative/inverse weights
+                        teacher_conf_clamped = teacher_conf.clamp(min=0.1)
+                        weight = teacher_conf_clamped * vis_mask * valid_cp.unsqueeze(1).float()
+
+                        # ARCH-3: Per-keypoint biomechanical importance weights (H3.6M 17kp order)
+                        # HIP_CENTER(0), RHIP(1), RKNEE(2), RFOOT(3), LHIP(4), LKNEE(5),
+                        # LFOOT(6), SPINE(7), THORAX(8), NECK(9), HEAD(10), LSHOULDER(11),
+                        # LELBOW(12), LWRIST(13), RSHOULDER(14), RELBOW(15), RWRIST(16)
+                        kp_weights = torch.tensor(
+                            [
+                                3.0,
+                                2.5,
+                                2.5,
+                                2.0,
+                                2.5,
+                                2.5,
+                                2.0,
+                                2.0,
+                                2.0,
+                                2.0,
+                                1.5,
+                                1.5,
+                                1.0,
+                                1.0,
+                                1.5,
+                                1.0,
+                                1.0,
+                            ],
+                            device=gt_loss.device,
+                        )  # (17,)
+                        weight = weight * kp_weights.unsqueeze(0)  # (B, K) broadcast
+
                         per_kp_loss = ((student_xy_norm - teacher_global) ** 2).sum(
                             dim=-1
                         )  # (B, K)
-                        weight_sum = weight.sum().clamp(min=1.0)
-                        coord_loss = (weight * per_kp_loss).sum() / weight_sum
+
+                        # ARCH-3: Normalize by visible count per image, not weight_sum
+                        visible_count = vis_mask.sum(dim=-1).clamp(min=1.0)  # (B,)
+                        coord_loss = (weight * per_kp_loss).sum() / visible_count.sum().clamp(
+                            min=1.0
+                        )
                         coord_loss = coord_loss * B  # FIX T4: scale to match batch-scaled GT loss
 
         # Total loss
@@ -509,7 +560,11 @@ class DistilPoseTrainer:
         return total_loss, kd_items
 
     def _rebuild_optimizer(self, model):
-        """Add backbone params to optimizer with 0.1x LR after unfreeze."""
+        """Add backbone params to optimizer with 0.1x LR after unfreeze.
+
+        Splits backbone params into weight (with decay) and bias/bn (no decay) groups,
+        matching Ultralytics' build_optimizer pattern.
+        """
         trainer = self._trainer_ref
         if trainer is None:
             print("WARNING: Cannot rebuild optimizer — no trainer reference")
@@ -517,9 +572,11 @@ class DistilPoseTrainer:
 
         base_lr = getattr(self, "_base_lr", trainer.optimizer.param_groups[0]["lr"])
         backbone_lr = base_lr * 0.1
+        default_wd = trainer.optimizer.param_groups[0].get("weight_decay", 1e-5)
 
-        # Separate backbone params from head params
-        backbone_params = []
+        # Separate backbone params: weight (with decay) vs bias/bn (no decay)
+        backbone_params_wd = []
+        backbone_params_no_wd = []
         for name, param in model.named_parameters():
             if not param.requires_grad:
                 continue
@@ -527,18 +584,37 @@ class DistilPoseTrainer:
             already_optimized = any(
                 param is p for pg in trainer.optimizer.param_groups for p in pg["params"]
             )
-            if not already_optimized:
-                backbone_params.append(param)
+            if already_optimized:
+                continue
+            if param.ndim == 1 or "bn" in name.lower() or "norm" in name.lower():
+                backbone_params_no_wd.append(param)
+            else:
+                backbone_params_wd.append(param)
 
-        if backbone_params:
+        added = 0
+        if backbone_params_wd:
             trainer.optimizer.add_param_group(
                 {
-                    "params": backbone_params,
+                    "params": backbone_params_wd,
                     "lr": backbone_lr,
-                    "weight_decay": trainer.optimizer.param_groups[0].get("weight_decay", 1e-5),
+                    "weight_decay": default_wd,
                 }
             )
-            print(f"  Added backbone: {len(backbone_params)} params, lr={backbone_lr:.6f} (0.1x)")
+            added += len(backbone_params_wd)
+        if backbone_params_no_wd:
+            trainer.optimizer.add_param_group(
+                {
+                    "params": backbone_params_no_wd,
+                    "lr": backbone_lr,
+                    "weight_decay": 0.0,
+                }
+            )
+            added += len(backbone_params_no_wd)
+
+        if added > 0:
+            print(
+                f"  Added backbone: {added} params (wd={len(backbone_params_wd)}, no_wd={len(backbone_params_no_wd)}), lr={backbone_lr:.6f} (0.1x)"
+            )
 
     def restore_model(self, model: nn.Module):
         if self._original_loss is not None:
@@ -558,8 +634,8 @@ class DistilPoseTrainer:
 def make_distil_pose_trainer(
     teacher_coords_path: str | Path | None = None,
     coord_alpha: float = 0.05,
-    warmup_epochs: int = 5,
-    unfreeze_epoch: int = 11,
+    warmup_epochs: int = 3,
+    unfreeze_epoch: int = 8,
     freeze_backbone: bool = False,
     stage2: bool = False,
 ):
@@ -652,8 +728,8 @@ def train():
     parser.add_argument("--batch", type=int, default=128)
     parser.add_argument("--imgsz", type=int, default=384)
     parser.add_argument("--coord-alpha", type=float, default=0.05, help="Coordinate KD loss weight")
-    parser.add_argument("--warmup-epochs", type=int, default=5)
-    parser.add_argument("--unfreeze-epoch", type=int, default=11, help="Epoch to unfreeze backbone")
+    parser.add_argument("--warmup-epochs", type=int, default=3)
+    parser.add_argument("--unfreeze-epoch", type=int, default=8, help="Epoch to unfreeze backbone")
     parser.add_argument("--freeze-backbone", action="store_true", default=False)
     parser.add_argument("--no-freeze", dest="freeze_backbone", action="store_false")
     parser.add_argument("--stage2", action="store_true", help="Enable Stage 2 self-KD")
@@ -678,8 +754,13 @@ def train():
         "imgsz": args.imgsz,
         "name": args.name,
         "mosaic": 0.0,
-        "lr0": 0.002 if not args.stage2 else 0.001,
+        "cos_lr": True,
+        "lr0": 0.001,
+        "warmup_epochs": args.warmup_epochs,
         "optimizer": "AdamW",
+        "mixup": 0.1,
+        "patience": 30,
+        "rect": True,
         "device": args.device,
     }
 
@@ -710,7 +791,7 @@ def run_tests():
             traceback.print_exc()
             failed += 1
 
-    print("DistilPoseTrainer unit tests (v35b coordinate-only)")
+    print("DistilPoseTrainer unit tests (v35c coordinate-only)")
     print("=" * 60)
 
     # Test 1: TeacherCoordLoader graceful handling
@@ -806,24 +887,41 @@ def run_tests():
 
     test("IoU matching selects correct anchor", test_iou_matching)
 
-    # Test 5: Compute KD weight
+    # Test 5: Compute KD weight — progressive growth schedule
     def test_kd_weight():
-        kd = DistilPoseTrainer()
+        kd = DistilPoseTrainer(warmup_epochs=3)
         kd.set_max_epochs(210)
 
+        # During warmup: weight = 0
         kd.set_epoch(1)
         w = kd.compute_kd_weight()
-        assert w > 0.9, f"Epoch 1: expected w>0.9, got {w}"
+        assert w == 0.0, f"Epoch 1 (warmup): expected w=0.0, got {w}"
 
-        kd.set_epoch(105)
+        kd.set_epoch(3)
         w = kd.compute_kd_weight()
-        assert 0.4 < w < 0.6, f"Epoch 105: expected w~0.5, got {w}"
+        assert w == 0.0, f"Epoch 3 (warmup): expected w=0.0, got {w}"
 
+        # First epoch after warmup: 1/15
+        kd.set_epoch(4)
+        w = kd.compute_kd_weight()
+        assert abs(w - 1.0 / 15.0) < 1e-6, f"Epoch 4: expected w~{1 / 15:.4f}, got {w}"
+
+        # Mid growth: epoch 11 -> (11-3)/15 = 8/15
+        kd.set_epoch(11)
+        w = kd.compute_kd_weight()
+        assert abs(w - 8.0 / 15.0) < 1e-6, f"Epoch 11: expected w~{8 / 15:.4f}, got {w}"
+
+        # End of growth: epoch 18 -> (18-3)/15 = 15/15 = 1.0
+        kd.set_epoch(18)
+        w = kd.compute_kd_weight()
+        assert w == 1.0, f"Epoch 18: expected w=1.0, got {w}"
+
+        # Sustain at 1.0
         kd.set_epoch(210)
         w = kd.compute_kd_weight()
-        assert w == 0.05, f"Epoch 210: expected w=0.05, got {w}"
+        assert w == 1.0, f"Epoch 210: expected w=1.0, got {w}"
 
-    test("KD weight decay", test_kd_weight)
+    test("KD weight progressive growth", test_kd_weight)
 
     print(f"\n{'=' * 60}")
     print(f"Results: {passed} passed, {failed} failed")
