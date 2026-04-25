@@ -58,6 +58,43 @@ def soft_argmax_heatmap(heatmap: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return coords.astype(np.float32), confidence.astype(np.float32)
 
 
+def soft_argmax_heatmap_batch(hm_batch: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Vectorized soft argmax for batch of heatmaps.
+
+    Args:
+        hm_batch: (B, K, H, W) float16 heatmap batch.
+
+    Returns:
+        x_coords: (B, K) float32 — x coordinates in [0, 1].
+        y_coords: (B, K) float32 — y coordinates in [0, 1].
+        confidence: (B, K) float32 — max value per keypoint.
+    """
+    hm = torch.from_numpy(hm_batch.astype(np.float32))  # (B, K, H, W)
+    B, K, H, W = hm.shape
+
+    # Spatial softmax per keypoint (batched)
+    flat = hm.reshape(B, K, H * W)  # (B, K, H*W)
+    probs = F.softmax(flat, dim=-1).reshape(B, K, H, W)  # (B, K, H, W)
+
+    # Coordinate grids
+    gx = torch.linspace(0, 1, W, device=hm.device)
+    gy = torch.linspace(0, 1, H, device=hm.device)
+    grid_x, grid_y = torch.meshgrid(gx, gy, indexing="xy")  # (H, W)
+
+    # Weighted average = soft argmax (batched)
+    x_coords = (probs * grid_x.view(1, 1, H, W)).sum(dim=[2, 3])  # (B, K)
+    y_coords = (probs * grid_y.view(1, 1, H, W)).sum(dim=[2, 3])  # (B, K)
+
+    # Max confidence per keypoint
+    confidence = hm.flatten(2).max(dim=2).values  # (B, K)
+
+    return (
+        x_coords.numpy().astype(np.float32),
+        y_coords.numpy().astype(np.float32),
+        confidence.numpy().astype(np.float32),
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Extract teacher coords from HDF5 heatmaps")
     parser.add_argument("--heatmaps", required=True, help="Path to teacher_heatmaps.h5")
@@ -98,14 +135,17 @@ def main():
             end = min(start + args.batch_size, total)
             batch_hm = dataset[start:end]  # (B, K, H, W)
 
-            for i in range(end - start):
-                row = start + i
-                hm = batch_hm[i]  # (K, H, W)
-                coords, conf = soft_argmax_heatmap(hm)
-                all_coords[row] = coords
-                all_confidence[row] = conf
+            # Vectorized soft argmax for entire batch
+            cx, cy, conf = soft_argmax_heatmap_batch(batch_hm.numpy())
+            batch_size = end - start
 
-                # Get crop params from sidecar
+            # Stack coords into (B, K, 2)
+            all_coords[start:end] = np.stack([cx, cy], axis=-1)
+            all_confidence[start:end] = conf
+
+            # Get crop params from sidecar (still per-image since it's JSON lookup)
+            for i in range(batch_size):
+                row = start + i
                 img_path = rev_idx.get(row)
                 if img_path and img_path in crop_params_map:
                     cp = crop_params_map[img_path]
