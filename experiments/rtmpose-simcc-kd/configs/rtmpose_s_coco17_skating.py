@@ -94,21 +94,6 @@ train_pipeline = [
     ),
     dict(type=TopdownAffine, input_size=(192, 256)),
     dict(
-        type="Albumentation",
-        transforms=[
-            dict(
-                type="CoarseDropout",
-                max_holes=1,
-                max_height=0.4,
-                max_width=0.4,
-                min_holes=1,
-                min_height=0.2,
-                min_width=0.2,
-                p=0.5,
-            ),
-        ],
-    ),
-    dict(
         type="GenerateTarget",
         encoder=dict(
             type="SimCCLabel",
