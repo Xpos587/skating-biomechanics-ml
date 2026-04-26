@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build COCO-format dataset JSON for mmpose from existing image dirs + SimCC labels.
+"""Build COCO-format dataset JSON for mmpose from existing image dirs + teacher coords.
 
 Usage:
     python build_mmpose_dataset.py \
         --image-dirs data/finefs/train/images data/ap3d-fs/train/images \
-        --simcc data/teacher_simcc.npz \
+        --coords data/teacher_coords.h5 \
         --output data/coco_skating_train.json
 """
 
@@ -12,22 +12,31 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import cv2
-import numpy as np
+import h5py
 from tqdm import tqdm
 
+sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
 
-def build_coco_json(image_dirs, simcc_path, output_path):
-    """Build COCO JSON with SimCC labels in 'simcc' field."""
+from simcc_label_generator import transform_teacher_coords
+
+
+def build_coco_json(image_dirs, coords_path, output_path):
+    """Build COCO JSON with keypoints from teacher coords."""
     images = []
     annotations = []
     img_id = 0
     ann_id = 0
 
-    simcc_data = np.load(simcc_path) if simcc_path else None
-    index_map = json.loads(simcc_data["index"].item()) if simcc_data else {}
+    with h5py.File(coords_path, "r") as f:
+        all_coords = f["coords"][:]
+        all_conf = f["confidence"][:]
+        all_crop_params = f["crop_params"][:]
+        index = json.loads(f.attrs["index"])
+        index_map = {v: k for k, v in index.items()}
 
     for img_dir in image_dirs:
         img_dir = Path(img_dir)
@@ -49,27 +58,21 @@ def build_coco_json(image_dirs, simcc_path, output_path):
                 }
             )
 
-            if idx is not None and simcc_data is not None:
-                simcc_x = simcc_data["simcc_x"][idx]
-                simcc_y = simcc_data["simcc_y"][idx]
-            else:
-                simcc_x = None
-                simcc_y = None
-
-            if simcc_x is not None:
-                x_coords = simcc_x.argmax(axis=-1) / simcc_x.shape[-1]
-                y_coords = simcc_y.argmax(axis=-1) / simcc_y.shape[-1]
+            if idx is not None:
+                crop_coords = all_coords[idx]
+                conf = all_conf[idx]
+                cp = all_crop_params[idx]
+                img_coords = transform_teacher_coords(crop_coords, cp)
                 keypoints = []
                 for k in range(17):
-                    keypoints.extend(
-                        [
-                            float(x_coords[k] * w),
-                            float(y_coords[k] * h),
-                            2,
-                        ]
-                    )
+                    x = float(img_coords[k, 0] * w)
+                    y = float(img_coords[k, 1] * h)
+                    v = 2 if conf[k] > 0.5 else 1
+                    keypoints.extend([x, y, v])
+                num_kpts = int((conf > 0.5).sum())
             else:
                 keypoints = [0.0] * 51
+                num_kpts = 0
 
             annotations.append(
                 {
@@ -77,12 +80,10 @@ def build_coco_json(image_dirs, simcc_path, output_path):
                     "image_id": img_id,
                     "category_id": 1,
                     "keypoints": keypoints,
-                    "num_keypoints": 17,
+                    "num_keypoints": num_kpts,
                     "bbox": [0, 0, w, h],
                     "area": w * h,
                     "iscrowd": 0,
-                    "simcc_x": simcc_x.tolist() if simcc_x is not None else None,
-                    "simcc_y": simcc_y.tolist() if simcc_y is not None else None,
                 }
             )
 
@@ -104,11 +105,11 @@ def build_coco_json(image_dirs, simcc_path, output_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image-dirs", nargs="+", required=True)
-    parser.add_argument("--simcc", required=True)
+    parser.add_argument("--coords", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    build_coco_json(args.image_dirs, args.simcc, args.output)
+    build_coco_json(args.image_dirs, args.coords, args.output)
 
 
 if __name__ == "__main__":
