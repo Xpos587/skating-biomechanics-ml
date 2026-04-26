@@ -3,7 +3,6 @@
 default_scope = "mmpose"
 
 from mmengine.dataset import DefaultSampler
-from mmengine.hooks.ema_hook import EMAHook
 from mmpose.datasets import CocoDataset
 from mmpose.datasets.transforms import (
     GetBBoxCenterScale,
@@ -34,8 +33,9 @@ model = dict(
         deepen_factor=0.33,
         widen_factor=0.5,
         channel_attention=True,
-        norm_cfg=dict(type="BN", momentum=0.03, eps=0.001),
+        norm_cfg=dict(type="SyncBN"),
         act_cfg=dict(type="SiLU", inplace=True),
+        out_indices=(4,),
         init_cfg=dict(
             type="Pretrained",
             checkpoint="checkpoints/rtmpose-s_simcc-coco_pt-aic-coco_420e-256x192-8edcf0d7_20230127.pth",
@@ -47,7 +47,7 @@ model = dict(
         in_channels=512,
         out_channels=17,
         input_size=(192, 256),
-        in_featuremap_size=(24, 32),
+        in_featuremap_size=(6, 8),
         simcc_split_ratio=2.0,
         final_layer_kernel_size=7,
         gau_cfg=dict(
@@ -63,13 +63,13 @@ model = dict(
         loss=dict(
             type=KLDiscretLoss,
             use_target_weight=True,
-            beta=1.0,
+            beta=10.0,
             label_softmax=True,
         ),
         decoder=dict(
             type="SimCCLabel",
             input_size=(192, 256),
-            sigma=6.0,
+            sigma=(4.9, 5.66),
             simcc_split_ratio=2.0,
             normalize=False,
             use_dark=False,
@@ -87,7 +87,13 @@ train_pipeline = [
     dict(type=GetBBoxCenterScale),
     dict(type=RandomFlip, direction="horizontal"),
     dict(type=RandomHalfBody),
+    dict(
+        type="RandomBBoxTransform",
+        rotate_factor=80,
+        scale_factor=[0.6, 1.4],
+    ),
     dict(type=TopdownAffine, input_size=(192, 256)),
+    dict(type="mmdet.YOLOXHSVRandomAug"),
     dict(
         type="Albumentation",
         transforms=[
@@ -96,11 +102,11 @@ train_pipeline = [
             dict(
                 type="CoarseDropout",
                 max_holes=1,
-                max_height=32,
-                max_width=32,
+                max_height=0.4,
+                max_width=0.4,
                 min_holes=1,
-                min_height=8,
-                min_width=8,
+                min_height=0.2,
+                min_width=0.2,
                 p=0.5,
             ),
         ],
@@ -110,7 +116,7 @@ train_pipeline = [
         encoder=dict(
             type="SimCCLabel",
             input_size=(192, 256),
-            sigma=6.0,
+            sigma=(4.9, 5.66),
             simcc_split_ratio=2.0,
             normalize=False,
             use_dark=False,
@@ -128,7 +134,7 @@ val_pipeline = [
 
 train_dataloader = dict(
     batch_size=256,
-    num_workers=8,
+    num_workers=10,
     persistent_workers=True,
     sampler=dict(type=DefaultSampler, shuffle=True),
     dataset=dict(
@@ -142,8 +148,8 @@ train_dataloader = dict(
 )
 
 val_dataloader = dict(
-    batch_size=128,
-    num_workers=8,
+    batch_size=64,
+    num_workers=10,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type=DefaultSampler, shuffle=False),
@@ -170,7 +176,7 @@ test_evaluator = val_evaluator
 # === Optimizer ===
 optim_wrapper = dict(
     type="OptimWrapper",
-    optimizer=dict(type="AdamW", lr=5e-4, weight_decay=0.05),
+    optimizer=dict(type="AdamW", lr=0.004, weight_decay=0.0),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -186,12 +192,67 @@ test_cfg = dict()
 # === Hooks ===
 default_hooks = dict(
     checkpoint=dict(
-        type="CheckpointHook", interval=10, max_keep_ckpts=3, save_best="coco/AP", rule="greater"
+        type="CheckpointHook", interval=10, max_keep_ckpts=1, save_best="coco/AP", rule="greater"
     ),
     logger=dict(type="LoggerHook", interval=50),
 )
 
-custom_hooks = [dict(type=EMAHook, momentum=0.0002, priority=49)]
+custom_hooks = [
+    dict(
+        type="EMAHook",
+        ema_type="ExpMomentumEMA",
+        momentum=0.0002,
+        priority=49,
+        update_buffers=True,
+    ),
+    dict(
+        type="mmdet.PipelineSwitchHook",
+        switch_epoch=390,
+        switch_pipeline=[
+            dict(type=LoadImage),
+            dict(type=GetBBoxCenterScale),
+            dict(type=RandomFlip, direction="horizontal"),
+            dict(type=RandomHalfBody),
+            dict(
+                type="RandomBBoxTransform",
+                rotate_factor=60,
+                scale_factor=[0.75, 1.25],
+                shift_factor=0.0,
+            ),
+            dict(type=TopdownAffine, input_size=(192, 256)),
+            dict(type="mmdet.YOLOXHSVRandomAug"),
+            dict(
+                type="Albumentation",
+                transforms=[
+                    dict(type="Blur", p=0.1),
+                    dict(type="MedianBlur", p=0.1),
+                    dict(
+                        type="CoarseDropout",
+                        max_holes=1,
+                        max_height=0.4,
+                        max_width=0.4,
+                        min_holes=1,
+                        min_height=0.2,
+                        min_width=0.2,
+                        p=0.5,
+                    ),
+                ],
+            ),
+            dict(
+                type="GenerateTarget",
+                encoder=dict(
+                    type="SimCCLabel",
+                    input_size=(192, 256),
+                    sigma=(4.9, 5.66),
+                    simcc_split_ratio=2.0,
+                    normalize=False,
+                    use_dark=False,
+                ),
+            ),
+            dict(type=PackPoseInputs),
+        ],
+    ),
+]
 
 # === Runtime ===
 load_from = "checkpoints/rtmpose-s_simcc-coco_pt-aic-coco_420e-256x192-8edcf0d7_20230127.pth"
