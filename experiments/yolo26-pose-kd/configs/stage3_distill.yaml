@@ -1,0 +1,25 @@
+# KD training: MogaNet-B (teacher) -> YOLO26-Pose (student)
+# Run via: bash scripts/run_training.sh distill
+model: /root/skating-biomechanics-ml/experiments/yolo26-pose-kd/checkpoints/yolo26s-pose.pt
+data: /root/skating-biomechanics-ml/experiments/yolo26-pose-kd/configs/data.yaml
+epochs: 100
+batch: 32
+imgsz: 384  # Changed from 640 to better match teacher resolution
+device: 0
+workers: 8
+name: stage3_distill
+exist_ok: true
+
+# KD params (passed to DistilPoseTrainer)
+teacher_heatmaps: /root/skating-biomechanics-ml/experiments/yolo26-pose-kd/data/teacher_heatmaps.h5
+kd_weight: 0.001  # DistilPose uses 0.0005, 1.0 was too high
+score_weight: 0.01
+warmup_epochs: 5
+freeze_backbone: true
+
+# Disable mosaic for KD (teacher heatmaps match original images)
+mosaic: 0.0
+
+# Optimizer config (Adam/AdamW with proper LR)
+optimizer: Adam  # Force Adam instead of auto
+lr0: 0.001  # Lower LR for sigma head fine-tuning
