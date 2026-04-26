@@ -140,4 +140,138 @@ COCO 17: nose, L/R eye, L/R ear, L/R shoulder, L/R elbow, L/R wrist, L/R hip, L/
 |---------|--------|-------|
 | YourSkatingCoach (2024) | Not downloaded | BIOES annotations, supplementary only |
 | FSBench (CVPR 2025) | Temporarily closed | 783 videos, 76+ hours |
-| FineFS | Downloaded | Quality scores + boundaries |
+| **FineFS** | ✅ Downloaded (Vast.ai) | 1167 samples, 3D poses + GOE scores + boundaries |
+
+---
+
+## FineFS Dataset Details
+
+**Location:** `/root/data/datasets/raw/FineFS/data/` (Vast.ai GPU server)
+
+**Source:** [arXiv:2305.14372](https://arxiv.org/abs/2305.14372) — "Fine-grained Figure Skating Dataset" (GitHub link dead, downloaded via alternative source)
+
+### Structure
+
+```
+FineFS/data/
+├── skeleton/        - 1167 NPZ files (3D poses, 829MB)
+├── annotation/      - 1167 JSON files (element labels, 1.1MB)
+├── video_features/  - 1167 PKL files (848MB)
+└── video.zip        - 41GB (raw videos, not extracted)
+```
+
+### Skeleton Format (NPZ)
+
+**File:** `skeleton/{id}.npz`
+- **Key:** `reconstruction`
+- **Shape:** `(T, 17, 3)` where T = num frames (~4300)
+- **Dtype:** `float32`
+- **Format:** H3.6M 17-keypoint 3D skeleton ✅
+- **Coordinates:** 3D world coordinates (meters), NOT normalized
+  - X range: `[-0.817, 0.887]` meters
+  - Y range: `[-0.704, 0.708]` meters
+  - Z range: `[0.000, 1.802]` meters (vertical)
+
+**Keypoint mapping (H3.6M 17kp):**
+```
+0: Hip (center)
+1-3: Right leg (hip, knee, ankle)
+4-6: Left leg (hip, knee, ankle)
+7-10: Spine + neck + head
+11-13: Left arm (shoulder, elbow, wrist)
+14-16: Right arm (shoulder, elbow, wrist)
+```
+
+**Occlusion handling:**
+- `Z=0` indicates occlusion/missing keypoints
+- Keypoints 3, 6 (ankles) have ~50% Z-zero (often occluded in skating)
+
+### Annotation Format (JSON)
+
+**File:** `annotation/{id}.json`
+
+**Fields:**
+- `competition`: str (e.g., "WC2019_Men")
+- `total_segment_score`: float
+- `element_score`: list[float]
+- `executed_element`: dict[element_data]
+
+**Element structure:**
+```json
+{
+  "element1": {
+    "element": "3A",
+    "time": "0-22,0-25",
+    "coarse_class": "jump",
+    "goe": 1.6,
+    "score_of_pannel": 9.6,
+    "bv": 8.0,
+    "judge_score": [2, 2, 2, 2, 1, 2, 2, 2, 2],
+    "info": ["<<"]
+  }
+}
+```
+
+**Timing format:** `MM-SS,MM-SS` (start_time, end_time)
+- Example: `"0-22,0-25"` = 0:22 to 0:25 (3 seconds)
+- FPS: ~30 FPS (4350 frames ≈ 145 seconds)
+
+**Element types:**
+- `jump`: 3A (Axel), 4T (Toe loop), 3Lz+3T (Lutz+Toe combo)
+- `spin`: FCSp3 (sit spin), CSSp4 (camel spin), CCoSp3 (spin)
+- `sequence`: StSq2 (step sequence)
+
+### Conversion to YOLO
+
+**Requirements:**
+1. ✅ **Already H3.6M 17kp** — no keypoint remapping needed!
+2. ❌ **Normalize coordinates** to `[0,1]`
+   - Current: world coords in meters
+   - Strategy: divide by max(X,Y) range or use bounding box normalization
+3. ❌ **Generate bounding boxes** around skeleton
+4. ❌ **Convert Z=0 to visibility flags** (confidence)
+5. ❌ **Extract element segments** from full sequence using timing
+
+**YOLO-pose format:**
+```
+class_id x_center y_center width height k1x k1y k1v ... k17x k17y k17v
+```
+
+### Dataset Size
+
+- **Samples:** 1167
+- **Frames per sample:** ~4300 (≈ 143 seconds at 30 FPS)
+- **Elements per sample:** 5-8
+- **Estimated total elements:** ~7000
+
+### Usage Example
+
+```python
+import numpy as np
+import json
+
+# Load skeleton
+skeleton_data = np.load("skeleton/0.npz")
+poses = skeleton_data["reconstruction"]  # (T, 17, 3)
+
+# Load annotation
+with open("annotation/0.json") as f:
+    annotation = json.load(f)
+
+# Parse element timing
+def parse_time(time_str):
+    """Parse 'MM-SS,MM-SS' to frame indices"""
+    start_str, end_str = time_str.split(",")
+    start_min, start_sec = map(int, start_str.split("-"))
+    end_min, end_sec = map(int, end_str.split("-"))
+    start_frame = start_min * 60 + start_sec
+    end_frame = end_min * 60 + end_sec
+    return start_frame, end_frame
+
+# Extract element segment
+for elem_key, elem_data in annotation["executed_element"].items():
+    start, end = parse_time(elem_data["time"])
+    element_poses = poses[start:end]  # Segment poses
+    element_type = elem_data["element"]
+    goe_score = elem_data["goe"]
+``` |
