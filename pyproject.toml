@@ -112,6 +112,7 @@ max-statements = 80
 known-first-party = ["backend", "src"]
 
 [tool.ruff.lint.per-file-ignores]
+"experiments/rtmpose-simcc-kd/configs/**/*.py" = ["F403", "F405", "C408"]
 "tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401", "S105", "F841"]
 "backend/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401", "S105", "F841"]
 "ml/tests/**/*.py" = ["ARG", "PLR2004", "ERA", "SIM117", "T20", "S101", "S106", "S108", "S110", "BLE001", "F401", "S105", "F841"]
