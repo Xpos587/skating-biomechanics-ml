@@ -118,3 +118,17 @@ package-lock.json
 # Alembic (keep versions/, ignore __pycache__)
 alembic/__pycache__/
 .worktrees/
+
+# RTMPose KD experiments (generated data, not source)
+experiments/rtmpose-simcc-kd/data/
+experiments/rtmpose-simcc-kd/checkpoints/*.pth
+experiments/rtmpose-simcc-kd/work_dirs/
+experiments/rtmpose-simcc-kd/.venv/
+experiments/rtmpose-simcc-kd/logs/
+experiments/rtmpose-simcc-kd/results/
+
+# YOLO26 KD experiments (generated data)
+experiments/yolo26-pose-kd/data/
+experiments/yolo26-pose-kd/checkpoints/
+experiments/yolo26-pose-kd/work_dirs/
+experiments/yolo26-pose-kd/runs/
