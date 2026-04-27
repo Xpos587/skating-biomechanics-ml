@@ -257,6 +257,30 @@ class BiomechanicsAnalyzer:
             )
         )
 
+        # Landing CoM velocity (negative = hard landing)
+        landing_vel = self.compute_landing_com_velocity(poses, phases, fps)
+        results.append(
+            MetricResult(
+                name="landing_com_velocity",
+                value=landing_vel,
+                unit="norm/s",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
+        # Landing smoothness (post-landing CoM stability)
+        landing_smooth = self.compute_landing_smoothness(poses, phases, fps)
+        results.append(
+            MetricResult(
+                name="landing_smoothness",
+                value=landing_smooth,
+                unit="score",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
         return results
 
     def _analyze_step(
@@ -571,6 +595,80 @@ class BiomechanicsAnalyzer:
         recovery = max(0.0, 1.0 - avg_lean / 30.0)
 
         return float(recovery)
+
+    def compute_landing_com_velocity(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        fps: float,
+    ) -> float:
+        """Compute CoM vertical velocity at landing frame.
+
+        Negative value indicates downward motion (hard landing).
+        Uses backward difference on CoM Y trajectory.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+            fps: Frame rate.
+
+        Returns:
+            CoM vertical velocity in norm/s. Negative = downward.
+            Returns 0.0 if landing frame is invalid or no previous frame.
+        """
+        if phases.landing <= 0 or phases.landing >= len(poses):
+            return 0.0
+
+        com_trajectory = calculate_com_trajectory(poses)
+        # In normalized coords Y increases downward.
+        # Backward difference: negate so downward = negative velocity.
+        velocity = -(com_trajectory[phases.landing] - com_trajectory[phases.landing - 1]) * fps
+        return float(velocity)
+
+    def compute_landing_smoothness(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        fps: float,
+    ) -> float:
+        """Compute post-landing CoM velocity stability score.
+
+        Measures how smooth the landing is by analyzing CoM velocity stability
+        over a 0.5-second window after landing. Lower velocity variation = higher score.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+            fps: Frame rate.
+
+        Returns:
+            Smoothness score in [0.0, 1.0] where 1.0 = perfectly stable.
+            Returns 1.0 if no post-landing data available.
+        """
+        if phases.end <= phases.landing + 1:
+            return 1.0
+
+        post_landing_start = phases.landing + 1
+        post_landing_end = min(phases.end + 1, len(poses))
+        window_frames = int(0.5 * fps)
+        post_landing_end = min(post_landing_start + window_frames, post_landing_end)
+
+        if post_landing_end <= post_landing_start:
+            return 1.0
+
+        com_trajectory = calculate_com_trajectory(poses)
+        post_com = com_trajectory[post_landing_start:post_landing_end]
+
+        # Velocities in same convention as compute_landing_com_velocity
+        velocities = -(post_com[1:] - post_com[:-1]) * fps
+
+        if len(velocities) == 0:
+            return 1.0
+
+        std_velocity = float(np.std(velocities))
+        # 0.2 norm/s std threshold for "unstable"
+        smoothness = max(0.0, 1.0 - std_velocity / 0.2)
+        return float(smoothness)
 
     def compute_arm_position(self, poses: NormalizedPose) -> float:
         """Compute arm position score.

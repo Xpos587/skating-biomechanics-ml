@@ -315,6 +315,8 @@ class TestBiomechanicsAnalyzer:
         assert "landing_knee_stability" in metric_names
         assert "landing_trunk_recovery" in metric_names
         assert "relative_jump_height" in metric_names
+        assert "landing_com_velocity" in metric_names
+        assert "landing_smoothness" in metric_names
 
     def test_compute_landing_knee_stability_stable(self):
         """Should return high score for constant knee angles after landing."""
@@ -593,6 +595,87 @@ class TestBiomechanicsAnalyzer:
         # Forward lean should give low recovery score
         assert score < 0.5
         assert score >= 0.0
+
+    def test_landing_com_velocity_detects_hard_landing(self):
+        """Should detect negative CoM velocity when CoM drops fast after landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create poses where CoM drops fast after landing
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+        for i in range(10):
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            poses[i, H36Key.LSHOULDER] = [-0.1, -0.3]
+            poses[i, H36Key.RSHOULDER] = [0.1, -0.3]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+            poses[i, H36Key.LELBOW] = [-0.15, -0.5]
+            poses[i, H36Key.RELBOW] = [0.15, -0.5]
+            poses[i, H36Key.LWRIST] = [-0.2, -0.7]
+            poses[i, H36Key.RWRIST] = [0.2, -0.7]
+
+        # Make CoM drop at landing by lowering hips/shoulders at landing frame
+        # Frame 6 is landing: drop everything down (increase Y)
+        poses[6, H36Key.LHIP] = [-0.05, 0.15]
+        poses[6, H36Key.RHIP] = [0.05, 0.15]
+        poses[6, H36Key.LSHOULDER] = [-0.1, -0.15]
+        poses[6, H36Key.RSHOULDER] = [0.1, -0.15]
+        poses[6, H36Key.HEAD] = [0, -0.35]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=4,
+            landing=6,
+            end=9,
+        )
+
+        velocity = analyzer.compute_landing_com_velocity(poses, phases, fps=30.0)
+
+        # Negative velocity = downward motion (hard landing)
+        assert velocity < 0
+        assert abs(velocity) > 0.1
+
+    def test_landing_smoothness_perfect(self):
+        """Should return 1.0 for static pose after landing."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        # Create perfectly static poses after landing
+        poses = np.zeros((10, 17, 2), dtype=np.float32)
+        for i in range(10):
+            poses[i, H36Key.LHIP] = [-0.05, 0.0]
+            poses[i, H36Key.RHIP] = [0.05, 0.0]
+            poses[i, H36Key.LKNEE] = [-0.05, 0.3]
+            poses[i, H36Key.RKNEE] = [0.05, 0.3]
+            poses[i, H36Key.LFOOT] = [-0.05, 0.6]
+            poses[i, H36Key.RFOOT] = [0.05, 0.6]
+            poses[i, H36Key.LSHOULDER] = [-0.1, -0.3]
+            poses[i, H36Key.RSHOULDER] = [0.1, -0.3]
+            poses[i, H36Key.HEAD] = [0, -0.5]
+            poses[i, H36Key.LELBOW] = [-0.15, -0.5]
+            poses[i, H36Key.RELBOW] = [0.15, -0.5]
+            poses[i, H36Key.LWRIST] = [-0.2, -0.7]
+            poses[i, H36Key.RWRIST] = [0.2, -0.7]
+
+        phases = ElementPhase(
+            name="waltz_jump",
+            start=0,
+            takeoff=2,
+            peak=4,
+            landing=6,
+            end=9,
+        )
+
+        smoothness = analyzer.compute_landing_smoothness(poses, phases, fps=30.0)
+
+        # Static pose should give perfect smoothness
+        assert smoothness == 1.0
 
 
 class TestVectorizedMetrics:
