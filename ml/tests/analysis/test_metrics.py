@@ -677,6 +677,40 @@ class TestBiomechanicsAnalyzer:
         # Static pose should give perfect smoothness
         assert smoothness == 1.0
 
+    def test_approach_torso_lean_forward(self):
+        """Forward lean during approach = positive angle."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        poses = np.zeros((20, 17, 2), dtype=np.float32)
+        # Forward lean: shoulders ahead of hips
+        poses[:, H36Key.LSHOULDER, 0] = 0.3
+        poses[:, H36Key.RSHOULDER, 0] = 0.3
+        poses[:, H36Key.LHIP, 0] = 0.0
+        poses[:, H36Key.RHIP, 0] = 0.0
+        poses[:, H36Key.LSHOULDER, 1] = -0.5
+        poses[:, H36Key.RSHOULDER, 1] = -0.5
+        poses[:, H36Key.LHIP, 1] = 0.0
+        poses[:, H36Key.RHIP, 1] = 0.0
+
+        phases = ElementPhase(name="waltz_jump", start=0, takeoff=10, peak=12, landing=15, end=19)
+        lean = analyzer.compute_approach_torso_lean(poses, phases)
+        assert lean > 0
+
+    def test_approach_direction_change_straight(self):
+        """Straight approach = near-zero direction change."""
+        element_def = get_element_def("waltz_jump")
+        analyzer = BiomechanicsAnalyzer(element_def)
+
+        poses = np.zeros((20, 17, 2), dtype=np.float32)
+        for i in range(20):
+            poses[i, H36Key.LHIP, 0] = i * 0.01
+            poses[i, H36Key.RHIP, 0] = i * 0.01
+
+        phases = ElementPhase(name="waltz_jump", start=0, takeoff=10, peak=12, landing=15, end=19)
+        change = analyzer.compute_approach_direction_change(poses, phases, fps=30.0)
+        assert abs(change) < 5.0
+
 
 class TestVectorizedMetrics:
     """Tests that vectorized metric functions produce correct results."""

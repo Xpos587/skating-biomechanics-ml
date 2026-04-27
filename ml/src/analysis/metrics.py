@@ -24,6 +24,7 @@ from ..utils.geometry import (
     angle_3pt,
     angle_3pt_batch,
     calculate_com_trajectory,
+    calculate_com_trajectory_2d,
 )
 
 if TYPE_CHECKING:
@@ -276,6 +277,30 @@ class BiomechanicsAnalyzer:
                 name="landing_smoothness",
                 value=landing_smooth,
                 unit="score",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
+        # Approach torso lean
+        approach_lean = self.compute_approach_torso_lean(poses, phases)
+        results.append(
+            MetricResult(
+                name="approach_torso_lean",
+                value=approach_lean,
+                unit="deg",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
+        # Approach direction change
+        approach_curve = self.compute_approach_direction_change(poses, phases, fps)
+        results.append(
+            MetricResult(
+                name="approach_direction_change",
+                value=approach_curve,
+                unit="deg",
                 is_good=False,
                 reference_range=(0, 0),
             )
@@ -669,6 +694,56 @@ class BiomechanicsAnalyzer:
         # 0.2 norm/s std threshold for "unstable"
         smoothness = max(0.0, 1.0 - std_velocity / 0.2)
         return float(smoothness)
+
+    def compute_approach_torso_lean(self, poses: NormalizedPose, phases: ElementPhase) -> float:
+        """Compute average torso lean during the approach phase.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+
+        Returns:
+            Average trunk lean in degrees. Positive = forward lean.
+            Returns 0.0 if no approach phase.
+        """
+        if phases.takeoff < phases.start or phases.takeoff >= len(poses):
+            return 0.0
+
+        approach_poses = poses[phases.start : phases.takeoff + 1]
+        if len(approach_poses) == 0:
+            return 0.0
+
+        trunk_lean = self.compute_trunk_lean(approach_poses)
+        return float(np.mean(trunk_lean))
+
+    def compute_approach_direction_change(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        fps: float,
+    ) -> float:
+        """Compute total direction change during the approach phase.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+            fps: Frame rate.
+
+        Returns:
+            Total direction change in degrees.
+            Returns 0.0 if no approach phase.
+        """
+        if phases.takeoff < phases.start or phases.takeoff >= len(poses):
+            return 0.0
+
+        approach_poses = poses[phases.start : phases.takeoff + 1]
+        if len(approach_poses) == 0:
+            return 0.0
+
+        com = calculate_com_trajectory_2d(approach_poses)
+        vx = np.gradient(com[:, 0]) * fps
+        angles = np.degrees(np.arctan2(vx, np.ones_like(vx)))
+        return float(np.sum(np.abs(np.diff(angles))))
 
     def compute_arm_position(self, poses: NormalizedPose) -> float:
         """Compute arm position score.
