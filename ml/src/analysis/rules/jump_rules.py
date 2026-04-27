@@ -11,6 +11,62 @@ def _is_bad(value: float, ref_range: tuple[float, float]) -> bool:
     return not (ref_range[0] <= value <= ref_range[1])
 
 
+_OOFSKATE_RULES = [
+    RecommendationRule(
+        metric_name="landing_com_velocity",
+        condition=_is_bad,
+        priority=1,
+        templates={
+            "too_low": (
+                "Жёсткое приземление (скорость CoM {value:.2f} norm/s, целевой диапазон {target_min:.2f}-{target_max:.2f}). "
+                "Приземляйся мягче, амортизируя сгибанием коленей. "
+                "Резкое торможение = плоское лезвие или зубец."
+            ),
+            "default": "Контролируй приземление.",
+        },
+    ),
+    RecommendationRule(
+        metric_name="landing_smoothness",
+        condition=_is_bad,
+        priority=1,
+        templates={
+            "too_low": (
+                "Нестабильное приземление (smoothness {value:.2f}, целевой {target_min:.2f}-{target_max:.2f}). "
+                "Работай над балансом после выезда: удерживай центр тяжести над опорной ногой."
+            ),
+            "default": "Улучшай стабильность после приземления.",
+        },
+    ),
+    RecommendationRule(
+        metric_name="approach_torso_lean",
+        condition=_is_bad,
+        priority=2,
+        templates={
+            "too_low": (
+                "Слишком сильный наклон назад при заходе ({value:.1f}°). "
+                "Для этого прыжка держи торс более вертикально."
+            ),
+            "too_high": (
+                "Слишком сильный наклон вперёд при заходе ({value:.1f}°). Проверь технику захода."
+            ),
+            "default": "Контролируй наклон торса при заходе.",
+        },
+    ),
+    RecommendationRule(
+        metric_name="goe_score",
+        condition=_is_bad,
+        priority=3,
+        templates={
+            "too_low": (
+                "Оценка качества элемента: {value:.1f}/10 (ниже {target_min:.1f}). "
+                "Работай над: высотой, группировкой, приземлением, торсом."
+            ),
+            "default": "Улучшай общее качество элемента.",
+        },
+    ),
+]
+
+
 # Waltz jump rules
 WALTZ_JUMP_RULES = [
     RecommendationRule(
@@ -83,7 +139,9 @@ WALTZ_JUMP_RULES = [
             "default": "Контролируй скорость вращения.",
         },
     ),
+    *_OOFSKATE_RULES,
 ]
+
 
 # Toe loop rules
 TOE_LOOP_RULES = [
@@ -120,7 +178,9 @@ TOE_LOOP_RULES = [
             "default": "Работай над таймингом зубцового удара.",
         },
     ),
+    *_OOFSKATE_RULES,
 ]
+
 
 # Flip rules
 FLIP_RULES = [
@@ -157,4 +217,21 @@ FLIP_RULES = [
             "default": "Работай над группировкой в воздухе.",
         },
     ),
+    *_OOFSKATE_RULES,
 ]
+
+
+# Salchow rules
+SALCHOW_RULES = [*_OOFSKATE_RULES]
+
+
+# Loop rules
+LOOP_RULES = [*_OOFSKATE_RULES]
+
+
+# Lutz rules
+LUTZ_RULES = [*_OOFSKATE_RULES]
+
+
+# Axel rules
+AXEL_RULES = [*_OOFSKATE_RULES]
