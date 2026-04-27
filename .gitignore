@@ -132,3 +132,7 @@ experiments/yolo26-pose-kd/data/
 experiments/yolo26-pose-kd/checkpoints/
 experiments/yolo26-pose-kd/work_dirs/
 experiments/yolo26-pose-kd/runs/
+
+# Stray generated artifacts
+row
+runs/
