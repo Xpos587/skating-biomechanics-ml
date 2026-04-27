@@ -749,7 +749,7 @@ class BiomechanicsAnalyzer:
             return 0.0
 
         approach_poses = poses[phases.start : phases.takeoff + 1]
-        if len(approach_poses) == 0:
+        if len(approach_poses) < 2:
             return 0.0
 
         com = calculate_com_trajectory_2d(approach_poses)

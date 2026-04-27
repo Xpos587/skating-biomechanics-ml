@@ -798,3 +798,35 @@ def test_goe_score_range():
     phases = ElementPhase(name="waltz_jump", start=0, takeoff=5, peak=10, landing=15, end=19)
     goe = analyzer.compute_goe_score(poses, phases, fps=30.0)
     assert 0.0 <= goe <= 10.0
+
+
+def test_analyze_returns_all_oofskate_metrics():
+    """Full _analyze_jump must return all metrics including OOFSkate proxies."""
+    from src.analysis.element_defs import ELEMENT_DEFS
+
+    element_def = ELEMENT_DEFS["waltz_jump"]
+    analyzer = BiomechanicsAnalyzer(element_def)
+
+    poses = np.ones((30, 17, 2), dtype=np.float32) * 0.5
+    phases = ElementPhase(name="waltz_jump", start=0, takeoff=5, peak=12, landing=20, end=29)
+
+    results = analyzer.analyze(poses, phases, fps=30.0)
+    names = {r.name for r in results}
+
+    expected = {
+        "airtime",
+        "max_height",
+        "landing_knee_angle",
+        "arm_position_score",
+        "rotation_speed",
+        "landing_knee_stability",
+        "landing_trunk_recovery",
+        "relative_jump_height",
+        # New OOFSkate metrics
+        "landing_com_velocity",
+        "landing_smoothness",
+        "approach_torso_lean",
+        "approach_direction_change",
+        "goe_score",
+    }
+    assert expected.issubset(names), f"Missing: {expected - names}"
