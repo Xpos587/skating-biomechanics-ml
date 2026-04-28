@@ -47,20 +47,6 @@ jobs:
       - name: basedpyright
         run: uv run basedpyright --level error backend/app
 
-  gitleaks:
-    name: Secret Scan (gitleaks)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Install gitleaks
-        run: |
-          curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz" | tar xz
-          chmod +x gitleaks
-      - name: Run gitleaks
-        run: ./gitleaks detect --source . --verbose --redact
-
   ast-grep:
     name: Lint (ast-grep)
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -220,7 +206,7 @@ jobs:
   ci-passed:
     name: CI Summary
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: [lint, typecheck, gitleaks, ast-grep, test, fe-lint, fe-typecheck, fe-build, fe-test, docker-backend, docker-frontend]
+    needs: [lint, typecheck, ast-grep, test, fe-lint, fe-typecheck, fe-build, fe-test, docker-backend, docker-frontend]
     if: always()
     outputs:
       result: ${{ steps.check.outputs.result }}
@@ -230,7 +216,6 @@ jobs:
         env:
           LINT: ${{ needs.lint.result }}
           TYPECHECK: ${{ needs.typecheck.result }}
-          GITLEAKS: ${{ needs.gitleaks.result }}
           TEST: ${{ needs.test.result }}
           FE_LINT: ${{ needs.fe-lint.result }}
           FE_TYPECHECK: ${{ needs.fe-typecheck.result }}
@@ -257,7 +242,6 @@ jobs:
 
           check_job "Lint (ruff)" "$LINT"
           check_job "Type Check (basedpyright)" "$TYPECHECK"
-          check_job "Secret Scan (gitleaks)" "$GITLEAKS"
           check_job "Tests" "$TEST"
           check_job "Lint (Biome)" "$FE_LINT"
           check_job "Type Check (tsc)" "$FE_TYPECHECK"

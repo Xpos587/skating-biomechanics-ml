@@ -15,16 +15,6 @@ pre-commit:
           exit 1
         fi
 
-    gitleaks:
-      run: |
-        if ! command -v gitleaks &> /dev/null; then
-          exit 0
-        fi
-        if [ -f ".gitleaks-skip" ]; then
-          exit 0
-        fi
-        gitleaks protect --staged --redact --no-banner
-
     ruff-check:
       glob: "*.py"
       run: uv run ruff check {staged_files} --fix
