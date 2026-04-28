@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "group:allNonMajor",
+    ":dependencyDashboard"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "schedule": ["before 5am on monday"],
+  "rangeStrategy": "bump",
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "labels": ["dependencies", "github-actions"]
+    },
+    {
+      "matchManagers": ["pep621"],
+      "groupName": "Python dependencies",
+      "labels": ["dependencies", "python"]
+    },
+    {
+      "matchManagers": ["npm", "bun"],
+      "groupName": "Frontend dependencies",
+      "labels": ["dependencies", "frontend"]
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "groupName": "Docker images",
+      "labels": ["dependencies", "docker"]
+    }
+  ]
+}
