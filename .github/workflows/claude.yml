@@ -27,7 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANTHROPIC_BASE_URL: https://ollama.com
+      ANTHROPIC_API_KEY: ollama
       ANTHROPIC_AUTH_TOKEN: ${{ secrets.OLLAMA_API_KEY }}
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: qwen3-coder-next
+      ANTHROPIC_DEFAULT_SONNET_MODEL: deepseek-v4-flash
+      ANTHROPIC_DEFAULT_OPUS_MODEL: kimi-k2.6
     steps:
       - uses: actions/checkout@v6
         with:
@@ -35,4 +39,4 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ""
+          anthropic_api_key: "ollama"
