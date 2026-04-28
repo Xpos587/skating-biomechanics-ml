@@ -82,7 +82,7 @@ def _compute_trunk_lean_series_numba(poses: np.ndarray) -> np.ndarray:
     # H36Key indices (hardcoded for Numba compatibility)
     # LHIP=4, RHIP=8, LSHOULDER=11, RSHOULDER=14
     l_hip = 4
-    r_hip = 8
+    r_hip = 1
     l_shoulder = 11
     r_shoulder = 14
 
@@ -541,6 +541,9 @@ class BiomechanicsAnalyzer:
     def compute_landing_quality(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute landing knee angle.
 
+        Uses the more-bent knee (landing leg) since the free leg
+        is typically extended during landing.
+
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
             phases: Element phase boundaries.
@@ -548,14 +551,19 @@ class BiomechanicsAnalyzer:
         Returns:
             Knee angle in degrees at landing frame.
         """
-        # Use left knee angle at landing frame
         landing_frame = min(phases.landing, len(poses) - 1)
 
-        hip = poses[landing_frame, H36Key.LHIP]
-        knee = poses[landing_frame, H36Key.LKNEE]
-        foot = poses[landing_frame, H36Key.LFOOT]
+        left_hip = poses[landing_frame, H36Key.LHIP]
+        left_knee = poses[landing_frame, H36Key.LKNEE]
+        left_foot = poses[landing_frame, H36Key.LFOOT]
+        left_angle = angle_3pt(left_hip, left_knee, left_foot)
 
-        return angle_3pt(hip, knee, foot)
+        right_hip = poses[landing_frame, H36Key.RHIP]
+        right_knee = poses[landing_frame, H36Key.RKNEE]
+        right_foot = poses[landing_frame, H36Key.RFOOT]
+        right_angle = angle_3pt(right_hip, right_knee, right_foot)
+
+        return min(left_angle, right_angle)
 
     def compute_landing_knee_stability(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute post-landing knee stability score.

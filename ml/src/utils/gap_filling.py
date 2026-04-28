@@ -355,6 +355,72 @@ class GapFiller:
             poses[gap_start + t, :, 2] = 0.0  # zero confidence
 
     @staticmethod
+    def interpolate_low_confidence(
+        poses: NDArray[np.floating],
+        threshold: float = 0.3,
+        max_window: int = 30,
+    ) -> NDArray[np.floating]:
+        """Interpolate x,y for keypoints with confidence below threshold.
+
+        Searches only within ``max_window`` frames for valid neighbours,
+        avoiding wild extrapolation from distant frames. If no valid
+        neighbour exists in the window, the keypoint is held at the
+        nearest valid frame outside the window.
+
+        Args:
+            poses: (N, 17, 3) array with x, y, confidence.
+            threshold: Minimum confidence to keep a keypoint.
+            max_window: Max frames to look ahead/behind for interpolation.
+
+        Returns:
+            (N, 17, 3) array with interpolated low-confidence keypoints.
+        """
+        filled = poses.copy()
+        num_frames = poses.shape[0]
+        idx = np.arange(num_frames)
+
+        for kp in range(poses.shape[1]):
+            conf = poses[:, kp, 2]
+            low_conf = conf < threshold
+            if not np.any(low_conf):
+                continue
+            for coord in range(2):
+                series = filled[:, kp, coord].copy()
+                series[low_conf] = np.nan
+                valid = ~np.isnan(series)
+                n_valid = np.sum(valid)
+                if n_valid == 0:
+                    continue
+                if n_valid == 1:
+                    filled[:, kp, coord] = series[valid][0]
+                    continue
+
+                # Per-frame local interpolation
+                for f in range(num_frames):
+                    if valid[f]:
+                        continue
+                    lo = max(0, f - max_window)
+                    hi = min(num_frames - 1, f + max_window)
+                    local_valid = valid[lo : hi + 1]
+                    local_n = np.sum(local_valid)
+                    if local_n >= 2:
+                        local_idx = idx[lo : hi + 1]
+                        filled[f, kp, coord] = np.interp(
+                            f, local_idx[local_valid], series[lo : hi + 1][local_valid]
+                        )
+                    elif local_n == 1:
+                        filled[f, kp, coord] = series[lo : hi + 1][local_valid][0]
+                    else:
+                        # Fallback to nearest valid frame anywhere
+                        dist = np.abs(idx[valid] - f)
+                        nearest = idx[valid][np.argmin(dist)]
+                        filled[f, kp, coord] = series[nearest]
+            # Mark filled keypoints with threshold confidence
+            filled[low_conf, kp, 2] = threshold
+
+        return filled
+
+    @staticmethod
     def _split_at_long_gap(
         poses: NDArray[np.floating],
         gap_start: int,

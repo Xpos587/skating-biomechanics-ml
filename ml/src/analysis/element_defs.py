@@ -80,10 +80,12 @@ ELEMENT_DEFS: dict[str, ElementDef] = {
             "landing_knee_stability": (0.5, 1.0),  # Knee stability after landing
             "landing_trunk_recovery": (0.5, 1.0),  # Trunk stays upright after landing
             "relative_jump_height": (0.3, 1.5),  # Height normalized by spine length
+            "rotation_speed": (0, 360),  # Waltz jump is half rotation
             "landing_com_velocity": (-2.0, 0.0),
             "landing_smoothness": (0.5, 1.0),
             "approach_torso_lean": (-30, 30),
             "approach_direction_change": (0, 90),
+            "symmetry": (0.6, 1.0),
             "goe_score": (5.0, 10.0),
         },
     ),
