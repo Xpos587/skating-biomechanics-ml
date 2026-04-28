@@ -1,0 +1,35 @@
+name: Zotero Sync
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Export Zotero → BibTeX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: kv9898/actions-zotero-bibtex@v1
+        with:
+          api-key: ${{ secrets.ZOTERO_API_KEY }}
+          library-id: "19212687"
+          coll-key: "ARV4KQUD"
+          out-bib-path: "docs/references.bib"
+
+      - name: Commit updated references
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/references.bib
+          if git diff --cached --quiet; then
+            echo "No changes in references.bib"
+          else
+            git commit -m "chore(docs): sync references.bib from Zotero"
+            git push
+          fi
