@@ -856,5 +856,30 @@ def test_analyze_returns_all_oofskate_metrics():
         "approach_torso_lean",
         "approach_direction_change",
         "goe_score",
+        "hard_landing",
     }
     assert expected.issubset(names), f"Missing: {expected - names}"
+
+
+def test_compute_hard_landing():
+    """Hard landing score must be in [0, 1] for static pose."""
+    from src.analysis.element_defs import get_element_def
+    from src.analysis.metrics import BiomechanicsAnalyzer
+    from src.types import ElementPhase, H36Key
+
+    num_frames = 30
+    poses = np.zeros((num_frames, 17, 2), dtype=np.float32)
+    poses[:, H36Key.HIP_CENTER] = [0.5, 0.5]
+    poses[:, H36Key.LHIP] = [0.4, 0.5]
+    poses[:, H36Key.LKNEE] = [0.4, 0.6]
+    poses[:, H36Key.LFOOT] = [0.4, 0.8]
+    poses[:, H36Key.RHIP] = [0.6, 0.5]
+    poses[:, H36Key.RKNEE] = [0.6, 0.6]
+    poses[:, H36Key.RFOOT] = [0.6, 0.8]
+
+    phases = ElementPhase(name="waltz_jump", start=0, takeoff=10, peak=15, landing=20, end=29)
+
+    analyzer = BiomechanicsAnalyzer(get_element_def("waltz_jump"))
+    hard_score = analyzer.compute_hard_landing(poses, phases, fps=30.0)
+
+    assert 0.0 <= hard_score <= 1.0

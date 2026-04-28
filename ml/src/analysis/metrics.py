@@ -282,6 +282,18 @@ class BiomechanicsAnalyzer:
             )
         )
 
+        # Hard landing detection (CoM vertical velocity at impact)
+        hard_landing = self.compute_hard_landing(poses, phases, fps)
+        results.append(
+            MetricResult(
+                name="hard_landing",
+                value=hard_landing,
+                unit="score",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
         # Toe assist proxy (clean edge detection)
         toe_assist = self.compute_toe_assist_proxy(poses, phases, fps)
         results.append(
@@ -726,6 +738,39 @@ class BiomechanicsAnalyzer:
         # 0.2 norm/s std threshold for "unstable"
         smoothness = max(0.0, 1.0 - std_velocity / 0.2)
         return float(smoothness)
+
+    def compute_hard_landing(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        fps: float,
+    ) -> float:
+        """Detect hard landing via CoM vertical velocity at impact.
+
+        Hard landing = excessive downward velocity at landing frame.
+        Uses backward difference on CoM Y trajectory.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+            fps: Frame rate.
+
+        Returns:
+            Score in [0.0, 1.0] where 1.0 = soft landing, 0.0 = very hard.
+        """
+        if phases.landing <= 0 or phases.landing >= len(poses):
+            return 1.0
+
+        com_trajectory = calculate_com_trajectory(poses)
+
+        # CoM vertical velocity at landing (backward difference)
+        # In normalized coords Y increases downward, so positive vy = downward motion
+        vy_y = (com_trajectory[phases.landing] - com_trajectory[phases.landing - 1]) * fps
+
+        # Threshold: 2.0 norm/s downward = hard landing
+        # 0.0 = soft
+        score = max(0.0, min(1.0, 1.0 - vy_y / 2.0))
+        return float(score)
 
     def compute_toe_assist_proxy(
         self,
