@@ -38,10 +38,7 @@ function elementMarker(el: RinkElement, x: number, y: number): string {
   return `<circle cx="${x}" cy="${y}" r="0.7" fill="${color}" opacity="0.85"/>`
 }
 
-export function renderRink(
-  elements: RinkElement[],
-  options?: { width?: number },
-): string {
+export function renderRink(elements: RinkElement[], options?: { width?: number }): string {
   const maxW = options?.width ?? 1200
 
   const parts: string[] = []
@@ -62,9 +59,7 @@ export function renderRink(
   )
 
   // Center circle
-  parts.push(
-    `<circle cx="30" cy="15" r="4.5" fill="none" stroke="#dc2626" stroke-width="0.08"/>`,
-  )
+  parts.push(`<circle cx="30" cy="15" r="4.5" fill="none" stroke="#dc2626" stroke-width="0.08"/>`)
   parts.push(`<circle cx="30" cy="15" r="0.15" fill="#dc2626"/>`)
 
   // Zone lines

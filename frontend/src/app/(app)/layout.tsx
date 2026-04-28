@@ -4,8 +4,8 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getTranslations } from "next-intl/server"
 import { AppNav } from "@/components/app-nav"
-import { skipAuth } from "@/lib/env"
 import { BottomDock } from "@/components/layout/bottom-dock"
+import { skipAuth } from "@/lib/env"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const t = await getTranslations("app")

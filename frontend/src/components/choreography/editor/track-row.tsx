@@ -87,14 +87,9 @@ export function TrackRow({ type }: { type: TrackType }) {
   }
 
   return (
-    <section
-      className="flex min-h-[72px] flex-1"
-      aria-label={label}
-    >
+    <section className="flex min-h-[72px] flex-1" aria-label={label}>
       {/* ── Track label ── */}
-      <div
-        className="flex w-28 shrink-0 flex-col justify-center gap-1 border-r border-border px-3 py-2 bg-muted/20 sm:w-32 sm:gap-1.5 sm:px-4"
-      >
+      <div className="flex w-28 shrink-0 flex-col justify-center gap-1 border-r border-border px-3 py-2 bg-muted/20 sm:w-32 sm:gap-1.5 sm:px-4">
         <div className="flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: cfg.hex }} />
           <span

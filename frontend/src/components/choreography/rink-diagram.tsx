@@ -282,9 +282,7 @@ export function RinkDiagram({
               {el.trackType === "jumps" && (
                 <JumpTrace x={el.x} y={el.y} code={el.code} color={color} elementId={el.id} />
               )}
-              {el.trackType === "spins" && (
-                <SpinMarker x={el.x} y={el.y} color={color} />
-              )}
+              {el.trackType === "spins" && <SpinMarker x={el.x} y={el.y} color={color} />}
               {el.trackType === "sequences" && (
                 <SequenceTrace x={el.x} y={el.y} code={el.code} color={color} elementId={el.id} />
               )}

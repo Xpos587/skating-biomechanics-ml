@@ -31,7 +31,7 @@ def calculate_goe_total(base_value: float, goe: int) -> float:
 
 def calculate_tes(
     elements: list[dict],
-    back_half_indices: set[int],
+    back_half_indices: set[int] | frozenset[int],
 ) -> float:
     """Calculate Total Element Score.
 

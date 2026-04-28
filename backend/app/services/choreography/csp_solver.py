@@ -34,7 +34,7 @@ def _layout_fingerprint(elements: list[dict]) -> frozenset[str]:
 
 def _score_layout(
     elements: list[dict],
-    back_half_indices: set[int],
+    back_half_indices: set[int] | frozenset[int],
 ) -> float:
     """Score a layout with given back-half placement."""
     flat = [{"code": e["code"], "goe": e["goe"]} for e in elements]

@@ -6,7 +6,10 @@ import type React from "react"
 import { useTranslations } from "@/i18n"
 import type { Session } from "@/types"
 
-function relativeTime(dateStr: string, t: (key: string, params?: Record<string, number>) => string): string {
+function relativeTime(
+  dateStr: string,
+  t: (key: string, params?: Record<string, number>) => string,
+): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return t("justNow")

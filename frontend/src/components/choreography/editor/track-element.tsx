@@ -116,7 +116,10 @@ export function TrackElement({
         </span>
       </div>
       {isBackHalf && (
-        <span className="shrink-0 self-start px-1.5 py-0.5 text-[8px] font-bold leading-none" style={{ color: "oklch(var(--accent-gold) / 0.7)" }}>
+        <span
+          className="shrink-0 self-start px-1.5 py-0.5 text-[8px] font-bold leading-none"
+          style={{ color: "oklch(var(--accent-gold) / 0.7)" }}
+        >
           {t("backHalfShort")}
         </span>
       )}

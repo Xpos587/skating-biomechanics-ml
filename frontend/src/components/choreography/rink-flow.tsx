@@ -1,8 +1,8 @@
 import type { ReactNode } from "react"
 import type { TrackType } from "@/types/choreography"
 import { hashAngle } from "./rink-figures"
-import { transitionColor, transitionRules } from "./transition-rules"
 import type { TransitionValidity } from "./transition-rules"
+import { transitionColor, transitionRules } from "./transition-rules"
 
 // ---------------------------------------------------------------------------
 // Trace figure endpoint geometry (mirrors rink-figures.tsx)
@@ -12,7 +12,7 @@ interface ElementEndpoint {
   x: number
   y: number
   angle: number // degrees, 0 = right, clockwise positive
-  len: number   // distance from element center to endpoint
+  len: number // distance from element center to endpoint
 }
 
 type JumpCategory = "toe" | "edge" | "axel"
@@ -25,7 +25,13 @@ function jumpCategory(code: string): JumpCategory {
 }
 
 /** Exit point of a trace figure (where the skater leaves the element). */
-function getExitEndpoint(el: { x: number; y: number; code: string; trackType: TrackType; id: string }): ElementEndpoint {
+function getExitEndpoint(el: {
+  x: number
+  y: number
+  code: string
+  trackType: TrackType
+  id: string
+}): ElementEndpoint {
   const angle = hashAngle(el.id)
   if (el.trackType === "jumps") {
     return { x: el.x, y: el.y, angle, len: 2 }
@@ -38,7 +44,13 @@ function getExitEndpoint(el: { x: number; y: number; code: string; trackType: Tr
 }
 
 /** Entry point of a trace figure (where the skater arrives at the element). */
-function getEntryEndpoint(el: { x: number; y: number; code: string; trackType: TrackType; id: string }): ElementEndpoint {
+function getEntryEndpoint(el: {
+  x: number
+  y: number
+  code: string
+  trackType: TrackType
+  id: string
+}): ElementEndpoint {
   const angle = hashAngle(el.id)
   if (el.trackType === "jumps") {
     const cat = jumpCategory(el.code)
@@ -118,7 +130,14 @@ export function FlowPath({ from, to, validity }: FlowPathProps): ReactNode {
 export function FlowPaths({
   elements,
 }: {
-  elements: { id: string; code: string; x: number; y: number; trackType: TrackType; timestamp: number }[]
+  elements: {
+    id: string
+    code: string
+    x: number
+    y: number
+    trackType: TrackType
+    timestamp: number
+  }[]
 }): ReactNode {
   if (elements.length < 2) return null
 
@@ -128,14 +147,7 @@ export function FlowPaths({
         const next = elements[i + 1]
         if (!next) return null
         const validity = transitionRules[el.trackType][next.trackType]
-        return (
-          <FlowPath
-            key={`flow-${el.id}-${next.id}`}
-            from={el}
-            to={next}
-            validity={validity}
-          />
-        )
+        return <FlowPath key={`flow-${el.id}-${next.id}`} from={el} to={next} validity={validity} />
       })}
     </g>
   )

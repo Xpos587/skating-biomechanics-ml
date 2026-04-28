@@ -125,7 +125,11 @@ export function SequenceTrace({ x, y, color, elementId }: TraceFigureProps): Rea
 // SpinMarker — circle with stroke
 // ---------------------------------------------------------------------------
 
-export function SpinMarker({ x, y, color }: Omit<TraceFigureProps, "code" | "elementId">): ReactNode {
+export function SpinMarker({
+  x,
+  y,
+  color,
+}: Omit<TraceFigureProps, "code" | "elementId">): ReactNode {
   return (
     <g>
       <circle cx={x} cy={y} r={1.3} fill={color} opacity={0.25} stroke={color} strokeWidth={0.15} />
