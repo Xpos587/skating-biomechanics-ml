@@ -6,7 +6,7 @@ describe("renderRink", () => {
     const svg = renderRink([])
     expect(svg).toContain("<svg")
     expect(svg).toContain("</svg>")
-    expect(svg).toContain('width="1200"')
+    expect(svg).toContain("max-width:1200")
     expect(svg).toContain('viewBox="0 0 60 30"')
   })
 
@@ -19,7 +19,7 @@ describe("renderRink", () => {
   it("renders spin elements", () => {
     const svg = renderRink([{ code: "CSp4", position: { x: 20, y: 10 } }])
     expect(svg).toContain("CSp4")
-    expect(svg).toContain("#9333ea")
+    expect(svg).toContain("#7c3aed")
   })
 
   it("renders step sequences", () => {
