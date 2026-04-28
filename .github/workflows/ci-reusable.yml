@@ -15,7 +15,7 @@ on:
 jobs:
   lint:
     name: Lint (ruff)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
@@ -33,7 +33,7 @@ jobs:
 
   typecheck:
     name: Type Check (basedpyright)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
@@ -49,7 +49,7 @@ jobs:
 
   gitleaks:
     name: Secret Scan (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
         with:
@@ -60,7 +60,7 @@ jobs:
 
   ast-grep:
     name: Lint (ast-grep)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
       - uses: ast-grep/action@v1.5.0
@@ -70,7 +70,7 @@ jobs:
 
   test:
     name: Tests
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [lint]
     steps:
       - uses: actions/checkout@v6
@@ -101,7 +101,7 @@ jobs:
 
   fe-lint:
     name: Lint (Biome)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -114,7 +114,7 @@ jobs:
 
   fe-typecheck:
     name: Type Check (tsc)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -127,7 +127,7 @@ jobs:
 
   fe-build:
     name: Build (Next.js)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [fe-lint, fe-typecheck]
     steps:
       - uses: actions/checkout@v6
@@ -156,7 +156,7 @@ jobs:
 
   fe-test:
     name: Tests (Vitest)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [fe-lint]
     steps:
       - uses: actions/checkout@v6
@@ -184,41 +184,39 @@ jobs:
 
   docker-backend:
     name: Docker Build (Backend)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [lint, typecheck, test]
     steps:
       - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
       - name: Build backend image
-        uses: docker/build-push-action@v7
+        uses: useblacksmith/build-push-action@v2
         with:
           context: .
           file: backend/Containerfile
           push: false
-          cache-from: type=gha,scope=backend-ci
-          cache-to: type=gha,scope=backend-ci,mode=max
           tags: skating-backend:ci
 
   docker-frontend:
     name: Docker Build (Frontend)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [fe-lint, fe-typecheck, fe-build]
     steps:
       - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
       - name: Build frontend image
-        uses: docker/build-push-action@v7
+        uses: useblacksmith/build-push-action@v2
         with:
           context: frontend
           file: frontend/Containerfile
           push: false
-          cache-from: type=gha,scope=frontend-ci-v2
-          cache-to: type=gha,scope=frontend-ci-v2,mode=max
           tags: skating-frontend:ci
 
   ci-passed:
     name: CI Summary
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [lint, typecheck, gitleaks, ast-grep, test, fe-lint, fe-typecheck, fe-build, fe-test, docker-backend, docker-frontend]
     if: always()
     outputs:
