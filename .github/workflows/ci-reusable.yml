@@ -54,9 +54,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install gitleaks
+        run: |
+          curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz" | tar xz
+          chmod +x gitleaks
+      - name: Run gitleaks
+        run: ./gitleaks detect --source . --verbose --redact
 
   ast-grep:
     name: Lint (ast-grep)
