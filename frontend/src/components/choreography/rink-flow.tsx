@@ -125,7 +125,8 @@ export function FlowPaths({
   return (
     <g>
       {elements.slice(0, -1).map((el, i) => {
-        const next = elements[i + 1]!
+        const next = elements[i + 1]
+        if (!next) return null
         const validity = transitionRules[el.trackType][next.trackType]
         return (
           <FlowPath

@@ -15,7 +15,7 @@ function elementColor(code: string): string {
   return "#ea580c"
 }
 
-function elementLabel(code: string): string {
+function _elementLabel(code: string): string {
   if (code.includes("Sp")) return "Вращение"
   if (code.includes("StSq")) return "Шаговая"
   if (code.includes("ChSq")) return "Хорео"
@@ -90,8 +90,9 @@ export function renderRink(
     .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
 
   for (let i = 0; i < sorted.length - 1; i++) {
-    const from = sorted[i].position!
-    const to = sorted[i + 1].position!
+    const from = sorted[i].position
+    const to = sorted[i + 1].position
+    if (!from || !to) continue
     // Only draw if distance > threshold (skip very close elements)
     const dx = to.x - from.x
     const dy = to.y - from.y
@@ -118,7 +119,8 @@ export function renderRink(
   // Elements with labels
   for (let i = 0; i < sorted.length; i++) {
     const el = sorted[i]
-    const pos = el.position!
+    const pos = el.position
+    if (!pos) continue
     const x = pos.x
     const y = pos.y
     const color = elementColor(el.code)
@@ -150,7 +152,7 @@ export function renderRink(
   ]
   let lx = 2
   for (const item of legendItems) {
-    const color = elementColor(item.code)
+    const _color = elementColor(item.code)
     parts.push(elementMarker({ code: item.code } as RinkElement, lx + 0.4, ly))
     parts.push(
       `<text x="${lx + 1.6}" y="${ly + 0.35}" font-size="0.7" fill="#64748b">${item.label}</text>`,

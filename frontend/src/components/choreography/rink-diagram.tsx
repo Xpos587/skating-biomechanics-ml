@@ -35,7 +35,7 @@ function trackLabel(trackType: TrackType, t: (key: string) => string): string {
 
 function autoLayout(
   elements: { id: string; code: string; trackType: TrackType; timestamp: number }[],
-  duration: number,
+  _duration: number,
 ): RinkElement[] {
   if (elements.length === 0) return []
 
@@ -74,7 +74,7 @@ export function RinkDiagram({
 
   // Readonly mode: use prop elements, no interactivity
   const isReadonly = !!propElements
-  const elements = propElements ?? storeElements
+  const _elements = propElements ?? storeElements
   const svgRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(
     null,
@@ -82,7 +82,7 @@ export function RinkDiagram({
 
   const rinkElements = useMemo((): RinkElement[] => {
     if (isReadonly) {
-      return propElements!.map((el, i) => {
+      return (propElements ?? []).map((el, i) => {
         const tt: TrackType = el.code.includes("Sp")
           ? "spins"
           : el.code.startsWith("StSq") || el.code.startsWith("ChSq")

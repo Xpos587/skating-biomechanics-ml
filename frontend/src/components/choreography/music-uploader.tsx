@@ -79,22 +79,20 @@ export function MusicUploader({ analysis, onUpload, isUploading }: MusicUploader
       } ${isUploading ? "pointer-events-none cursor-default" : ""}`}
     >
       {isUploading ? (
-        <>
-          <div className="w-full max-w-xs space-y-2">
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${progress >= 100 ? "animate-pulse" : "bg-primary"}`}
-                style={{
-                  width: `${progress}%`,
-                  backgroundColor: progress >= 100 ? "oklch(var(--muted-foreground))" : undefined,
-                }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {progress >= 100 ? t("music.processing") : `${progress}%`}
-            </p>
+        <div className="w-full max-w-xs space-y-2">
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${progress >= 100 ? "animate-pulse" : "bg-primary"}`}
+              style={{
+                width: `${progress}%`,
+                backgroundColor: progress >= 100 ? "oklch(var(--muted-foreground))" : undefined,
+              }}
+            />
           </div>
-        </>
+          <p className="text-xs text-muted-foreground">
+            {progress >= 100 ? t("music.processing") : `${progress}%`}
+          </p>
+        </div>
       ) : (
         <>
           <Upload className="h-8 w-8 text-muted-foreground" />
