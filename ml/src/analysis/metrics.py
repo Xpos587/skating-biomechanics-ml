@@ -1130,7 +1130,9 @@ class BiomechanicsAnalyzer:
 
         landing_smooth = self.compute_landing_smoothness(poses, phases, fps)
         landing_stab = self.compute_landing_knee_stability(poses, phases)
-        landing_score = (landing_smooth + landing_stab) / 2.0
+        hard_landing = self.compute_hard_landing(poses, phases, fps)
+        toe_assist = self.compute_toe_assist_proxy(poses, phases, fps)
+        landing_score = (landing_smooth + landing_stab + hard_landing + toe_assist) / 4.0
 
         airtime = self.compute_airtime(phases, fps)
         airtime_score = min(1.0, airtime / 1.0)

@@ -123,6 +123,29 @@ _COMMON_JUMP_RULES = [
         },
     ),
     RecommendationRule(
+        metric_name="toe_assist_proxy",
+        condition=_is_bad,
+        priority=1,
+        templates={
+            "too_low": (
+                "Приземление слишком резкое — возможно, приземляешься на зубец конька. "
+                "Старайся касаться льда плавно, через ребро лезвия."
+            ),
+            "default": "Контролируй качество приземления.",
+        },
+    ),
+    RecommendationRule(
+        metric_name="hard_landing",
+        condition=_is_bad,
+        priority=1,
+        templates={
+            "too_low": (
+                "Жесткое приземление. Работай над амортизацией: сгибай колени и бедра, приземляйся мягко."
+            ),
+            "default": "Контролируй мягкость приземления.",
+        },
+    ),
+    RecommendationRule(
         metric_name="goe_score",
         condition=_is_bad,
         priority=3,
