@@ -25,15 +25,14 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_BASE_URL: https://ollama.com
+      ANTHROPIC_AUTH_TOKEN: ${{ secrets.OLLAMA_API_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - uses: anthropics/claude-code-action@v1
-        env:
-          ANTHROPIC_BASE_URL: https://ollama.com
-          ANTHROPIC_AUTH_TOKEN: ollama
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         with:
-          anthropic_api_key: ${{ secrets.OLLAMA_API_KEY }}
+          anthropic_api_key: ""
