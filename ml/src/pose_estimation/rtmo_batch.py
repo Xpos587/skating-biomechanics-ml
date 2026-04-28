@@ -21,7 +21,7 @@ RTMO_MODELS = {
 def preprocess_batch(
     frames: list[np.ndarray],
     input_size: int = RTMO_INPUT_SIZE,
-) -> tuple[np.ndarray, list[float]]:
+) -> tuple[np.ndarray, list[float], list[tuple[int, int]]]:
     """Preprocess frames for RTMO batch inference.
 
     Args:
@@ -29,12 +29,13 @@ def preprocess_batch(
         input_size: Model input size (640).
 
     Returns:
-        (batch_tensor, ratios) where batch_tensor is (B, 3, input_size, input_size) float32
-        and ratios is list of per-frame scale factors.
+        (batch_tensor, ratios, pad_offsets) where batch_tensor is (B, 3, input_size, input_size) float32,
+        ratios is list of per-frame scale factors, and pad_offsets is list of (pad_top, pad_left).
     """
     batch_size = len(frames)
     batch_tensor = np.zeros((batch_size, 3, input_size, input_size), dtype=np.float32)
     ratios = []
+    pad_offsets = []
 
     for i, frame in enumerate(frames):
         h, w = frame.shape[:2]
@@ -53,6 +54,7 @@ def preprocess_batch(
         pad_top = (input_size - new_h) // 2
         pad_left = (input_size - new_w) // 2
         padded[pad_top : pad_top + new_h, pad_left : pad_left + new_w] = resized
+        pad_offsets.append((pad_top, pad_left))
 
         # Transpose HWC -> CHW
         transposed = padded.transpose(2, 0, 1)
@@ -60,13 +62,14 @@ def preprocess_batch(
         # Cast to float32 (NO normalization - raw pixel values)
         batch_tensor[i] = np.ascontiguousarray(transposed, dtype=np.float32)
 
-    return batch_tensor, ratios
+    return batch_tensor, ratios, pad_offsets
 
 
 def postprocess_batch(
     dets: np.ndarray,
     keypoints: np.ndarray,
     ratios: list[float],
+    pad_offsets: list[tuple[int, int]],
     score_thr: float = 0.3,
     nms_thr: float = 0.45,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -76,6 +79,7 @@ def postprocess_batch(
         dets: (B, N, 5) detection outputs.
         keypoints: (B, N, 17, 3) keypoint outputs.
         ratios: Per-frame scale factors from preprocessing.
+        pad_offsets: Per-frame (pad_top, pad_left) from preprocessing.
         score_thr: Minimum detection score.
         nms_thr: NMS IoU threshold.
 
@@ -89,6 +93,7 @@ def postprocess_batch(
 
     for b in range(batch_size):
         ratio = ratios[b]
+        pad_top, pad_left = pad_offsets[b]
 
         # Extract boxes and scores from dets
         boxes = dets[b, :, :4]  # (N, 4)
@@ -98,9 +103,9 @@ def postprocess_batch(
         kp_coords = keypoints[b, :, :, :2]  # (N, 17, 2)
         kp_scores = keypoints[b, :, :, 2]  # (N, 17)
 
-        # Rescale to original image coordinates
-        boxes = boxes / ratio
-        kp_coords = kp_coords / ratio
+        # Remove padding and rescale to original image coordinates
+        kp_coords[:, :, 0] = (kp_coords[:, :, 0] - pad_left) / ratio
+        kp_coords[:, :, 1] = (kp_coords[:, :, 1] - pad_top) / ratio
 
         # Filter by score threshold
         score_mask = det_scores >= score_thr
@@ -337,7 +342,7 @@ class BatchRTMO:
             return []
 
         # Preprocess
-        batch_tensor, ratios = preprocess_batch(frames)
+        batch_tensor, ratios, pad_offsets = preprocess_batch(frames)
 
         # Run inference
         outputs = self._session.run(
@@ -353,6 +358,7 @@ class BatchRTMO:
             dets,
             keypoints,
             ratios,
+            pad_offsets,
             score_thr=self._score_thr,
             nms_thr=self._nms_thr,
         )
@@ -381,7 +387,7 @@ class BatchRTMO:
         if self._device != "cuda":
             return self.infer_batch(frames)
 
-        batch_tensor, ratios = preprocess_batch(frames)
+        batch_tensor, ratios, pad_offsets = preprocess_batch(frames)
         batch_size = batch_tensor.shape[0]
 
         # Pre-allocate GPU tensors (once per batch_size)
@@ -415,6 +421,7 @@ class BatchRTMO:
             dets,
             keypoints,
             ratios,
+            pad_offsets,
             score_thr=self._score_thr,
             nms_thr=self._nms_thr,
         )

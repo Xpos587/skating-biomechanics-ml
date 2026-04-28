@@ -93,13 +93,13 @@ class PhaseDetector:
         # Calculate standard deviation for adaptive thresholds
         vy_std = np.std(vy)
 
-        # Detect takeoff: positive velocity peak (skater pushing upward)
-        # Use 2-sigma threshold for sensitivity
-        takeoff_candidates, _takeoff_props = find_peaks(vy, height=2 * vy_std, distance=10)
+        # Detect takeoff: negative velocity peak (skater pushing upward)
+        # CoM Y decreases in image coords → vy negative → peak in -vy
+        takeoff_candidates, _takeoff_props = find_peaks(-vy, height=2 * vy_std, distance=10)
 
-        # Detect landing: negative velocity spike (impact)
-        # Use 3-sigma threshold for robustness against false positives
-        landing_candidates, _landing_props = find_peaks(-vy, height=3 * vy_std, distance=10)
+        # Detect landing: positive velocity spike (impact)
+        # CoM Y increases in image coords → vy positive → peak in vy
+        landing_candidates, _landing_props = find_peaks(vy, height=3 * vy_std, distance=10)
 
         # Find peak: minimum CoM Y (maximum height)
         if len(takeoff_candidates) > 0 and len(landing_candidates) > 0:

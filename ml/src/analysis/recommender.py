@@ -95,4 +95,8 @@ class Recommender:
         self._rules["waltz_jump"] = jump_rules.WALTZ_JUMP_RULES
         self._rules["toe_loop"] = jump_rules.TOE_LOOP_RULES
         self._rules["flip"] = jump_rules.FLIP_RULES
+        self._rules["salchow"] = jump_rules.SALCHOW_RULES
+        self._rules["loop"] = jump_rules.LOOP_RULES
+        self._rules["lutz"] = jump_rules.LUTZ_RULES
+        self._rules["axel"] = jump_rules.AXEL_RULES
         self._rules["three_turn"] = three_turn_rules.THREE_TURN_RULES

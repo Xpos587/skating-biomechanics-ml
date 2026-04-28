@@ -135,6 +135,10 @@ class AnalysisPipeline:
 
         filler = GapFiller()
         filled, _report = filler.fill_gaps(poses, valid)
+
+        # 4b. Interpolate low-confidence keypoints (feet often unreliable on ice)
+        filled = GapFiller.interpolate_low_confidence(filled, threshold=0.3)
+
         self._profiler.record("gap_filling", time.perf_counter() - t0)
 
         # 5. Spatial reference / camera compensation
@@ -172,12 +176,10 @@ class AnalysisPipeline:
                 cap.release()
 
             if camera_pose.confidence > 0.1:
-                # Convert to pixels, compensate, convert back
-                poses_px = filled[:, :, :2] * np.array([meta.width, meta.height])
-                poses_with_conf = np.dstack([poses_px, filled[:, :, 2]])
-                compensated_px = spatial_detector.compensate_poses(poses_with_conf, camera_pose)
-                compensated = compensated_px[:, :, :2] / np.array([meta.width, meta.height])
-                compensated = np.dstack([compensated, compensated_px[:, :, 2:3]])
+                from .detection.spatial_reference import compensate_poses_per_frame
+
+                camera_poses = [(0, camera_pose)]
+                compensated = compensate_poses_per_frame(filled, camera_poses)
             else:
                 compensated = filled
         self._profiler.record("spatial_reference", time.perf_counter() - t0)
@@ -230,9 +232,20 @@ class AnalysisPipeline:
 
         # Stage 3.5: Smooth poses (temporal filtering)
         t0 = time.perf_counter()
+        pre_phases: ElementPhase | None = None
         if self._enable_smoothing:
             if manual_phases is not None:
                 boundaries = [manual_phases.takeoff, manual_phases.peak, manual_phases.landing]
+                boundaries = [b for b in boundaries if b > 0]
+                smoothed = self._get_smoother(meta.fps).smooth_phase_aware(normalized, boundaries)
+            # Pre-detect phases for phase-aware smoothing on jumps
+            # (preserves snapshot angles by resetting filter at boundaries)
+            elif element_type is not None and element_defs.is_jump(element_type):
+                pre_result = self._get_phase_detector().detect_phases(
+                    normalized, meta.fps, element_type
+                )
+                pre_phases = pre_result.phases
+                boundaries = [pre_phases.takeoff, pre_phases.peak, pre_phases.landing]
                 boundaries = [b for b in boundaries if b > 0]
                 smoothed = self._get_smoother(meta.fps).smooth_phase_aware(normalized, boundaries)
             else:
@@ -286,6 +299,9 @@ class AnalysisPipeline:
             t0 = time.perf_counter()
             if manual_phases is not None:
                 phases = manual_phases
+            elif pre_phases is not None:
+                # Use pre-detected phases from normalized (smoothed can distort CoM)
+                phases = pre_phases
             else:
                 phase_result = self._get_phase_detector().detect_phases(
                     smoothed, meta.fps, element_type
@@ -660,6 +676,16 @@ class AnalysisPipeline:
         if self._enable_smoothing:
             if manual_phases is not None:
                 boundaries = [manual_phases.takeoff, manual_phases.peak, manual_phases.landing]
+                boundaries = [b for b in boundaries if b > 0]
+                smoothed = self._get_smoother(meta.fps).smooth_phase_aware(normalized, boundaries)
+            # Pre-detect phases for phase-aware smoothing on jumps
+            # (preserves snapshot angles by resetting filter at boundaries)
+            elif element_type is not None and element_defs.is_jump(element_type):
+                pre_result = self._get_phase_detector().detect_phases(
+                    normalized, meta.fps, element_type
+                )
+                pre_phases = pre_result.phases
+                boundaries = [pre_phases.takeoff, pre_phases.peak, pre_phases.landing]
                 boundaries = [b for b in boundaries if b > 0]
                 smoothed = self._get_smoother(meta.fps).smooth_phase_aware(normalized, boundaries)
             else:

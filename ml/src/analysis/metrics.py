@@ -82,7 +82,7 @@ def _compute_trunk_lean_series_numba(poses: np.ndarray) -> np.ndarray:
     # H36Key indices (hardcoded for Numba compatibility)
     # LHIP=4, RHIP=8, LSHOULDER=11, RSHOULDER=14
     l_hip = 4
-    r_hip = 8
+    r_hip = 1
     l_shoulder = 11
     r_shoulder = 14
 
@@ -276,6 +276,30 @@ class BiomechanicsAnalyzer:
             MetricResult(
                 name="landing_smoothness",
                 value=landing_smooth,
+                unit="score",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
+        # Hard landing detection (CoM vertical velocity at impact)
+        hard_landing = self.compute_hard_landing(poses, phases, fps)
+        results.append(
+            MetricResult(
+                name="hard_landing",
+                value=hard_landing,
+                unit="score",
+                is_good=False,
+                reference_range=(0, 0),
+            )
+        )
+
+        # Toe assist proxy (clean edge detection)
+        toe_assist = self.compute_toe_assist_proxy(poses, phases, fps)
+        results.append(
+            MetricResult(
+                name="toe_assist_proxy",
+                value=toe_assist,
                 unit="score",
                 is_good=False,
                 reference_range=(0, 0),
@@ -541,6 +565,9 @@ class BiomechanicsAnalyzer:
     def compute_landing_quality(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute landing knee angle.
 
+        Uses the more-bent knee (landing leg) since the free leg
+        is typically extended during landing.
+
         Args:
             poses: NormalizedPose (num_frames, 17, 2).
             phases: Element phase boundaries.
@@ -548,14 +575,19 @@ class BiomechanicsAnalyzer:
         Returns:
             Knee angle in degrees at landing frame.
         """
-        # Use left knee angle at landing frame
         landing_frame = min(phases.landing, len(poses) - 1)
 
-        hip = poses[landing_frame, H36Key.LHIP]
-        knee = poses[landing_frame, H36Key.LKNEE]
-        foot = poses[landing_frame, H36Key.LFOOT]
+        left_hip = poses[landing_frame, H36Key.LHIP]
+        left_knee = poses[landing_frame, H36Key.LKNEE]
+        left_foot = poses[landing_frame, H36Key.LFOOT]
+        left_angle = angle_3pt(left_hip, left_knee, left_foot)
 
-        return angle_3pt(hip, knee, foot)
+        right_hip = poses[landing_frame, H36Key.RHIP]
+        right_knee = poses[landing_frame, H36Key.RKNEE]
+        right_foot = poses[landing_frame, H36Key.RFOOT]
+        right_angle = angle_3pt(right_hip, right_knee, right_foot)
+
+        return min(left_angle, right_angle)
 
     def compute_landing_knee_stability(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute post-landing knee stability score.
@@ -706,6 +738,87 @@ class BiomechanicsAnalyzer:
         # 0.2 norm/s std threshold for "unstable"
         smoothness = max(0.0, 1.0 - std_velocity / 0.2)
         return float(smoothness)
+
+    def compute_hard_landing(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        fps: float,
+    ) -> float:
+        """Detect hard landing via CoM vertical velocity at impact.
+
+        Hard landing = excessive downward velocity at landing frame.
+        Uses backward difference on CoM Y trajectory.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+            fps: Frame rate.
+
+        Returns:
+            Score in [0.0, 1.0] where 1.0 = soft landing, 0.0 = very hard.
+        """
+        if phases.landing <= 0 or phases.landing >= len(poses):
+            return 1.0
+
+        com_trajectory = calculate_com_trajectory(poses)
+
+        # CoM vertical velocity at landing (backward difference)
+        # In normalized coords Y increases downward, so positive vy = downward motion
+        vy_y = (com_trajectory[phases.landing] - com_trajectory[phases.landing - 1]) * fps
+
+        # Threshold: 2.0 norm/s downward = hard landing
+        # 0.0 = soft
+        score = max(0.0, min(1.0, 1.0 - vy_y / 2.0))
+        return float(score)
+
+    def compute_toe_assist_proxy(
+        self,
+        poses: NormalizedPose,
+        phases: ElementPhase,
+        fps: float,
+    ) -> float:
+        """Detect toe assist vs clean edge landing via CoM velocity spike.
+
+        Toe assist = sudden impact spike at landing (high deceleration).
+        Clean edge = smooth deceleration over multiple frames.
+
+        Args:
+            poses: NormalizedPose (num_frames, 17, 2).
+            phases: Element phase boundaries.
+            fps: Frame rate.
+
+        Returns:
+            Score in [0.0, 1.0] where 1.0 = clean edge, 0.0 = toe assist.
+        """
+        if phases.landing <= 0 or phases.landing >= len(poses) - 1:
+            return 1.0  # Cannot assess
+
+        com_trajectory = calculate_com_trajectory(poses)
+
+        # Compute vertical velocity (Y increases downward, so negative = upward)
+        vy_y = -(com_trajectory[1:] - com_trajectory[:-1]) * fps
+
+        # Look at landing frame and 2 frames after
+        landing_idx = phases.landing
+        post_end = min(landing_idx + 3, len(vy_y))
+
+        if post_end <= landing_idx:
+            return 1.0
+
+        # Compute acceleration (change in vy)
+        start_idx = max(0, landing_idx - 1)
+        ay = np.diff(vy_y[start_idx:post_end])
+        if len(ay) == 0:
+            return 1.0
+
+        # Peak deceleration (most negative = hardest impact)
+        peak_decel = np.min(ay)
+
+        # Threshold: -5.0 norm/s^2 = toe assist territory
+        # 0.0 = gentle deceleration
+        score = max(0.0, min(1.0, 1.0 + peak_decel / 5.0))
+        return float(score)
 
     def compute_approach_torso_lean(self, poses: NormalizedPose, phases: ElementPhase) -> float:
         """Compute average torso lean during the approach phase.
@@ -1017,7 +1130,9 @@ class BiomechanicsAnalyzer:
 
         landing_smooth = self.compute_landing_smoothness(poses, phases, fps)
         landing_stab = self.compute_landing_knee_stability(poses, phases)
-        landing_score = (landing_smooth + landing_stab) / 2.0
+        hard_landing = self.compute_hard_landing(poses, phases, fps)
+        toe_assist = self.compute_toe_assist_proxy(poses, phases, fps)
+        landing_score = (landing_smooth + landing_stab + hard_landing + toe_assist) / 4.0
 
         airtime = self.compute_airtime(phases, fps)
         airtime_score = min(1.0, airtime / 1.0)
