@@ -1,9 +1,0 @@
-[extend]
-useDefault = true
-
-[allowlist]
-paths = [
-    # False positives from deleted src/ paths in git history
-    '''src/pose_estimation/rtmlib_extractor\.py''',
-    '''src/skeletons\.py''',
-]
